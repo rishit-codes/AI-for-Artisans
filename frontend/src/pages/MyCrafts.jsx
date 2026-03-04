@@ -1,5 +1,7 @@
 import { Link, useLocation } from "react-router-dom";
 import { useState } from "react";
+import { motion } from "framer-motion";
+import DashboardLayout from "../components/DashboardLayout";
 import "./MyCrafts.css";
 
 // ── Icons ──────────────────────────────────────────────────────────────────────
@@ -12,7 +14,7 @@ const LogoLeaf = () => (
     </svg>
 );
 
-const HomeHubIcon = () => (
+const HomeIcon = () => (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
         <path d="M3 12L12 4l9 8v8a1 1 0 01-1 1h-5v-5H9v5H4a1 1 0 01-1-1v-8z" stroke="currentColor" strokeWidth="2" fill="none" strokeLinejoin="round" />
     </svg>
@@ -71,7 +73,7 @@ const ChevronDownIcon = () => (
 // ── Nav items ──────────────────────────────────────────────────────────────────
 
 const navItems = [
-    { href: "/home", label: "Home", Icon: HomeHubIcon },
+    { href: "/home", label: "Home", Icon: HomeIcon },
     { href: "/trends", label: "Trends", Icon: TrendIcon },
     { href: "/constraints", label: "Material Costs", Icon: MaterialIcon },
     { href: "/my-crafts", label: "My Crafts", Icon: CraftsIcon },
@@ -150,50 +152,8 @@ export default function MyCraftsPage() {
     );
 
     return (
-        <div className="mycrafts-layout">
-            {/* ══ LEFT SIDEBAR ══ */}
-            <aside className="mycrafts-sidebar">
-                {/* Logo */}
-                <div className="sidebar-logo">
-                    <img src="/images/logo.png" alt="ArtisanGPS Logo" className="logo-img" style={{ height: '36px', width: 'auto' }} />
-                </div>
-
-                {/* Nav */}
-                <nav className="sidebar-nav">
-                    {navItems.map(({ href, label, Icon }) => {
-                        const active = pathname === href;
-                        return (
-                            <Link
-                                key={href}
-                                to={href}
-                                className={`sidebar-link ${active ? "active" : ""}`}
-                            >
-                                <Icon />
-                                {label}
-                            </Link>
-                        );
-                    })}
-                </nav>
-            </aside>
-
-            {/* ══ MAIN CONTENT ══ */}
-            <main className="mycrafts-main">
-                <header className="mycrafts-topbar">
-                    <div className="search-box">
-                        <input
-                            type="text"
-                            placeholder="Search crafts..."
-                            className="topbar-search"
-                        />
-                        <svg className="search-icon-top" viewBox="0 0 24 24" fill="none">
-                            <circle cx="11" cy="11" r="8" stroke="currentColor" strokeWidth="2" />
-                            <path d="M21 21l-4.35-4.35" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                        </svg>
-                    </div>
-                    <div className="profile-img-box">
-                        <img src="/images/artisan_wide.png" alt="Profile" className="profile-img" />
-                    </div>
-                </header>
+        <DashboardLayout>
+            <div className="mycrafts-content-wrapper">
 
                 <div className="mycrafts-body">
                     {/* Page Header */}
@@ -217,7 +177,13 @@ export default function MyCraftsPage() {
                     </div>
 
                     {/* Filter Bar */}
-                    <div className="filter-controls">
+                    <motion.div 
+                        className="filter-controls"
+                        initial={{ opacity: 0, y: 20 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: false, amount: 0.1 }}
+                        transition={{ duration: 0.8, delay: 0.3 }}
+                    >
                         {/* Search */}
                         <div className="filter-search">
                             <div className="filter-search-icon">
@@ -252,22 +218,28 @@ export default function MyCraftsPage() {
                         <button className="btn-filter-icon">
                             <FilterIcon />
                         </button>
-                    </div>
+                    </motion.div>
 
                     {/* Product Grid */}
-                    <div className="product-grid">
+                    <motion.div 
+                        className="product-grid"
+                        initial={{ opacity: 0, y: 20 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: false, amount: 0.1 }}
+                        transition={{ duration: 0.8, delay: 0.4 }}
+                    >
                         {filtered.map((product) => (
                             <ProductCard key={product.id} product={product} />
                         ))}
-                    </div>
+                    </motion.div>
 
                     {filtered.length === 0 && (
                         <div className="empty-state">
                             <p className="empty-state-text">No crafts found for "{search}"</p>
                         </div>
                     )}
-                </div>
-            </main>
+            </div>
         </div>
+    </DashboardLayout>
     );
 }

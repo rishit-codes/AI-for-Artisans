@@ -7,69 +7,7 @@
   font-family: 'Inter', 'Poppins', sans-serif;
 }
 
-/* SIDEBAR */
-.mycrafts-sidebar {
-  width: 240px;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  background-color: white;
-  padding: 1.5rem 0;
-  border-right: 1px solid #e5e7eb;
-}
-
-.sidebar-logo {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0 1.5rem;
-  margin-bottom: 4rem;
-}
-
-.sidebar-logo-title {
-  font-size: 16px;
-  font-weight: 700;
-  color: #1a1a1a;
-  line-height: 1;
-  margin: 0;
-}
-
-.sidebar-logo-subtitle {
-  font-size: 11px;
-  color: #9ca3af;
-  margin: 2px 0 0 0;
-}
-
-.sidebar-nav {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: 0.25rem;
-  padding: 0 0.75rem;
-}
-
-.sidebar-link {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.625rem 0.75rem;
-  border-radius: 0.5rem;
-  font-size: 14px;
-  font-weight: 500;
-  transition: all 0.2s;
-}
-
-.sidebar-link.active {
-  background-color: #E8F5EE;
-  color: #1A6B3C;
-}
-
-.sidebar-link:not(.active) {
-  color: #4b5563;
-}
-.sidebar-link:not(.active):hover {
-  background-color: #f9fafb;
-}
+/* Sidebar styles are now global in index.css */
 
 /* MAIN CONTENT */
 .mycrafts-main {
@@ -79,62 +17,9 @@
   overflow: hidden;
 }
 
-/* Header */
-.mycrafts-topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 1rem 2.5rem;
-  background-color: white;
-  border-bottom: 1px solid #e5e7eb;
-}
+/* Top Navbar styles are now global in index.css */
 
-.search-box {
-  position: relative;
-}
-
-.topbar-search {
-  width: 220px;
-  padding: 0.5rem 1rem 0.5rem 2.25rem;
-  font-size: 13px;
-  background-color: #f9fafb;
-  border: 1px solid #e5e7eb;
-  border-radius: 0.5rem;
-  outline: none;
-  transition: all 0.2s;
-}
-
-.topbar-search:focus {
-  border-color: #1A6B3C;
-  box-shadow: 0 0 0 2px rgba(26, 107, 60, 0.2);
-}
-
-.search-icon-top {
-  position: absolute;
-  left: 0.75rem;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 1rem;
-  height: 1rem;
-  color: #9ca3af;
-}
-
-.profile-img-box {
-  width: 2.25rem;
-  height: 2.25rem;
-  border-radius: 50%;
-  background-color: #d1d5db;
-  overflow: hidden;
-  position: relative;
-}
-
-.profile-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-/* Scrollable body */
+/* Main content body */
 .mycrafts-body {
   flex: 1;
   overflow-y: auto;

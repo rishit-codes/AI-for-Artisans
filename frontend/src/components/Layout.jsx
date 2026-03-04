@@ -1,16 +1,11 @@
-import { Outlet, useLocation } from "react-router-dom";
-import BottomNav from "./BottomNav";
+import { Outlet } from "react-router-dom";
 
 export default function Layout() {
-  const location = useLocation();
-  const isLandingPage = location.pathname === "/";
-
   return (
-    <div className={`app-container ${!isLandingPage ? "pb-nav" : ""}`}>
+    <div className="app-container">
       <main>
         <Outlet />
       </main>
-      {!isLandingPage && <BottomNav />}
     </div>
   );
 }

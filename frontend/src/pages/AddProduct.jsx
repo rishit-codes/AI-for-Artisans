@@ -1,5 +1,7 @@
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { useState } from "react";
+import { motion } from "framer-motion";
+import DashboardLayout from "../components/DashboardLayout";
 import "./AddProduct.css";
 
 // ── Icons ──────────────────────────────────────────────────────────────────────
@@ -66,6 +68,41 @@ const ChevronDownIcon = () => (
     </svg>
 );
 
+const HomeIcon = () => (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+        <path d="M3 12L12 4l9 8v8a1 1 0 01-1 1h-5v-5H9v5H4a1 1 0 01-1-1v-8z" stroke="currentColor" strokeWidth="2" fill="none" strokeLinejoin="round" />
+    </svg>
+);
+
+const TrendIcon = () => (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+        <path d="M3 17l5-5 4 4 6-7 3 3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+);
+
+const MaterialIcon = () => (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+        <rect x="2" y="7" width="20" height="14" rx="2" stroke="currentColor" strokeWidth="2" />
+        <path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2" stroke="currentColor" strokeWidth="2" />
+    </svg>
+);
+
+const CraftsIcon = () => (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+        <rect x="3" y="3" width="7" height="7" rx="1" stroke="currentColor" strokeWidth="2" />
+        <rect x="14" y="3" width="7" height="7" rx="1" stroke="currentColor" strokeWidth="2" />
+        <rect x="3" y="14" width="7" height="7" rx="1" stroke="currentColor" strokeWidth="2" />
+        <rect x="14" y="14" width="7" height="7" rx="1" stroke="currentColor" strokeWidth="2" />
+    </svg>
+);
+
+const navItems = [
+    { href: "/home", label: "Home", Icon: HomeIcon },
+    { href: "/trends", label: "Trends", Icon: TrendIcon },
+    { href: "/constraints", label: "Material Costs", Icon: MaterialIcon },
+    { href: "/my-crafts", label: "My Crafts", Icon: CraftsIcon },
+];
+
 // ── Trend bar chart (30-day) ───────────────────────────────────────────────────
 const barHeights = [30, 35, 28, 40, 45, 38, 50, 55, 48, 62, 70, 80];
 
@@ -111,6 +148,7 @@ function Toggle({ on, onToggle }) {
 
 // ── Page component ─────────────────────────────────────────────────────────────
 export default function AddProductPage() {
+    const { pathname } = useLocation();
     const [bgRemoval, setBgRemoval] = useState(true);
     const [keywords, setKeywords] = useState("");
     const [price, setPrice] = useState("1250");
@@ -118,46 +156,42 @@ export default function AddProductPage() {
     const [category, setCategory] = useState("Textiles");
     const [generated, setGenerated] = useState(true); // show sample output by default
 
+    const saveButton = (
+        <button className="btn-upload" style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            padding: '0.5rem 1rem',
+            borderRadius: '0.5rem',
+            backgroundColor: '#1A6B3C',
+            color: 'white',
+            fontSize: '13px',
+            fontWeight: '600',
+            border: 'none',
+            cursor: 'pointer'
+        }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" />
+            </svg>
+            Save Product
+        </button>
+    );
+
     return (
-        <div className="add-product-layout">
-
-            {/* ══ TOP NAVBAR ══ */}
-            <header className="ap-topbar">
-                <Link to="/" className="topbar-logo-link">
-                    <img src="/images/logo.png" alt="ArtisanGPS Logo" className="logo-img" style={{ height: '32px', width: 'auto' }} />
-                </Link>
-
-                <nav className="topbar-nav">
-                    {[
-                        { label: "Home", href: "/home" },
-                        { label: "Trends", href: "/trends" },
-                        { label: "My Crafts", href: "/my-crafts" },
-                        { label: "Profile", href: "#" },
-                    ].map((item) => (
-                        <Link key={item.label} to={item.href} className="topbar-nav-link">
-                            {item.label}
-                        </Link>
-                    ))}
-                </nav>
-
-                <div className="topbar-actions">
-                    <button className="btn-upload">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
-                            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" />
-                        </svg>
-                        Upload New
-                    </button>
-                    <div className="topbar-profile">
-                        <img src="/images/artisan_wide.png" alt="Profile" className="profile-img" />
-                    </div>
-                </div>
-            </header>
-
-            {/* ══ BODY ══ */}
-            <div className="ap-main-container">
+        <DashboardLayout headerActions={saveButton}>
+            <div className="add-product-body">
+                <div className="ap-scroll-area">
+                    {/* ══ BODY ══ */}
+                    <div className="ap-main-container">
 
                 {/* Page Header */}
-                <div className="ap-header">
+                <motion.div 
+                    className="ap-header"
+                    initial={{ opacity: 0, y: -20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: false, amount: 0.1 }}
+                    transition={{ duration: 0.8, delay: 0.1 }}
+                >
                     <div>
                         <h1 className="ap-title">Add New Product</h1>
                         <p className="ap-subtitle">Let AI assist you in creating a professional listing for the global market.</p>
@@ -166,13 +200,19 @@ export default function AddProductPage() {
                         <SparkleIcon size={13} />
                         AI ASSISTANT ACTIVE
                     </div>
-                </div>
+                </motion.div>
 
                 {/* ── Two-column layout ── */}
                 <div className="ap-content-grid">
 
                     {/* ══ LEFT: IMAGE PANEL ══ */}
-                    <div className="ap-left-col">
+                    <motion.div 
+                        className="ap-left-col"
+                        initial={{ opacity: 0, x: -20 }}
+                        whileInView={{ opacity: 1, x: 0 }}
+                        viewport={{ once: false, amount: 0.1 }}
+                        transition={{ duration: 0.8, delay: 0.2 }}
+                    >
 
                         {/* Split preview card */}
                         <div className="image-preview-card">
@@ -238,10 +278,15 @@ export default function AddProductPage() {
                                 </div>
                             ))}
                         </div>
-                    </div>
+                    </motion.div>
 
                     {/* ══ RIGHT: DETAILS PANEL ══ */}
-                    <div className="ap-right-col">
+                    <motion.div 
+                        className="ap-right-col"
+                        initial={{ opacity: 0, x: 30 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ duration: 0.6, delay: 0.3 }}
+                    >
 
                         {/* Title + Material row */}
                         <div className="form-row-2">
@@ -428,12 +473,19 @@ export default function AddProductPage() {
                             </div>
                         </div>
 
-                    </div>
+                    </motion.div>
                 </div>
             </div>
+        </div>
 
             {/* ══ FOOTER ACTION BAR ══ */}
-            <div className="ap-footer">
+            <motion.div 
+                className="ap-footer"
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: false, amount: 0.1 }}
+                transition={{ duration: 0.8, delay: 0.4 }}
+            >
                 <button className="btn-save-draft">
                     Save Draft
                 </button>
@@ -441,8 +493,8 @@ export default function AddProductPage() {
                     Save & Publish
                     <RocketIcon />
                 </button>
+            </motion.div>
             </div>
-
-        </div>
+        </DashboardLayout>
     );
 }

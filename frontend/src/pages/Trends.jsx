@@ -1,16 +1,10 @@
-import { Link } from "react-router-dom";
 import { useState } from "react";
+import { Link, useLocation } from "react-router-dom";
+import { motion } from "framer-motion";
+import DashboardLayout from "../components/DashboardLayout";
 import "./Trends.css";
 
 // ── Icons ────────────────────────────────────────────────────────────────────
-
-const LogoIcon = () => (
-    <svg width="28" height="28" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M20 30 C20 30 8 26 8 14 C8 14 14 16 18 24" fill="#22c55e" />
-        <path d="M20 30 C20 30 32 26 32 14 C32 14 26 16 22 24" fill="#22c55e" />
-        <path d="M20 30 C20 30 14 18 20 8 C26 18 20 30 20 30Z" fill="#16a34a" />
-    </svg>
-);
 
 const HomeIcon = () => (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
@@ -32,10 +26,12 @@ const MaterialIcon = () => (
     </svg>
 );
 
-const OrdersIcon = () => (
+const CraftsIcon = () => (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-        <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="2" />
-        <path d="M8 8h8M8 12h8M8 16h5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        <rect x="3" y="3" width="7" height="7" rx="1" stroke="currentColor" strokeWidth="2" />
+        <rect x="14" y="3" width="7" height="7" rx="1" stroke="currentColor" strokeWidth="2" />
+        <rect x="3" y="14" width="7" height="7" rx="1" stroke="currentColor" strokeWidth="2" />
+        <rect x="14" y="14" width="7" height="7" rx="1" stroke="currentColor" strokeWidth="2" />
     </svg>
 );
 
@@ -68,86 +64,34 @@ const PlayIcon = () => (
 );
 
 const navItems = [
-    { href: "/home", label: "Home", Icon: HomeIcon, active: false },
-    { href: "/trends", label: "Trend Feed", Icon: TrendIcon, active: true },
-    { href: "/constraints", label: "Material Costs", Icon: MaterialIcon, active: false },
-    { href: "/guard", label: "My Orders", Icon: OrdersIcon, active: false },
+    { href: "/home", label: "Home", Icon: HomeIcon },
+    { href: "/trends", label: "Trends", Icon: TrendIcon },
+    { href: "/constraints", label: "Material Costs", Icon: MaterialIcon },
+    { href: "/my-crafts", label: "My Crafts", Icon: CraftsIcon },
 ];
 
 const trendTabs = ["All Trends", "Wedding Season", "Cotton", "Sustainable Dyes"];
 
 export default function TrendsPage() {
     const [activeTab, setActiveTab] = useState("All Trends");
+    const location = useLocation();
+    const pathname = location.pathname;
 
     return (
-        <div className="trends-layout">
-            {/* ══ TOP NAVBAR ══ */}
-            <header className="trends-topbar">
-                <div className="topbar-left">
-                    {/* Logo */}
-                    <Link to="/" className="topbar-logo">
-                        <img src="/images/logo.png" alt="ArtisanGPS Logo" className="logo-img" style={{ height: '32px', width: 'auto' }} />
-                    </Link>
+        <DashboardLayout>
+            <div className="trends-content-wrapper">
 
-                    {/* Navigation Tabs */}
-                    <nav className="topbar-nav">
-                        <Link to="/trends" className="nav-pill active-pill">Trends</Link>
-                        <Link to="/shop" className="nav-pill inactive-pill">My Shop</Link>
-                        <Link to="/constraints" className="nav-pill inactive-pill">Materials</Link>
-                        <Link to="/pricing" className="nav-pill inactive-pill">Pricing</Link>
-                    </nav>
-                </div>
-
-                {/* Right: Search + Profile */}
-                <div className="topbar-right">
-                    <div className="search-container">
-                        <svg className="search-icon" viewBox="0 0 24 24" fill="none">
-                            <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2" />
-                            <path d="M20 20l-3-3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                        </svg>
-                        <input
-                            type="text"
-                            placeholder="Search designs..."
-                            className="search-input"
-                        />
-                    </div>
-                    <div className="profile-wrapper">
-                        <div className="profile-img-box w-8 h-8 rounded-full overflow-hidden border border-gray-200 shadow-sm relative">
-                            <img src="/images/ramesh_kumar.png" alt="Profile" className="w-full h-full object-cover" />
-                        </div>
-                        <div className="online-indicator"></div>
-                    </div>
-                </div>
-            </header>
-
-            <div className="trends-body-wrapper">
-                {/* ══ LEFT SIDEBAR ══ */}
-                <aside className="trends-sidebar">
-                    <nav className="sidebar-nav">
-                        {navItems.map(({ href, label, Icon, active }) => (
-                            <Link
-                                key={href}
-                                to={href}
-                                className={`sidebar-link ${active ? "active" : ""}`}
-                            >
-                                <div className="sidebar-link-left">
-                                    <Icon />
-                                    {label}
-                                </div>
-                                {label === "My Orders" && (
-                                    <span className="badge-count">3</span>
-                                )}
-                            </Link>
-                        ))}
-                    </nav>
-                </aside>
-
-                {/* ══ MAIN CONTENT ══ */}
-                <main className="trends-main">
+                <div className="trends-body-wrapper">
                     <div className="trends-content">
 
                         {/* ══ TREND FEED ══ */}
-                        <div className="feed-column">
+                        <motion.div 
+                            className="feed-column"
+                            initial={{ opacity: 0, y: 20 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            viewport={{ once: false, amount: 0.1 }}
+                            transition={{ duration: 0.8, delay: 0.1 }}
+                        >
 
                             {/* Filter Tabs Bar */}
                             <div className="filter-bar">
@@ -330,10 +274,16 @@ export default function TrendsPage() {
                                 </div>
                             </div>
 
-                        </div>
+                        </motion.div>
 
                         {/* ══ RIGHT SIDEBAR - Market Intelligence ══ */}
-                        <aside className="intelligence-column">
+                        <motion.aside 
+                            className="intelligence-column"
+                            initial={{ opacity: 0, x: -20 }}
+                            whileInView={{ opacity: 1, x: 0 }}
+                            viewport={{ once: false, amount: 0.1 }}
+                            transition={{ duration: 0.8, delay: 0.2 }}
+                        >
 
                             {/* Market Intelligence Header */}
                             <div className="intel-header">
@@ -437,11 +387,10 @@ export default function TrendsPage() {
                                 </div>
                             </div>
 
-                        </aside>
-
+                        </motion.aside>
                     </div>
-                </main>
+                </div>
             </div>
-        </div>
+        </DashboardLayout>
     );
 }

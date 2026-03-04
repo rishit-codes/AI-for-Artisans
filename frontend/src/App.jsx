@@ -9,12 +9,15 @@ import MyCrafts from "./pages/MyCrafts";
 import ProductionAdvisor from "./pages/ProductionAdvisor";
 import Trends from "./pages/Trends";
 
+import DashboardLayout from "./components/DashboardLayout";
+
 function App() {
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Layout />}>
           <Route index element={<Landing />} />
+          
           <Route path="home" element={<Home />} />
           <Route path="add-product" element={<AddProduct />} />
           <Route path="constraints" element={<Constraints />} />

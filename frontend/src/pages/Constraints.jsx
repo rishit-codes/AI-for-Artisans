@@ -1,5 +1,7 @@
-import { Link, useLocation } from "react-router-dom";
 import { useState } from "react";
+import { Link, useLocation } from "react-router-dom";
+import { motion } from "framer-motion";
+import DashboardLayout from "../components/DashboardLayout";
 import "./Constraints.css";
 
 // ── Icons ──────────────────────────────────────────────────────────────────────
@@ -49,7 +51,7 @@ const CartIcon = () => (
 
 const navItems = [
     { href: "/home", label: "Home", Icon: HomeIcon },
-    { href: "/trends", label: "Trend Feed", Icon: TrendIcon },
+    { href: "/trends", label: "Trends", Icon: TrendIcon },
     { href: "/constraints", label: "Material Costs", Icon: MaterialIcon },
     { href: "/my-crafts", label: "My Crafts", Icon: CraftsIcon },
 ];
@@ -203,65 +205,20 @@ export default function MaterialCostsPage() {
     const [activeTab, setActiveTab] = useState("Textiles");
 
     return (
-        <div className="constraints-layout">
-            {/* ══ LEFT SIDEBAR ══ */}
-            <aside className="constraints-sidebar">
-                {/* Logo */}
-                <div className="sidebar-logo">
-                    <img src="/images/logo.png" alt="ArtisanGPS Logo" className="logo-img" style={{ height: '36px', width: 'auto' }} />
-                </div>
-
-                {/* Nav */}
-                <nav className="sidebar-nav">
-                    {navItems.map(({ href, label, Icon }) => {
-                        const active = pathname === href;
-                        return (
-                            <Link
-                                key={href}
-                                to={href}
-                                className={`sidebar-link ${active ? "active" : ""}`}
-                            >
-                                <Icon />
-                                {label}
-                            </Link>
-                        );
-                    })}
-                </nav>
-            </aside>
-
-            {/* ══ MAIN CONTENT ══ */}
-            <main className="constraints-main">
-                {/* Top Navbar */}
-                <header className="constraints-topbar">
-                    <nav className="topbar-nav-links">
-                        <Link to="/trends" className="nav-link">Trends</Link>
-                        <Link to="/production-advisor" className="nav-link">Production</Link>
-                        <Link to="/constraints" className="nav-link active-link">Materials</Link>
-                        <Link to="/pricing" className="nav-link">Pricing</Link>
-                    </nav>
-                    <div className="topbar-right">
-                        <div className="search-box">
-                            <input
-                                type="text"
-                                placeholder="Search materials..."
-                                className="search-input"
-                            />
-                            <svg className="search-icon" viewBox="0 0 24 24" fill="none">
-                                <circle cx="11" cy="11" r="8" stroke="currentColor" strokeWidth="2" />
-                                <path d="M21 21l-4.35-4.35" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                            </svg>
-                        </div>
-                        <div className="profile-img-box">
-                            <img src="/images/artisan_wide.png" alt="Profile" className="profile-img" />
-                        </div>
-                    </div>
-                </header>
+        <DashboardLayout>
+            <div className="constraints-content-wrapper">
 
                 {/* Scrollable Content */}
                 <div className="constraints-body">
 
                     {/* ── Page Header ── */}
-                    <div className="page-header">
+                    <motion.div 
+                        className="page-header"
+                        initial={{ opacity: 0, y: -20 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: false, amount: 0.1 }}
+                        transition={{ duration: 0.8, delay: 0.1 }}
+                    >
                         <div>
                             <h1 className="page-title">Material Costs & Alerts</h1>
                             <p className="page-subtitle">Live tracking and AI predictions for your key commodities.</p>
@@ -277,10 +234,16 @@ export default function MaterialCostsPage() {
                                 </svg>
                             </button>
                         </div>
-                    </div>
+                    </motion.div>
 
                     {/* ── AI Prediction Banner ── */}
-                    <div className="ai-banner">
+                    <motion.div 
+                        className="ai-banner"
+                        initial={{ opacity: 0, y: 20 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: false, amount: 0.1 }}
+                        transition={{ duration: 0.8, delay: 0.2 }}
+                    >
                         {/* Sparkle icon */}
                         <div className="sparkle-icon-box">
                             <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
@@ -299,10 +262,16 @@ export default function MaterialCostsPage() {
                             <CartIcon />
                             Find Suppliers
                         </button>
-                    </div>
+                    </motion.div>
 
                     {/* ── Price Cards Grid ── */}
-                    <div className="cards-grid">
+                    <motion.div 
+                        className="cards-grid"
+                        initial={{ opacity: 0, y: 20 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: false, amount: 0.1 }}
+                        transition={{ duration: 0.8, delay: 0.3 }}
+                    >
                         {commodities.map((item) => {
                             const isUp = item.trend === "up";
                             const isDown = item.trend === "down";
@@ -336,10 +305,16 @@ export default function MaterialCostsPage() {
                                 </div>
                             );
                         })}
-                    </div>
+                    </motion.div>
 
                     {/* ── Local Mandi Comparison ── */}
-                    <div className="mandi-comparison-box">
+                    <motion.div 
+                        className="mandi-comparison-box"
+                        initial={{ opacity: 0, y: 20 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: false, amount: 0.1 }}
+                        transition={{ duration: 0.8, delay: 0.4 }}
+                    >
                         {/* Header */}
                         <div className="mandi-header">
                             <div>
@@ -406,12 +381,12 @@ export default function MaterialCostsPage() {
                                 </tbody>
                             </table>
                         </div>
-                    </div>
+                    </motion.div>
 
                     {/* Bottom padding */}
                     <div style={{ height: "1rem" }} />
                 </div>
-            </main>
-        </div>
+            </div>
+        </DashboardLayout>
     );
 }

@@ -59,6 +59,55 @@
   letter-spacing: -0.025em; /* tracking-tight */
 }
 
+/* ── MOBILE MENU TOGGLE ── */
+.mobile-menu-toggle {
+  display: none;
+  background: none;
+  border: none;
+  padding: 10px;
+  cursor: pointer;
+  z-index: 1001;
+}
+
+.hamburger {
+  width: 24px;
+  height: 18px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.hamburger span {
+  display: block;
+  width: 100%;
+  height: 2px;
+  background-color: white;
+  border-radius: 2px;
+  transition: all 0.3s ease-in-out;
+}
+
+.hamburger.open span:nth-child(1) {
+  transform: translateY(8px) rotate(45deg);
+}
+
+.hamburger.open span:nth-child(2) {
+  opacity: 0;
+}
+
+.hamburger.open span:nth-child(3) {
+  transform: translateY(-8px) rotate(-45deg);
+}
+
+@media (max-width: 768px) {
+  .mobile-menu-toggle {
+    display: block;
+  }
+  .desktop-only {
+    display: none !important;
+  }
+}
+
 .hero-nav {
   display: flex;
   align-items: center;
@@ -77,17 +126,19 @@
 }
 
 .hero-cta-btn {
-  background-color: #C0392B;
+  background-color: #F5A623;
   color: white;
   padding: 0.5rem 1.25rem; /* px-5 py-2 */
   border-radius: 9999px; /* rounded-full */
   font-weight: 600;
   font-size: 13px;
-  transition: background-color 0.15s ease-in-out;
+  transition: all 0.2s ease-in-out;
 }
 
 .hero-cta-btn:hover {
-  background-color: #a93226;
+  background-color: #e09518;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(245, 166, 35, 0.3);
 }
 
 .hero-text-container {
@@ -116,6 +167,7 @@
   font-size: clamp(2.4rem, 4vw, 3.4rem);
   line-height: 1.12;
   letter-spacing: -0.5px;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.3);
 }
 
 .hero-subtext {
@@ -160,6 +212,50 @@
   background-color: rgba(255, 255, 255, 0.1);
 }
 
+/* ── MOBILE MENU OVERLAY ── */
+.mobile-menu-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100vh;
+  background-color: #5D1212; /* Rich dark red for brand feel */
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+}
+
+.mobile-nav-links {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2rem;
+}
+
+.mobile-nav-links a {
+  font-size: 24px;
+  font-weight: 700;
+  color: white;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.mobile-nav-links a:hover {
+  color: #F5A623;
+}
+
+.mobile-cta-btn {
+  background-color: #F5A623;
+  color: white;
+  padding: 1rem 2.5rem;
+  border-radius: 9999px;
+  font-size: 18px;
+  font-weight: 700;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+}
+
 /* ── FEATURES SECTION ── */
 .features-section {
   background-color: #ffffff;
@@ -200,6 +296,13 @@
   padding: 40px 36px;
   box-shadow: 0 2px 20px rgba(0,0,0,0.07);
   border: 1px solid #f0f0f0;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.feature-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 12px 30px rgba(0,0,0,0.12);
+  border-color: rgba(245, 166, 35, 0.3);
 }
 
 .feature-icon-wrapper {
@@ -375,10 +478,24 @@
 .cta-banner-box {
   max-width: 740px;
   margin: 0 auto;
-  background-color: #8B1A1A;
+  background: linear-gradient(135deg, #8B1A1A 0%, #631212 100%);
   border-radius: 24px;
   padding: 60px 56px;
   text-align: center;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 20px 40px rgba(139, 26, 26, 0.2);
+}
+
+.cta-banner-box::before {
+  content: "";
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(255,255,255,0.05) 0%, transparent 70%);
+  pointer-events: none;
 }
 
 .cta-banner-box h2 {
@@ -423,6 +540,7 @@
 }
 
 /* ── FOOTER ── */
+
 .footer-section {
   background-color: #ffffff;
   border-top: 1px solid #f0f0f0;
@@ -516,18 +634,23 @@
   margin-bottom: 24px;
 }
 
-.partner-bars {
+.partner-logos {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 32px;
+  gap: 40px;
+  flex-wrap: wrap;
 }
 
-.partner-bar {
-  height: 28px;
-  background-color: #e5e7eb;
-  border-radius: 6px;
-  opacity: 0.6;
+.partner-logo-item {
+  opacity: 0.5;
+  filter: grayscale(1);
+  transition: all 0.3s ease;
+}
+
+.partner-logo-item:hover {
+  opacity: 1;
+  filter: grayscale(0);
 }
 
 .footer-copyright {

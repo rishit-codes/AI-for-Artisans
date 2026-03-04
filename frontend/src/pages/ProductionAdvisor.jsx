@@ -1,4 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
+import { motion } from "framer-motion";
+import DashboardLayout from "../components/DashboardLayout";
 import "./ProductionAdvisor.css";
 
 // ── Icons ──────────────────────────────────────────────────────────────────────
@@ -161,7 +163,13 @@ function TaskCard({ item }) {
     } = item;
 
     return (
-        <div className="task-card-container">
+        <motion.div 
+            className="task-card-container"
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: false, amount: 0.1, margin: "-50px" }}
+            transition={{ duration: 0.8 }}
+        >
             {/* Timeline node */}
             <div className="timeline-node-col">
                 <div className={`timeline-node ${nodeColor}`}>
@@ -254,7 +262,7 @@ function TaskCard({ item }) {
                     )}
                 </div>
             </div>
-        </div>
+        </motion.div>
     );
 }
 
@@ -263,71 +271,18 @@ export default function ProductionAdvisorPage() {
     const pathname = location.pathname;
 
     return (
-        <div className="production-layout">
-
-            {/* ══ LEFT SIDEBAR ══ */}
-            <aside className="production-sidebar">
-                {/* Logo */}
-                <div className="sidebar-logo">
-                    <img src="/images/logo.png" alt="ArtisanGPS Logo" className="logo-img" style={{ height: '36px', width: 'auto' }} />
-                </div>
-
-                {/* Nav */}
-                <nav className="sidebar-nav">
-                    {navItems.map(({ href, label, Icon }) => {
-                        const active = pathname === href;
-                        return (
-                            <Link
-                                key={href}
-                                to={href}
-                                className={`sidebar-link ${active ? "active" : ""}`}
-                            >
-                                <Icon />
-                                {label}
-                            </Link>
-                        );
-                    })}
-                </nav>
-            </aside>
-
-            {/* ══ MAIN CONTENT ══ */}
-            <main className="production-main">
-
-                {/* Top Navbar */}
-                <header className="production-topbar">
-                    <nav className="topbar-nav-links">
-                        <Link to="/trends" className="nav-link">Trends</Link>
-                        <Link to="/production-advisor" className="nav-link active-link">Production</Link>
-                        <Link to="/constraints" className="nav-link">Materials</Link>
-                        <Link to="/pricing" className="nav-link">Pricing</Link>
-                    </nav>
-
-                    {/* Right: Search + Profile */}
-                    <div className="topbar-right">
-                        <div className="search-box">
-                            <input
-                                type="text"
-                                placeholder="Search tasks..."
-                                className="search-input"
-                            />
-                            <svg className="search-icon" viewBox="0 0 24 24" fill="none">
-                                <circle cx="11" cy="11" r="8" stroke="currentColor" strokeWidth="2" />
-                                <path d="M21 21l-4.35-4.35" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                            </svg>
-                        </div>
-                        <div className="profile-img-box">
-                            <img
-                                src="/images/ramesh_kumar.png"
-                                alt="Profile"
-                                className="profile-img"
-                            />
-                        </div>
-                    </div>
-                </header>
+        <DashboardLayout>
+            <div className="production-content-wrapper">
 
                 {/* Scrollable Content */}
                 <div className="production-body">
-                    <div className="production-feed-container">
+                    <motion.div 
+                        className="production-feed-container"
+                        initial={{ opacity: 0, scale: 0.98 }}
+                        whileInView={{ opacity: 1, scale: 1 }}
+                        viewport={{ once: false, amount: 0.1 }}
+                        transition={{ duration: 0.8, delay: 0.2 }}
+                    >
                         <div className="feed-wrapper">
                             {/* Header */}
                             <div className="feed-header">
@@ -371,10 +326,9 @@ export default function ProductionAdvisorPage() {
                                 </div>
                             </div>
                         </div>
-                    </div>
-                </div>
-
-            </main>
+                    </motion.div>
+            </div>
         </div>
+    </DashboardLayout>
     );
 }

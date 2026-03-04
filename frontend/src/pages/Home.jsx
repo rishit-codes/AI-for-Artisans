@@ -1,4 +1,6 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
+import { motion } from "framer-motion";
+import DashboardLayout from "../components/DashboardLayout";
 import "./Home.css";
 
 // ── Icons ────────────────────────────────────────────────────────────────────
@@ -96,271 +98,230 @@ const navItems = [
 ];
 
 export default function HomePage() {
+    const navigate = useNavigate();
+    const location = useLocation();
+    const pathname = location.pathname;
     return (
-        <div className="home-layout">
-
-            {/* ══ LEFT SIDEBAR ══ */}
-            <aside className="sidebar">
-                {/* Logo */}
-                <div className="sidebar-logo-container">
-                    <img src="/images/logo.png" alt="ArtisanGPS Logo" className="logo-img" style={{ height: '36px', width: 'auto' }} />
-                </div>
-
-                {/* Nav */}
-                <nav className="sidebar-nav">
-                    {navItems.map(({ href, label, Icon }) => {
-                        const active = href === "/home";
-                        return (
-                            <Link
-                                key={href}
-                                to={href}
-                                className={`sidebar-nav-link ${active ? "active" : ""}`}
-                            >
-                                <Icon />
-                                {label}
-                            </Link>
-                        );
-                    })}
-                </nav>
-
-                {/* Logout */}
-                <div className="sidebar-logout-container">
-                    <button className="btn-logout">
-                        <LogoutIcon />
-                        Logout
-                    </button>
-                </div>
-            </aside>
-
-            {/* ══ MAIN CONTENT ══ */}
-            <main className="main-content">
-
-                {/* Top Header Bar */}
-                <header className="top-header">
-                    <div className="top-header-right">
-                        {/* Market Status */}
-                        <div className="header-pill">
-                            <div className="status-dot green"></div>
-                            <span className="pill-text">MARKET: STRONG</span>
-                        </div>
-                        {/* Weather */}
-                        <div className="header-pill weather-pill">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="#F59E0B">
-                                <circle cx="12" cy="12" r="5" />
-                            </svg>
-                            <span className="weather-text">32°C</span>
-                        </div>
-                        {/* Profile Card */}
-                        <div className="header-profile">
-                            <div className="profile-img-wrapper">
-                                <img
-                                    src="/images/ramesh_kumar.png"
-                                    alt="Ramesh Kumar"
-                                    className="profile-img"
-                                />
-                            </div>
-                            <div className="profile-info">
-                                <p className="profile-name">Ramesh Kumar</p>
-                                <p className="profile-role">Master Weaver</p>
-                            </div>
-                        </div>
-                    </div>
-                </header>
-
+        <DashboardLayout>
+            <div className="home-content">
                 {/* Scrollable Body */}
                 <div className="dashboard-body">
 
-                    {/* ── Greeting ── */}
-                    <div className="greeting-section">
-                        <div>
-                            <h2 className="greeting-title">Namaste, Ramesh ji</h2>
-                            <p className="greeting-subtitle">
-                                Here is your plan for <span className="highlight-green">Tuesday, 14 Oct</span>
-                            </p>
-                        </div>
-                        <div className="greeting-right">
-                            <p className="next-market-label">Next Market Day</p>
-                            <p className="next-market-value">in 2 Days</p>
-                        </div>
-                    </div>
-
-                    {/* ── Priority Action Card ── */}
-                    <div className="priority-card">
-                        {/* Left: Hero image */}
-                        <div className="priority-image-container">
-                            <div className="priority-badge">
-                                <span className="priority-badge-text">
-                                    <span className="badge-icon">!</span> PRIORITY ACTION
-                                </span>
+                        {/* ── Greeting ── */}
+                        <motion.div 
+                            className="greeting-section"
+                            initial={{ opacity: 0, x: -20 }}
+                            whileInView={{ opacity: 1, x: 0 }}
+                            viewport={{ once: false, amount: 0.1 }}
+                            transition={{ duration: 0.8, delay: 0.2 }}
+                        >
+                            <div>
+                                <h2 className="greeting-title">Namaste, Ramesh ji</h2>
+                                <p className="greeting-subtitle">
+                                    Here is your plan for <span className="highlight-green">Tuesday, 14 Oct</span>
+                                </p>
                             </div>
-                            <img
-                                src="/images/loom_weaving.png"
-                                alt="Festive sarees for Diwali stock"
-                                className="priority-image"
-                            />
-                        </div>
-
-                        {/* Right: Content */}
-                        <div className="priority-content">
-                            <h3 className="priority-title">
-                                Start Weaving for Diwali Stock
-                            </h3>
-                            <p className="priority-hindi">
-                                दिवाली स्टॉक के लिए बुनाई शुरू करें
-                            </p>
-                            <p className="priority-desc">
-                                Market demand for festive red & gold sarees is peaking. If you start today, you will catch the prime selling window next week.
-                            </p>
-                            <div className="priority-actions">
-                                <button className="btn-solid-green">
-                                    <PlayIcon />
-                                    Hear Instructions
-                                </button>
-                                <button className="btn-light-green">
-                                    <CheckIcon />
-                                    Check Materials
-                                </button>
+                            <div className="greeting-right">
+                                <p className="next-market-label">Next Market Day</p>
+                                <p className="next-market-value">in 2 Days</p>
                             </div>
-                        </div>
-                    </div>
+                        </motion.div>
 
-                    {/* ── Market Insights & Nudges ── */}
-                    <div className="insights-section">
-                        <div className="section-header">
-                            <div className="section-dot"></div>
-                            <h3 className="section-title">Market Insights & Nudges</h3>
-                        </div>
+                        {/* ── Priority Action Card ── */}
+                        <motion.div 
+                            className="priority-card"
+                            initial={{ opacity: 0, y: 20 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            viewport={{ once: false, amount: 0.1 }}
+                            transition={{ duration: 0.8, delay: 0.3 }}
+                        >
+                            {/* Left: Hero image */}
+                            <div className="priority-image-container">
+                                <div className="priority-badge">
+                                    <span className="priority-badge-text">
+                                        <span className="badge-icon">!</span> PRIORITY ACTION
+                                    </span>
+                                </div>
+                                <img
+                                    src="/images/loom_weaving.png"
+                                    alt="Festive sarees for Diwali stock"
+                                    className="priority-image"
+                                />
+                            </div>
 
-                        <div className="insights-grid">
-                            {/* Card 1: Cost Saving */}
-                            <div className="insight-card">
-                                <div className="insight-blob green-blob"></div>
-
-                                <div className="insight-content">
-                                    <div className="insight-icon-circle green-bg">
-                                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                                            <circle cx="12" cy="12" r="10" stroke="#1A6B3C" strokeWidth="2" />
-                                            <path d="M12 8v8M9 10.5C9 9.12 10.34 8 12 8s3 1.12 3 2.5c0 1.38-1.34 2.5-3 2.5s-3 1.12-3 2.5C9 16.88 10.34 18 12 18s3-1.12 3-2.5"
-                                                stroke="#1A6B3C" strokeWidth="2" strokeLinecap="round" />
-                                        </svg>
-                                    </div>
-                                    <p className="insight-label label-green">COST SAVING</p>
-                                    <h4 className="insight-title">Cotton Yarn Price Drop</h4>
-                                    <p className="insight-desc">Down 15% in Jaipur Mandi today.</p>
-
-                                    <button className="insight-btn dark-btn">
-                                        <div className="insight-btn-left">
-                                            <div className="insight-btn-icon bg-green">
-                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                                                    <rect x="2" y="4" width="20" height="16" rx="2" stroke="white" strokeWidth="2" />
-                                                    <path d="M8 8h8M8 12h8M8 16h4" stroke="white" strokeWidth="2" strokeLinecap="round" />
-                                                </svg>
-                                            </div>
-                                            <div className="insight-btn-text">
-                                                <p className="btn-text-main text-white">Buy Bulk Now</p>
-                                                <p className="btn-text-sub text-gray">बड़ी खरीदारी करें</p>
-                                            </div>
-                                        </div>
-                                        <div className="text-white"><ChevronRight /></div>
+                            {/* Right: Content */}
+                            <div className="priority-content">
+                                <h3 className="priority-title">
+                                    Start Weaving for Diwali Stock
+                                </h3>
+                                <p className="priority-hindi">
+                                    दिवाली स्टॉक के लिए बुनाई शुरू करें
+                                </p>
+                                <p className="priority-desc">
+                                    Market demand for festive red & gold sarees is peaking. If you start today, you will catch the prime selling window next week.
+                                </p>
+                                <div className="priority-actions">
+                                    <button className="btn-solid-green" onClick={() => navigate('/production-advisor')}>
+                                        <PlayIcon />
+                                        Hear Instructions
+                                    </button>
+                                    <button className="btn-light-green" onClick={() => navigate('/constraints')}>
+                                        <CheckIcon />
+                                        Check Materials
                                     </button>
                                 </div>
                             </div>
+                        </motion.div>
 
-                            {/* Card 2: Design Trend */}
-                            <div className="insight-card">
-                                <div className="insight-blob orange-blob"></div>
-
-                                <div className="insight-content">
-                                    <div className="insight-icon-circle orange-bg">
-                                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                                            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
-                                                stroke="#D97706" strokeWidth="2" fill="none" />
-                                        </svg>
-                                    </div>
-                                    <p className="insight-label label-orange">DESIGN TREND</p>
-                                    <h4 className="insight-title">Peacock Motifs</h4>
-                                    <p className="insight-desc">High demand in upcoming wedding season.</p>
-
-                                    <button className="insight-btn orange-btn">
-                                        <div className="insight-btn-left">
-                                            <div className="insight-btn-icon bg-orange">
-                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                                                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
-                                                        stroke="white" strokeWidth="2" fill="white" />
-                                                </svg>
-                                            </div>
-                                            <div className="insight-btn-text">
-                                                <p className="btn-text-main text-brown text-left">View 3 Patterns</p>
-                                                <p className="btn-text-sub text-brown text-left">3 डिज़ाइन देखें</p>
-                                            </div>
-                                        </div>
-                                        <div className="text-brown">
-                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                                            <path d="M9 18l6-6-6-6" stroke="#92400E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                                        </svg>
-                                        </div>
-                                    </button>
-                                </div>
+                        {/* ── Market Insights & Nudges ── */}
+                        <motion.div 
+                            className="insights-section"
+                            initial={{ opacity: 0, y: 20 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            viewport={{ once: false, amount: 0.1 }}
+                            transition={{ duration: 0.8, delay: 0.4 }}
+                        >
+                            <div className="section-header">
+                                <div className="section-dot"></div>
+                                <h3 className="section-title">Market Insights & Nudges</h3>
                             </div>
 
-                            {/* Card 3: Operations */}
-                            <div className="insight-card">
-                                <div className="insight-blob blue-blob"></div>
+                            <div className="insights-grid">
+                                {/* Card 1: Cost Saving */}
+                                <div className="insight-card">
+                                    <div className="insight-blob green-blob"></div>
 
-                                <div className="insight-content">
-                                    <div className="insight-icon-circle blue-bg">
-                                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                                            <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z" stroke="#2563EB" strokeWidth="2" fill="none" />
-                                        </svg>
-                                    </div>
-                                    <p className="insight-label label-blue">OPERATIONS</p>
-                                    <h4 className="insight-title">Humidity Alert</h4>
-                                    <p className="insight-desc">High humidity may affect dyeing process.</p>
-
-                                    <button className="insight-btn blue-btn">
-                                        <div className="insight-btn-left">
-                                            <div className="insight-btn-icon bg-blue">
-                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                                                    <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z" stroke="white" strokeWidth="2" fill="white" />
-                                                </svg>
-                                            </div>
-                                            <div className="insight-btn-text text-left">
-                                                <p className="btn-text-main text-dark-blue">Dry Indoors</p>
-                                                <p className="btn-text-sub text-dark-blue">अंदर सुखाएं</p>
-                                            </div>
-                                        </div>
-                                        <div className="text-dark-blue">
-                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                                                <path d="M9 18l6-6-6-6" stroke="#1E40AF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                    <div className="insight-content">
+                                        <div className="insight-icon-circle green-bg">
+                                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                                                <circle cx="12" cy="12" r="10" stroke="#1A6B3C" strokeWidth="2" />
+                                                <path d="M12 8v8M9 10.5C9 9.12 10.34 8 12 8s3 1.12 3 2.5c0 1.38-1.34 2.5-3 2.5s-3 1.12-3 2.5C9 16.88 10.34 18 12 18s3-1.12 3-2.5"
+                                                    stroke="#1A6B3C" strokeWidth="2" strokeLinecap="round" />
                                             </svg>
                                         </div>
-                                    </button>
+                                        <p className="insight-label label-green">COST SAVING</p>
+                                        <h4 className="insight-title">Cotton Yarn Price Drop</h4>
+                                        <p className="insight-desc">Down 15% in Jaipur Mandi today.</p>
+
+                                        <button className="insight-btn dark-btn" onClick={() => navigate('/constraints')}>
+                                            <div className="insight-btn-left">
+                                                <div className="insight-btn-icon bg-green">
+                                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                                                        <rect x="2" y="4" width="20" height="16" rx="2" stroke="white" strokeWidth="2" />
+                                                        <path d="M8 8h8M8 12h8M8 16h4" stroke="white" strokeWidth="2" strokeLinecap="round" />
+                                                    </svg>
+                                                </div>
+                                                <div className="insight-btn-text">
+                                                    <p className="btn-text-main text-white">Buy Bulk Now</p>
+                                                    <p className="btn-text-sub text-gray">बड़ी खरीदारी करें</p>
+                                                </div>
+                                            </div>
+                                            <div className="text-white"><ChevronRight /></div>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Card 2: Design Trend */}
+                                <div className="insight-card">
+                                    <div className="insight-blob orange-blob"></div>
+
+                                    <div className="insight-content">
+                                        <div className="insight-icon-circle orange-bg">
+                                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                                                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
+                                                    stroke="#D97706" strokeWidth="2" fill="none" />
+                                            </svg>
+                                        </div>
+                                        <p className="insight-label label-orange">DESIGN TREND</p>
+                                        <h4 className="insight-title">Peacock Motifs</h4>
+                                        <p className="insight-desc">High demand in upcoming wedding season.</p>
+
+                                        <button className="insight-btn orange-btn" onClick={() => navigate('/trends')}>
+                                            <div className="insight-btn-left">
+                                                <div className="insight-btn-icon bg-orange">
+                                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                                                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
+                                                            stroke="white" strokeWidth="2" fill="white" />
+                                                    </svg>
+                                                </div>
+                                                <div className="insight-btn-text">
+                                                    <p className="btn-text-main text-brown text-left">View 3 Patterns</p>
+                                                    <p className="btn-text-sub text-brown text-left">3 डिज़ाइन देखें</p>
+                                                </div>
+                                            </div>
+                                            <div className="text-brown">
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                                                <path d="M9 18l6-6-6-6" stroke="#92400E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                            </svg>
+                                            </div>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Card 3: Operations */}
+                                <div className="insight-card">
+                                    <div className="insight-blob blue-blob"></div>
+
+                                    <div className="insight-content">
+                                        <div className="insight-icon-circle blue-bg">
+                                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                                                <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z" stroke="#2563EB" strokeWidth="2" fill="none" />
+                                            </svg>
+                                        </div>
+                                        <p className="insight-label label-blue">OPERATIONS</p>
+                                        <h4 className="insight-title">Humidity Alert</h4>
+                                        <p className="insight-desc">High humidity may affect dyeing process.</p>
+
+                                        <button className="insight-btn blue-btn" onClick={() => navigate('/production-advisor')}>
+                                            <div className="insight-btn-left">
+                                                <div className="insight-btn-icon bg-blue">
+                                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                                                        <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z" stroke="white" strokeWidth="2" fill="white" />
+                                                    </svg>
+                                                </div>
+                                                <div className="insight-btn-text text-left">
+                                                    <p className="btn-text-main text-dark-blue">Dry Indoors</p>
+                                                    <p className="btn-text-sub text-dark-blue">अंदर सुखाएं</p>
+                                                </div>
+                                            </div>
+                                            <div className="text-dark-blue">
+                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                                                    <path d="M9 18l6-6-6-6" stroke="#1E40AF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                                </svg>
+                                            </div>
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    </div>
+                        </motion.div>
 
-                    {/* ── Quick Questions ── */}
-                    <div className="quick-actions-section">
-                        <h3 className="section-title mb-4">Quick Questions</h3>
-                        <div className="quick-actions-flex">
-                            <button className="quick-action-btn">
-                                <MicIcon />
-                                Ask Assistant
-                            </button>
-                            <button className="quick-action-btn">
-                                <WalletIcon />
-                                Check Payments
-                            </button>
-                            <button className="quick-action-btn">
-                                <TruckIcon />
-                                Track Shipment
-                            </button>
-                        </div>
-                    </div>
+                        {/* ── Quick Questions ── */}
+                        <motion.div 
+                            className="quick-actions-section"
+                            initial={{ opacity: 0, y: 20 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            viewport={{ once: false, amount: 0.1 }}
+                            transition={{ duration: 0.8, delay: 0.5 }}
+                        >
+                            <h3 className="section-title mb-4">Quick Questions</h3>
+                            <div className="quick-actions-flex">
+                                <button className="quick-action-btn" onClick={() => navigate('/production-advisor')}>
+                                    <MicIcon />
+                                    Ask Assistant
+                                </button>
+                                <button className="quick-action-btn" onClick={() => navigate('/constraints')}>
+                                    <WalletIcon />
+                                    Check Payments
+                                </button>
+                                <button className="quick-action-btn" onClick={() => navigate('/my-crafts')}>
+                                    <TruckIcon />
+                                    Track Shipment
+                                </button>
+                            </div>
+                        </motion.div>
 
-                </div>
-            </main>
-        </div>
+                    </div>
+            </div>
+        </DashboardLayout>
     );
 }
