@@ -204,15 +204,23 @@ export default function MaterialCostsPage() {
     const pathname = location.pathname;
     const [activeTab, setActiveTab] = useState("Textiles");
 
+    const topNavTabs = (
+        <div className="topbar-nav-links">
+            <Link to="/trends" className={`nav-link ${pathname === '/trends' ? 'active-link' : ''}`}>Trends</Link>
+            <Link to="/production-advisor" className={`nav-link ${pathname === '/production-advisor' ? 'active-link' : ''}`}>Production Advisor</Link>
+            <Link to="/constraints" className={`nav-link ${pathname === '/constraints' ? 'active-link' : ''}`}>Material Costs</Link>
+        </div>
+    );
+
     return (
-        <DashboardLayout>
+        <DashboardLayout headerActions={topNavTabs}>
             <div className="constraints-content-wrapper">
 
                 {/* Scrollable Content */}
                 <div className="constraints-body">
 
                     {/* ── Page Header ── */}
-                    <motion.div 
+                    <motion.div
                         className="page-header"
                         initial={{ opacity: 0, y: -20 }}
                         whileInView={{ opacity: 1, y: 0 }}
@@ -237,7 +245,7 @@ export default function MaterialCostsPage() {
                     </motion.div>
 
                     {/* ── AI Prediction Banner ── */}
-                    <motion.div 
+                    <motion.div
                         className="ai-banner"
                         initial={{ opacity: 0, y: 20 }}
                         whileInView={{ opacity: 1, y: 0 }}
@@ -265,7 +273,7 @@ export default function MaterialCostsPage() {
                     </motion.div>
 
                     {/* ── Price Cards Grid ── */}
-                    <motion.div 
+                    <motion.div
                         className="cards-grid"
                         initial={{ opacity: 0, y: 20 }}
                         whileInView={{ opacity: 1, y: 0 }}
@@ -308,7 +316,7 @@ export default function MaterialCostsPage() {
                     </motion.div>
 
                     {/* ── Local Mandi Comparison ── */}
-                    <motion.div 
+                    <motion.div
                         className="mandi-comparison-box"
                         initial={{ opacity: 0, y: 20 }}
                         whileInView={{ opacity: 1, y: 0 }}

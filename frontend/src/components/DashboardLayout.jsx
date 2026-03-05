@@ -4,6 +4,14 @@ import { motion, AnimatePresence } from "framer-motion";
 
 // ── Icons ────────────────────────────────────────────────────────────────────
 
+const LogoIcon = () => (
+    <svg width="28" height="28" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M20 30 C20 30 8 26 8 14 C8 14 14 16 18 24" fill="#22c55e" />
+        <path d="M20 30 C20 30 32 26 32 14 C32 14 26 16 22 24" fill="#22c55e" />
+        <path d="M20 30 C20 30 14 18 20 8 C26 18 20 30 20 30Z" fill="#16a34a" />
+    </svg>
+);
+
 const HomeIcon = () => (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
         <path d="M3 12L12 4l9 8v8a1 1 0 01-1 1h-5v-5H9v5H4a1 1 0 01-1-1v-8z"
@@ -33,19 +41,32 @@ const CraftsIcon = () => (
     </svg>
 );
 
-const ThreeDotsIcon = () => (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="1" />
-        <circle cx="19" cy="12" r="1" />
-        <circle cx="5" cy="12" r="1" />
+const LogoutIcon = () => (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+        <path d="M17 16l4-4m0 0l-4-4m4 4H9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M9 20H5a2 2 0 01-2-2V6a2 2 0 012-2h4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+);
+
+const SunIcon = () => (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="5"></circle>
+        <line x1="12" y1="1" x2="12" y2="3"></line>
+        <line x1="12" y1="21" x2="12" y2="23"></line>
+        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+        <line x1="1" y1="12" x2="3" y2="12"></line>
+        <line x1="21" y1="12" x2="23" y2="12"></line>
+        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
     </svg>
 );
 
 const navItems = [
     { href: "/home", label: "Home", Icon: HomeIcon },
-    { href: "/trends", label: "Trends", Icon: TrendIcon },
+    { href: "/trends", label: "Trend Feed", Icon: TrendIcon },
     { href: "/constraints", label: "Material Costs", Icon: MaterialIcon },
-    { href: "/my-crafts", label: "My Crafts", Icon: CraftsIcon },
+    { href: "/my-crafts", label: "My Craft", Icon: CraftsIcon },
 ];
 
 export default function DashboardLayout({ children, headerActions }) {
@@ -57,7 +78,7 @@ export default function DashboardLayout({ children, headerActions }) {
             {/* ══ MOBILE OVERLAY ══ */}
             <AnimatePresence>
                 {isSidebarOpen && (
-                    <motion.div 
+                    <motion.div
                         className="sidebar-overlay"
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
@@ -67,82 +88,97 @@ export default function DashboardLayout({ children, headerActions }) {
                 )}
             </AnimatePresence>
 
-            {/* ══ SIDEBAR ══ */}
-            <aside className={`sidebar ${isSidebarOpen ? 'open' : ''}`}>
-                <div className="sidebar-header">
-                    <Link to="/" className="sidebar-logo">
-                        <motion.img 
-                            src="/images/logo.png" 
-                            alt="ArtisanGPS Logo" 
-                            className="logo-img" 
-                            style={{ height: '32px', width: 'auto' }}
-                            whileHover={{ scale: 1.1 }}
-                            whileTap={{ scale: 0.95 }}
-                            transition={{ type: "spring", stiffness: 400, damping: 17 }}
-                        />
-                    </Link>
-                    <button className="mobile-close-btn" onClick={() => setIsSidebarOpen(false)}>
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <line x1="18" y1="6" x2="6" y2="18"></line>
-                            <line x1="6" y1="6" x2="18" y2="18"></line>
+            {/* ══ TOP NAVBAR ══ */}
+            <header className="top-header">
+                <div className="topbar-left">
+                    <button className="mobile-menu-btn" onClick={() => setIsSidebarOpen(true)}>
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                            <line x1="3" y1="12" x2="21" y2="12"></line>
+                            <line x1="3" y1="6" x2="21" y2="6"></line>
+                            <line x1="3" y1="18" x2="21" y2="18"></line>
                         </svg>
                     </button>
-                </div>
-                
-                <nav className="sidebar-nav">
-                    {navItems.map(({ href, label, Icon }) => {
-                        const active = pathname === href;
-                        return (
-                            <Link
-                                key={href}
-                                to={href}
-                                className={`sidebar-link ${active ? "active" : ""}`}
-                                onClick={() => setIsSidebarOpen(false)}
-                            >
-                                <Icon />
-                                <span>{label}</span>
-                            </Link>
-                        );
-                    })}
-                </nav>
-            </aside>
 
-            <div className="dashboard-body">
-                {/* ══ TOP NAVBAR ══ */}
-                <header className="top-header">
-                    <div className="topbar-left">
-                        <button className="mobile-menu-btn" onClick={() => setIsSidebarOpen(true)}>
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                                <line x1="3" y1="12" x2="21" y2="12"></line>
-                                <line x1="3" y1="6" x2="21" y2="6"></line>
-                                <line x1="3" y1="18" x2="21" y2="18"></line>
+                    <Link to="/" className="topbar-logo">
+                        <div className="logo-icon-container">
+                            <LogoIcon />
+                        </div>
+                        <div className="logo-text-container">
+                            <span className="logo-text-main">ArtisanGPS</span>
+                        </div>
+                    </Link>
+                </div>
+
+                <div className="topbar-right">
+                    {headerActions}
+                    <div className="header-indicators">
+                        <div className="market-indicator">
+                            <span className="market-dot"></span>
+                            MARKET: STRONG
+                        </div>
+                        <div className="weather-indicator">
+                            <SunIcon />
+                            32°C
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <div className="dashboard-content-wrapper">
+                {/* ══ SIDEBAR ══ */}
+                <aside className={`sidebar ${isSidebarOpen ? 'open' : ''}`}>
+                    <div className="sidebar-header mobile-only-header">
+                        <button className="mobile-close-btn" onClick={() => setIsSidebarOpen(false)}>
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <line x1="18" y1="6" x2="6" y2="18"></line>
+                                <line x1="6" y1="6" x2="18" y2="18"></line>
                             </svg>
                         </button>
                     </div>
 
-                    <div className="topbar-right">
-                        <div className="search-box">
-                            <svg className="search-icon-svg" viewBox="0 0 24 24" fill="none">
-                                <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2" />
-                                <path d="M20 20l-3-3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                            </svg>
-                            <input
-                                type="text"
-                                placeholder="Search everything..."
-                                className="search-input"
-                            />
+                    <div className="sidebar-profile-section" style={{ visibility: pathname === '/home' ? 'visible' : 'hidden' }}>
+                        <div className="sidebar-profile-img-box">
+                            <img src="/images/ramesh_kumar.png" alt="Ramesh Kumar" className="sidebar-profile-img" />
                         </div>
-                        {headerActions}
-                        <div className="profile-img-box">
-                            <img src="/images/ramesh_kumar.png" alt="Ramesh Kumar" className="profile-img" />
+                        <div className="sidebar-profile-info">
+                            <p className="sidebar-profile-name">Ramesh Kumar</p>
+                            <p className="sidebar-profile-role">Master Weaver</p>
                         </div>
                     </div>
-                </header>
 
-                {/* ══ MAIN CONTENT ══ */}
-                <main className="main-content">
-                    {children}
-                </main>
+                    <div className="sidebar-divider" style={{ visibility: pathname === '/home' ? 'visible' : 'hidden' }}></div>
+
+                    <nav className="sidebar-nav">
+                        {navItems.map(({ href, label, Icon }) => {
+                            const active = pathname === href;
+                            return (
+                                <Link
+                                    key={href}
+                                    to={href}
+                                    className={`sidebar-link ${active ? "active" : ""}`}
+                                    onClick={() => setIsSidebarOpen(false)}
+                                >
+                                    <Icon />
+                                    <span>{label}</span>
+                                </Link>
+                            );
+                        })}
+                    </nav>
+
+                    <div className="sidebar-bottom" style={{ visibility: pathname === '/home' ? 'visible' : 'hidden' }}>
+                        <button className="logout-btn">
+                            <LogoutIcon />
+                            Logout
+                        </button>
+                    </div>
+                </aside>
+
+                <div className="dashboard-body-wrapper">
+                    {/* ══ MAIN CONTENT ══ */}
+                    <main className="main-content">
+                        {children}
+                    </main>
+                </div>
             </div>
         </div>
     );

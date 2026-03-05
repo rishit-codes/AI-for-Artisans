@@ -163,7 +163,7 @@ function TaskCard({ item }) {
     } = item;
 
     return (
-        <motion.div 
+        <motion.div
             className="task-card-container"
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -270,13 +270,21 @@ export default function ProductionAdvisorPage() {
     const location = useLocation();
     const pathname = location.pathname;
 
+    const topNavTabs = (
+        <div className="topbar-nav-links">
+            <Link to="/trends" className={`nav-link ${pathname === '/trends' ? 'active-link' : ''}`}>Trends</Link>
+            <Link to="/production-advisor" className={`nav-link ${pathname === '/production-advisor' ? 'active-link' : ''}`}>Production Advisor</Link>
+            <Link to="/constraints" className={`nav-link ${pathname === '/constraints' ? 'active-link' : ''}`}>Material Costs</Link>
+        </div>
+    );
+
     return (
-        <DashboardLayout>
+        <DashboardLayout headerActions={topNavTabs}>
             <div className="production-content-wrapper">
 
                 {/* Scrollable Content */}
                 <div className="production-body">
-                    <motion.div 
+                    <motion.div
                         className="production-feed-container"
                         initial={{ opacity: 0, scale: 0.98 }}
                         whileInView={{ opacity: 1, scale: 1 }}
@@ -327,8 +335,8 @@ export default function ProductionAdvisorPage() {
                             </div>
                         </div>
                     </motion.div>
+                </div>
             </div>
-        </div>
-    </DashboardLayout>
+        </DashboardLayout>
     );
 }

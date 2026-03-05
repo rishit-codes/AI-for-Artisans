@@ -40,68 +40,11 @@ const RocketIcon = () => (
     </svg>
 );
 
-const DollarCircleIcon = () => (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-        <circle cx="12" cy="12" r="10" fill="#1A6B3C" />
-        <path d="M12 6v12M9 9.5c0-1.1.9-2 2-2h2a2 2 0 010 4h-2a2 2 0 000 4h2a2 2 0 002-2" stroke="white" strokeWidth="1.5" strokeLinecap="round" fill="none" />
-    </svg>
-);
-
-const TrendUpIcon = () => (
-    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#1A6B3C" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-        <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
-        <polyline points="17 6 23 6 23 12" />
-    </svg>
-);
-
-const InfoIcon = () => (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-        <circle cx="12" cy="12" r="10" />
-        <line x1="12" y1="8" x2="12" y2="12" />
-        <line x1="12" y1="16" x2="12.01" y2="16" />
-    </svg>
-);
-
 const ChevronDownIcon = () => (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
         <polyline points="6 9 12 15 18 9" />
     </svg>
 );
-
-const HomeIcon = () => (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-        <path d="M3 12L12 4l9 8v8a1 1 0 01-1 1h-5v-5H9v5H4a1 1 0 01-1-1v-8z" stroke="currentColor" strokeWidth="2" fill="none" strokeLinejoin="round" />
-    </svg>
-);
-
-const TrendIcon = () => (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-        <path d="M3 17l5-5 4 4 6-7 3 3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-);
-
-const MaterialIcon = () => (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-        <rect x="2" y="7" width="20" height="14" rx="2" stroke="currentColor" strokeWidth="2" />
-        <path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2" stroke="currentColor" strokeWidth="2" />
-    </svg>
-);
-
-const CraftsIcon = () => (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-        <rect x="3" y="3" width="7" height="7" rx="1" stroke="currentColor" strokeWidth="2" />
-        <rect x="14" y="3" width="7" height="7" rx="1" stroke="currentColor" strokeWidth="2" />
-        <rect x="3" y="14" width="7" height="7" rx="1" stroke="currentColor" strokeWidth="2" />
-        <rect x="14" y="14" width="7" height="7" rx="1" stroke="currentColor" strokeWidth="2" />
-    </svg>
-);
-
-const navItems = [
-    { href: "/home", label: "Home", Icon: HomeIcon },
-    { href: "/trends", label: "Trends", Icon: TrendIcon },
-    { href: "/constraints", label: "Material Costs", Icon: MaterialIcon },
-    { href: "/my-crafts", label: "My Crafts", Icon: CraftsIcon },
-];
 
 // ── Trend bar chart (30-day) ───────────────────────────────────────────────────
 const barHeights = [30, 35, 28, 40, 45, 38, 50, 55, 48, 62, 70, 80];
@@ -123,16 +66,7 @@ function TrendBars() {
     );
 }
 
-// ── Progress bar ───────────────────────────────────────────────────────────────
-function ProgressBar({ value, color = "#1A6B3C" }) {
-    return (
-        <div className="progress-bar-track">
-            <div className="progress-bar-fill" style={{ width: `${value}%`, backgroundColor: color }} />
-        </div>
-    );
-}
-
-// ── Toggle ─────────────────────────────────────────────────────────────────────
+// ── Trend bar chart (30-day) ───────────────────────────────────────────────────
 function Toggle({ on, onToggle }) {
     return (
         <button
@@ -148,7 +82,6 @@ function Toggle({ on, onToggle }) {
 
 // ── Page component ─────────────────────────────────────────────────────────────
 export default function AddProductPage() {
-    const { pathname } = useLocation();
     const [bgRemoval, setBgRemoval] = useState(true);
     const [keywords, setKeywords] = useState("");
     const [price, setPrice] = useState("1250");
@@ -178,323 +111,285 @@ export default function AddProductPage() {
     );
 
     return (
-        <DashboardLayout headerActions={saveButton}>
+        <DashboardLayout>
             <div className="add-product-body">
                 <div className="ap-scroll-area">
                     {/* ══ BODY ══ */}
                     <div className="ap-main-container">
 
-                {/* Page Header */}
-                <motion.div 
-                    className="ap-header"
-                    initial={{ opacity: 0, y: -20 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: false, amount: 0.1 }}
-                    transition={{ duration: 0.8, delay: 0.1 }}
-                >
-                    <div>
-                        <h1 className="ap-title">Add New Product</h1>
-                        <p className="ap-subtitle">Let AI assist you in creating a professional listing for the global market.</p>
-                    </div>
-                    <div className="ai-status-pill">
-                        <SparkleIcon size={13} />
-                        AI ASSISTANT ACTIVE
-                    </div>
-                </motion.div>
-
-                {/* ── Two-column layout ── */}
-                <div className="ap-content-grid">
-
-                    {/* ══ LEFT: IMAGE PANEL ══ */}
-                    <motion.div 
-                        className="ap-left-col"
-                        initial={{ opacity: 0, x: -20 }}
-                        whileInView={{ opacity: 1, x: 0 }}
-                        viewport={{ once: false, amount: 0.1 }}
-                        transition={{ duration: 0.8, delay: 0.2 }}
-                    >
-
-                        {/* Split preview card */}
-                        <div className="image-preview-card">
-                            {/* Left half — Original */}
-                            <div className="preview-original">
-                                <img
-                                    src="/images/ceramic_vase.jpg"
-                                    alt="Original"
-                                    className="preview-img original-img"
-                                />
+                        {/* Page Header */}
+                        <motion.div
+                            className="ap-header"
+                            initial={{ opacity: 0, y: -20 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            viewport={{ once: false, amount: 0.1 }}
+                            transition={{ duration: 0.8, delay: 0.1 }}
+                        >
+                            <div>
+                                <h1 className="ap-title">Add New Product</h1>
+                                <p className="ap-subtitle">Let AI assist you in creating a professional listing for the global market.</p>
                             </div>
-                            {/* Right half — AI Enhanced */}
-                            <div className="preview-enhanced">
-                                <div className="enhanced-wrapper-outer">
-                                    <div className="enhanced-wrapper-inner">
+                            <div className="ai-status-pill">
+                                <SparkleIcon size={13} />
+                                AI ASSISTANT ACTIVE
+                            </div>
+                        </motion.div>
+
+                        {/* ── Two-column layout ── */}
+                        <div className="ap-content-grid">
+
+                            {/* ══ LEFT: IMAGE PANEL ══ */}
+                            <motion.div
+                                className="ap-left-col"
+                                initial={{ opacity: 0, x: -20 }}
+                                whileInView={{ opacity: 1, x: 0 }}
+                                viewport={{ once: false, amount: 0.1 }}
+                                transition={{ duration: 0.8, delay: 0.2 }}
+                            >
+
+                                {/* Split preview card */}
+                                <div className="image-preview-card">
+                                    {/* Left half — Original */}
+                                    <div className="preview-original">
                                         <img
                                             src="/images/ceramic_vase.jpg"
-                                            alt="AI Enhanced"
-                                            className="preview-img"
+                                            alt="Original"
+                                            className="preview-img original-img"
                                         />
                                     </div>
-                                </div>
-                            </div>
-                            {/* Divider line */}
-                            <div className="preview-divider" />
-                            {/* Icon on divider */}
-                            <div className="preview-divider-icon">
-                                <SparkleIcon size={14} />
-                            </div>
-                            {/* Badges */}
-                            <div className="badge-original">
-                                <span>Original</span>
-                            </div>
-                            <div className="badge-enhanced">
-                                <span>AI Enhanced</span>
-                            </div>
-                        </div>
-
-                        {/* AI Background Removal toggle */}
-                        <div className="bg-removal-toggle">
-                            <div className="toggle-info">
-                                <div className="toggle-icon">
-                                    <SparkleIcon size={16} />
-                                </div>
-                                <div>
-                                    <p className="toggle-title">AI Background Removal</p>
-                                    <p className="toggle-desc">Automatically remove clutter from your photo</p>
-                                </div>
-                            </div>
-                            <Toggle on={bgRemoval} onToggle={() => setBgRemoval(!bgRemoval)} />
-                        </div>
-
-                        {/* Photo grid */}
-                        <div className="photo-grid">
-                            {/* First slot — filled */}
-                            <div className="photo-slot photo-slot-active">
-                                <img src="/images/ceramic_vase.jpg" alt="Photo 1" className="photo-slot-img" />
-                            </div>
-                            {/* Empty slots */}
-                            {[1, 2, 3].map((i) => (
-                                <div key={i} className="photo-slot photo-slot-empty">
-                                    <CameraAddIcon />
-                                </div>
-                            ))}
-                        </div>
-                    </motion.div>
-
-                    {/* ══ RIGHT: DETAILS PANEL ══ */}
-                    <motion.div 
-                        className="ap-right-col"
-                        initial={{ opacity: 0, x: 30 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ duration: 0.6, delay: 0.3 }}
-                    >
-
-                        {/* Title + Material row */}
-                        <div className="form-row-2">
-                            <div className="form-group">
-                                <label className="form-label">Product Title</label>
-                                <input
-                                    type="text"
-                                    placeholder="e.g., Blue Silk Scarf"
-                                    className="form-input"
-                                />
-                            </div>
-                            <div className="form-group">
-                                <label className="form-label">Base Material</label>
-                                <input
-                                    type="text"
-                                    placeholder="e.g., Pure Mulberry Silk"
-                                    className="form-input"
-                                />
-                            </div>
-                        </div>
-
-                        {/* AI Description Generator */}
-                        <div className="ai-desc-box">
-                            <div className="ai-desc-header">
-                                <div className="ai-desc-icon">
-                                    <SparkleIcon size={13} />
-                                </div>
-                                <h3 className="ai-desc-title">AI Description Generator</h3>
-                            </div>
-                            <p className="ai-desc-subtitle">Enter keywords (e.g., 'blue silk, floral pattern, hand-woven')</p>
-                            <div className="ai-desc-input-row">
-                                <input
-                                    type="text"
-                                    value={keywords}
-                                    onChange={(e) => setKeywords(e.target.value)}
-                                    placeholder="Type keywords here..."
-                                    className="ai-desc-input"
-                                />
-                                <button
-                                    onClick={() => setGenerated(true)}
-                                    className="btn-generate"
-                                >
-                                    Generate
-                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
-                                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-                                    </svg>
-                                </button>
-                            </div>
-
-                            {/* Bilingual output */}
-                            {generated && (
-                                <div className="ai-output-grid">
-                                    <div className="ai-output-box">
-                                        <p className="ai-output-lang lang-en">English</p>
-                                        <p className="ai-output-text">
-                                            Exquisite hand-woven scarf crafted from pure mulberry silk. Featuring a vibrant floral pattern in deep ocean blues, this piece embodies traditional craftsmanship with a modern touch.
-                                        </p>
+                                    {/* Right half — AI Enhanced */}
+                                    <div className="preview-enhanced">
+                                        <div className="enhanced-wrapper-outer">
+                                            <div className="enhanced-wrapper-inner">
+                                                <img
+                                                    src="/images/ceramic_vase.jpg"
+                                                    alt="AI Enhanced"
+                                                    className="preview-img"
+                                                />
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div className="ai-output-box">
-                                        <p className="ai-output-lang lang-hi">Hindi (हिंदी)</p>
-                                        <p className="ai-output-text">
-                                            शुद्ध शहतूत रेशम से तैयार किया गया उत्तम हाथ से बुना हुआ दुपट्टा। गहरे समुद्री नीले रंग में एक जीवंत पुष्प पैटर्न की विशेषता...
-                                        </p>
+                                    {/* Divider line */}
+                                    <div className="preview-divider" />
+                                    {/* Icon on divider */}
+                                    <div className="preview-divider-icon">
+                                        <SparkleIcon size={14} />
+                                    </div>
+                                    {/* Badges */}
+                                    <div className="badge-original">
+                                        <span>Original</span>
+                                    </div>
+                                    <div className="badge-enhanced">
+                                        <span>AI Enhanced</span>
                                     </div>
                                 </div>
-                            )}
-                        </div>
 
-                        {/* Price + Stock + Category */}
-                        <div className="form-row-2 gap-4">
-                            {/* Left: price + trend chart */}
-                            <div className="price-trends-col">
-                                <div>
-                                    <div className="form-label-group">
-                                        <label className="form-label mb-0">Price (₹)</label>
-                                        <span className="info-icon"><InfoIcon /></span>
+                                {/* AI Background Removal toggle */}
+                                <div className="bg-removal-toggle">
+                                    <div className="toggle-info">
+                                        <div className="toggle-icon">
+                                            <SparkleIcon size={16} />
+                                        </div>
+                                        <div>
+                                            <p className="toggle-title">AI Background Removal</p>
+                                            <p className="toggle-desc">Automatically remove clutter from your photo</p>
+                                        </div>
                                     </div>
-                                    <div className="price-input-row">
+                                    <Toggle on={bgRemoval} onToggle={() => setBgRemoval(!bgRemoval)} />
+                                </div>
+
+                                {/* Photo grid */}
+                                <div className="photo-grid">
+                                    {/* First slot — filled */}
+                                    <div className="photo-slot photo-slot-active">
+                                        <img src="/images/ceramic_vase.jpg" alt="Photo 1" className="photo-slot-img" />
+                                    </div>
+                                    {/* Empty slots */}
+                                    {[1, 2, 3].map((i) => (
+                                        <div key={i} className="photo-slot photo-slot-empty">
+                                            <CameraAddIcon />
+                                        </div>
+                                    ))}
+                                </div>
+                            </motion.div>
+
+                            {/* ══ RIGHT: DETAILS PANEL ══ */}
+                            <motion.div
+                                className="ap-right-col"
+                                initial={{ opacity: 0, x: 30 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                transition={{ duration: 0.6, delay: 0.3 }}
+                            >
+
+                                {/* Title + Material row */}
+                                <div className="form-row-2">
+                                    <div className="form-group">
+                                        <label className="form-label">Product Title</label>
                                         <input
                                             type="text"
-                                            value={price}
-                                            onChange={(e) => setPrice(e.target.value)}
-                                            className="price-input"
+                                            placeholder="e.g., Blue Silk Scarf"
+                                            className="form-input"
                                         />
-                                        {/* Market reference bars */}
-                                        <div className="market-ref-bars">
-                                            <div className="market-ref-item">
-                                                <div className="market-ref-bar bar-avg" style={{ width: "62%" }} />
-                                                <span className="market-ref-label">Market Avg (₹950)</span>
-                                            </div>
-                                            <div className="market-ref-item">
-                                                <div className="market-ref-bar bar-top" style={{ width: "85%" }} />
-                                                <span className="market-ref-label">Top Comp (₹1400)</span>
-                                            </div>
+                                    </div>
+                                    <div className="form-group">
+                                        <label className="form-label">Base Material</label>
+                                        <input
+                                            type="text"
+                                            placeholder="e.g., Pure Mulberry Silk"
+                                            className="form-input"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* AI Description Generator */}
+                                <div className="ai-desc-box">
+                                    <div className="ai-desc-header">
+                                        <div className="ai-desc-icon">
+                                            <SparkleIcon size={13} />
                                         </div>
+                                        <h3 className="ai-desc-title">AI Description Generator</h3>
                                     </div>
-                                </div>
-
-                                {/* 30-day chart */}
-                                <div className="trend-chart-box">
-                                    <div className="trend-chart-header">
-                                        <span className="trend-chart-title">30-Day Market Price Trend</span>
-                                        <span className="trend-chart-badge">+4.2% demand increase</span>
-                                    </div>
-                                    <TrendBars />
-                                </div>
-                            </div>
-
-                            {/* Right: Stock + Category */}
-                            <div className="stock-cat-col">
-                                <div className="form-group">
-                                    <label className="form-label">Stock Qty</label>
-                                    <input
-                                        type="number"
-                                        value={stockQty}
-                                        onChange={(e) => setStockQty(e.target.value)}
-                                        className="form-input"
-                                    />
-                                </div>
-                                <div className="form-group">
-                                    <label className="form-label">Category</label>
-                                    <div className="select-wrapper">
-                                        <select
-                                            value={category}
-                                            onChange={(e) => setCategory(e.target.value)}
-                                            className="form-select"
+                                    <p className="ai-desc-subtitle">Enter keywords (e.g., 'blue silk, floral pattern, hand-woven')</p>
+                                    <div className="ai-desc-input-row">
+                                        <input
+                                            type="text"
+                                            value={keywords}
+                                            onChange={(e) => setKeywords(e.target.value)}
+                                            placeholder="Type keywords here..."
+                                            className="ai-desc-input"
+                                        />
+                                        <button
+                                            onClick={() => setGenerated(true)}
+                                            className="btn-generate"
                                         >
-                                            {["Textiles", "Pottery", "Jewellery", "Woodwork", "Metalwork"].map((c) => (
-                                                <option key={c}>{c}</option>
-                                            ))}
-                                        </select>
-                                        <div className="select-icon">
-                                            <ChevronDownIcon />
+                                            Generate
+                                            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+                                                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                                            </svg>
+                                        </button>
+                                    </div>
+
+                                    {/* Bilingual output */}
+                                    {generated && (
+                                        <div className="ai-output-grid">
+                                            <div className="ai-output-box">
+                                                <p className="ai-output-lang lang-en">English</p>
+                                                <p className="ai-output-text">
+                                                    Exquisite hand-woven scarf crafted from pure mulberry silk. Featuring a vibrant floral pattern in deep ocean blues, this piece embodies traditional craftsmanship with a modern touch.
+                                                </p>
+                                            </div>
+                                            <div className="ai-output-box">
+                                                <p className="ai-output-lang lang-hi">Hindi (हिंदी)</p>
+                                                <p className="ai-output-text">
+                                                    शुद्ध शहतूत रेशम से तैयार किया गया उत्तम हाथ से बुना हुआ दुपट्टा। गहरे समुद्री नीले रंग में एक जीवंत पुष्प पैटर्न की विशेषता...
+                                                </p>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Price + Stock + Category */}
+                                <div className="form-row-2 gap-4">
+                                    {/* Left: price + trend chart */}
+                                    <div className="price-trends-col">
+                                        <div>
+                                            <div className="form-label-group">
+                                                <label className="form-label mb-0">Price (₹)</label>
+                                            </div>
+                                            <div className="price-input-row">
+                                                <input
+                                                    type="text"
+                                                    value={price}
+                                                    onChange={(e) => setPrice(e.target.value)}
+                                                    className="price-input"
+                                                />
+                                                {/* Market reference bars */}
+                                                <div className="market-ref-bars">
+                                                    <div className="market-ref-item">
+                                                        <div className="market-ref-bar bar-avg" style={{ width: "62%" }} />
+                                                        <span className="market-ref-label">Market Avg (₹950)</span>
+                                                    </div>
+                                                    <div className="market-ref-item">
+                                                        <div className="market-ref-bar bar-top" style={{ width: "85%" }} />
+                                                        <span className="market-ref-label">Top Comp (₹1400)</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* 30-day chart */}
+                                        <div className="trend-chart-box">
+                                            <div className="trend-chart-header">
+                                                <span className="trend-chart-title">30-Day Market Price Trend</span>
+                                                <span className="trend-chart-badge">+4.2% demand increase</span>
+                                            </div>
+                                            <TrendBars />
                                         </div>
                                     </div>
-                                </div>
-                            </div>
-                        </div>
 
-                        {/* AI Pricing Insight */}
-                        <div className="pricing-insight-box">
-                            <div className="insight-icon">
-                                <DollarCircleIcon />
-                            </div>
-                            <div>
-                                <h4 className="insight-title">AI Pricing Insight: High Profitability Potential</h4>
-                                <p className="insight-desc">
-                                    Your price is 30% above the average market rate, but aligned with the "Artisanal Premium" segment. High demand for hand-woven silk is expected due to the upcoming festive season.{" "}
-                                    <span className="insight-highlight">Estimated Margin: 65%</span> based on your ₹450 raw material cost estimate.
-                                </p>
-                            </div>
-                        </div>
-
-                        {/* Market Compatibility Check */}
-                        <div className="mkt-compat-box">
-                            <div className="mkt-compat-inner">
-                                <div className="mkt-compat-content">
-                                    <h4 className="mkt-compat-title">Market Compatibility Check</h4>
-                                    <p className="mkt-compat-subtitle">Based on current trends in "Handmade Silk Textiles"</p>
-
-                                    <div className="prog-bars">
-                                        <div className="prog-item">
-                                            <div className="prog-header">
-                                                <span className="prog-label">Color Trend Match</span>
-                                                <span className="prog-val">92%</span>
-                                            </div>
-                                            <ProgressBar value={92} />
+                                    {/* Right: Stock + Category */}
+                                    <div className="stock-cat-col">
+                                        <div className="form-group">
+                                            <label className="form-label">Stock Qty</label>
+                                            <input
+                                                type="number"
+                                                value={stockQty}
+                                                onChange={(e) => setStockQty(e.target.value)}
+                                                className="form-input"
+                                            />
                                         </div>
-                                        <div className="prog-item">
-                                            <div className="prog-header">
-                                                <span className="prog-label">Pricing Sweet Spot</span>
-                                                <span className="prog-val">Excellent</span>
+                                        <div className="form-group">
+                                            <label className="form-label">Category</label>
+                                            <div className="select-wrapper">
+                                                <select
+                                                    value={category}
+                                                    onChange={(e) => setCategory(e.target.value)}
+                                                    className="form-select"
+                                                >
+                                                    {["Textiles", "Pottery", "Jewellery", "Woodwork", "Metalwork"].map((c) => (
+                                                        <option key={c}>{c}</option>
+                                                    ))}
+                                                </select>
+                                                <div className="select-icon">
+                                                    <ChevronDownIcon />
+                                                </div>
                                             </div>
-                                            <ProgressBar value={82} />
                                         </div>
                                     </div>
-                                </div>
+                                </div> {/* close form-row-2 */}
+                            </motion.div> {/* close ap-right-col */}
+                        </div> {/* close ap-content-grid */}
 
-                                {/* HIGH DEMAND badge */}
-                                <div className="mkt-compat-badge">
-                                    <TrendUpIcon />
-                                    <span className="badge-text">High Demand</span>
-                                </div>
+                        {/* ══ FOOTER ACTION BAR ══ */}
+                        <motion.div
+                            className="ap-footer"
+                            initial={{ opacity: 0, y: 20 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            viewport={{ once: false, amount: 0.1 }}
+                            transition={{ duration: 0.8, delay: 0.4 }}
+                        >
+                            <div className="footer-left">
+                                <Link to="/my-crafts" className="btn-back">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <line x1="19" y1="12" x2="5" y2="12"></line>
+                                        <polyline points="12 19 5 12 12 5"></polyline>
+                                    </svg>
+                                    Back to My Crafts
+                                </Link>
                             </div>
-                        </div>
-
-                    </motion.div>
-                </div>
-            </div>
-        </div>
-
-            {/* ══ FOOTER ACTION BAR ══ */}
-            <motion.div 
-                className="ap-footer"
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: false, amount: 0.1 }}
-                transition={{ duration: 0.8, delay: 0.4 }}
-            >
-                <button className="btn-save-draft">
-                    Save Draft
-                </button>
-                <button className="btn-publish">
-                    Save & Publish
-                    <RocketIcon />
-                </button>
-            </motion.div>
-            </div>
+                            <div className="footer-right">
+                                <button className="btn-save-draft">
+                                    Save Draft
+                                </button>
+                                <button className="btn-publish">
+                                    Save & Publish
+                                    <RocketIcon />
+                                </button>
+                            </div>
+                        </motion.div>
+                    </div> {/* close ap-main-container */}
+                </div> {/* close ap-scroll-area */}
+            </div> {/* close add-product-body */}
         </DashboardLayout>
     );
 }
