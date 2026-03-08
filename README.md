@@ -91,38 +91,6 @@ npm run dev
 
 ---
 
-## 📁 Project Structure
-
-```
-AI-for-Artisans/
-├── frontend/                # React + Vite
-│   ├── src/
-│   │   ├── components/      # Reusable UI components
-│   │   ├── pages/           # Route views
-│   │   ├── App.jsx          # Router configuration
-│   │   └── index.css        # Global styles
-│   └── package.json
-│
-├── backend/                 # FastAPI
-│   ├── app/
-│   │   ├── api/             # API routes & dependencies
-│   │   ├── core/            # Config & security (JWT)
-│   │   ├── crud/            # Database operations
-│   │   ├── db/              # DB connection & seeding
-│   │   ├── ml/              # ML pipelines
-│   │   ├── models/          # SQLAlchemy models
-│   │   ├── schemas/         # Pydantic validation
-│   │   ├── services/        # Business logic
-│   │   └── main.py          # App entry point
-│   ├── Dockerfile
-│   └── requirements.txt
-│
-├── docker-compose.yml       # PostgreSQL + Backend orchestration
-└── project_blueprint.md     # Full project specification
-```
-
----
-
 ## ⚙️ Environment Variables
 
 Copy the example and update values as needed:
@@ -139,16 +107,6 @@ cp backend/.env.example backend/.env
 | `ACCESS_TOKEN_EXPIRE_MINUTES`| Token expiry duration          | `60`                                                        |
 
 > ⚠️ **Important:** Change `SECRET_KEY` to a strong random value before deploying to production.
-
----
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/your-feature`
-3. Commit your changes: `git commit -m "Add your feature"`
-4. Push to the branch: `git push origin feature/your-feature`
-5. Open a Pull Request
 
 ---
 
