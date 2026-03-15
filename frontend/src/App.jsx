@@ -13,6 +13,7 @@ import Signup from "./pages/Signup";
 import Profile from "./pages/Profile";
 
 import DashboardLayout from "./components/DashboardLayout";
+import PrivateRoute from "./components/PrivateRoute";
 
 function App() {
   return (
@@ -23,13 +24,16 @@ function App() {
           <Route path="login" element={<Login />} />
           <Route path="signup" element={<Signup />} />
 
-          <Route path="home" element={<Home />} />
-          <Route path="add-product" element={<AddProduct />} />
-          <Route path="constraints" element={<Constraints />} />
-          <Route path="my-crafts" element={<MyCrafts />} />
-          <Route path="production-advisor" element={<ProductionAdvisor />} />
-          <Route path="trends" element={<Trends />} />
-          <Route path="profile" element={<Profile />} />
+          {/* Private Routes */}
+          <Route element={<PrivateRoute />}>
+            <Route path="home" element={<Home />} />
+            <Route path="add-product" element={<AddProduct />} />
+            <Route path="constraints" element={<Constraints />} />
+            <Route path="my-crafts" element={<MyCrafts />} />
+            <Route path="production-advisor" element={<ProductionAdvisor />} />
+            <Route path="trends" element={<Trends />} />
+            <Route path="profile" element={<Profile />} />
+          </Route>
 
           {/* Fallback route */}
           <Route path="*" element={<div style={{ textAlign: "center", padding: "2rem" }}>Page not found</div>} />

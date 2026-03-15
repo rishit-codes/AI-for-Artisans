@@ -1,36 +1,36 @@
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends
 from fastapi.security import OAuth2PasswordBearer
-from jose import JWTError, jwt
 from sqlalchemy.ext.asyncio import AsyncSession
+from jose import jwt, JWTError
+import uuid
 
-from app.core.config import settings
 from app.db.session import get_db
-from app.crud.artisan import get_artisan_by_id
+from app.core.config import settings
+from app.core.exceptions import InvalidCredentialsError, ArtisanNotFoundError
+from app.crud.user import get_by_email
+from app.models.user import User
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
-
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
 async def get_current_user(
     token: str = Depends(oauth2_scheme),
-    db: AsyncSession = Depends(get_db),
-):
-    """Extract and return the current Artisan from a JWT bearer token."""
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
+    db: AsyncSession = Depends(get_db)
+) -> User:
     try:
-        payload = jwt.decode(
-            token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
-        )
-        artisan_id: str | None = payload.get("sub")
-        if artisan_id is None:
-            raise credentials_exception
+        payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=["HS256"])
+        user_id_str: str = payload.get("sub")
+        if user_id_str is None:
+            raise InvalidCredentialsError()
     except JWTError:
-        raise credentials_exception
-
-    artisan = await get_artisan_by_id(db, int(artisan_id))
-    if artisan is None:
-        raise credentials_exception
-    return artisan
+        raise InvalidCredentialsError()
+    
+    # We don't have get_by_id in crud yet, we could use email or id. Let's do get_by_id logic here natively or append it.
+    from sqlalchemy import select
+    stmt = select(User).where(User.id == uuid.UUID(user_id_str))
+    result = await db.execute(stmt)
+    user = result.scalar_one_or_none()
+    
+    if user is None:
+        raise ArtisanNotFoundError()
+    
+    return user

@@ -1,5 +1,6 @@
 import React from 'react';
 import DashboardLayout from '../components/DashboardLayout';
+import { useAuth } from '../context/AuthContext';
 import './Profile.css';
 
 // --- Icons (Copied from Dashboard Layout / App as needed) ---
@@ -67,6 +68,8 @@ const CheckCircleIcon = () => (
 
 
 export default function Profile() {
+    const { user } = useAuth();
+    
     return (
         <DashboardLayout>
             <div className="profile-page-content">
@@ -78,22 +81,22 @@ export default function Profile() {
                         {/* Main Profile Info Card */}
                         <div className="profile-card profile-header-card">
                             <div className="avatar-container">
-                                <img src="/images/ramesh_kumar.png" alt="Ramesh Kumar" className="avatar-image" />
+                                <img src="/images/ramesh_kumar.png" alt={user?.full_name || 'Artisan'} className="avatar-image" />
                                 <div className="verified-badge">
                                     <VerifiedBadgeIcon />
                                 </div>
                             </div>
-                            <h2 className="profile-name">Ramesh Kumar</h2>
-                            <p className="profile-role">Master Weaver</p>
+                            <h2 className="profile-name">{user?.full_name || 'Ramesh Kumar'}</h2>
+                            <p className="profile-role">{user?.craft_type || 'Artisan'} • {user?.email}</p>
 
                             <div className="profile-info-list">
                                 <div className="profile-info-item">
                                     <LocationPinIcon />
-                                    <span>Jaipur, India</span>
+                                    <span>{user?.location || 'India'}</span>
                                 </div>
                                 <div className="profile-info-item">
                                     <CalendarIcon />
-                                    <span>Member Since 2021</span>
+                                    <span>Member Since {user?.created_at ? new Date(user.created_at).getFullYear() : '2024'}</span>
                                 </div>
                             </div>
 
@@ -107,12 +110,10 @@ export default function Profile() {
                         <div className="profile-card skillset-card">
                             <div className="card-title">
                                 <SkillsetIcon />
-                                Skillset
+                                Craft Types
                             </div>
                             <div className="skills-container">
-                                <span className="skill-pill">Silk Weaving</span>
-                                <span className="skill-pill">Natural Dyeing</span>
-                                <span className="skill-pill">Traditional Loom</span>
+                                <span className="skill-pill">{user?.craft_type || 'Handloom'}</span>
                             </div>
                         </div>
 
@@ -159,28 +160,12 @@ export default function Profile() {
                         <div className="profile-card bio-card">
                             <div className="card-title">
                                 <IdentityBadgeIcon />
-                                Personal Biography
+                                Biography
                             </div>
 
                             <div className="bio-content">
                                 <p>
-                                    I am a third-generation master weaver based in the heart of Jaipur,
-                                    Rajasthan. My family has been dedicated to the intricate art of
-                                    Banarasi silk weaving for over seven decades, preserving the traditional
-                                    motifs and handloom techniques that have defined our heritage.
-                                </p>
-                                <p>
-                                    My journey began at the age of 14, learning from my grandfather.
-                                    Today, I specialize in combining ancient weaving styles with natural
-                                    dyeing processes to create eco-friendly, luxury textiles that tell a story. I
-                                    believe that every thread woven into our looms carries the weight of
-                                    history and the aspiration of our community.
-                                </p>
-                                <p>
-                                    Through ArtisanGPS, I aim to bridge the gap between traditional
-                                    craftsmanship and modern market demands, ensuring that the art of
-                                    the handloom continues to thrive in the digital age while providing
-                                    sustainable livelihoods for the artisans in my cooperative.
+                                    {user?.bio || 'Biography not provided yet. Click "Edit Profile" to add more about yourself, your craft, and your journey as an artisan.'}
                                 </p>
                             </div>
 

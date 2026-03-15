@@ -3,6 +3,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import './Login.css';
 
+import { useAuth } from '../context/AuthContext';
+
 const LogoIcon = () => (
   <svg width="28" height="28" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path d="M20 30 C20 30 8 26 8 14 C8 14 14 16 18 24" fill="#22c55e" />
@@ -12,14 +14,27 @@ const LogoIcon = () => (
 );
 
 export default function Login() {
-  const [mobileNumber, setMobileNumber] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  
+  const { login } = useAuth();
   const navigate = useNavigate();
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
-    // Simulate login and redirect to home
-    navigate('/home');
+    setIsLoading(true);
+    setError('');
+    
+    const result = await login(email, password);
+    
+    setIsLoading(false);
+    if (result.success) {
+      navigate('/home');
+    } else {
+      setError(result.error);
+    }
   };
 
   return (
@@ -45,21 +60,17 @@ export default function Login() {
         </div>
 
         <form className="auth-form" onSubmit={handleLogin}>
-          {/* Mobile Number Field */}
+          {/* Email Field */}
           <div className="form-group">
-            <label>Mobile Number</label>
+            <label>Email Address</label>
             <div className="phone-input-group">
-              <div className="country-code">
-                <span className="flag">🇮🇳</span>
-                <span>+91</span>
-                <span className="chevron">▾</span>
-              </div>
               <input
-                type="tel"
-                placeholder="9876543210"
-                value={mobileNumber}
-                onChange={(e) => setMobileNumber(e.target.value)}
+                type="email"
+                placeholder="e.g. ramesh@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 required
+                style={{ paddingLeft: '1rem' }}
               />
             </div>
           </div>
@@ -88,7 +99,11 @@ export default function Login() {
             </div>
           </div>
 
-          <button type="submit" className="auth-btn-primary">Login to Account</button>
+          <button type="submit" className="auth-btn-primary" disabled={isLoading}>
+            {isLoading ? 'Logging in...' : 'Login to Account'}
+          </button>
+          
+          {error && <p style={{ color: '#ef4444', marginTop: '1rem', textAlign: 'center', fontSize: '14px' }}>{error}</p>}
         </form>
 
         <div className="auth-divider">

@@ -1,52 +1,79 @@
-# Logs
-logs
+# ── Logs ─────────────────────────────────────────────────────────────
+logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
-lerna-debug.log*
 
-# Frontend
-node_modules
-dist
-dist-ssr
+# ── Frontend ──────────────────────────────────────────────────────────
+node_modules/
+dist/
+dist-ssr/
+.vite/
 *.local
 
-# Backend — Python
-backend/venv/
-backend/__pycache__/
-backend/app/**/__pycache__/
-**/__pycache__/
+# ── Backend — Python ──────────────────────────────────────────────────
+venv/
+.venv/
+__pycache__/
 *.py[cod]
 *.pyo
 *.pyd
 *.egg-info/
 *.egg
 .eggs/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.xml
 
-# Database
+# ── Alembic ───────────────────────────────────────────────────────────
+# Keep migrations but ignore compiled artifacts
+backend/alembic/__pycache__/
+
+# ── Environment variables ─────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+!*/.env.example
+
+# ── Database ──────────────────────────────────────────────────────────
 *.db
 *.sqlite3
+pgdata/
 
-# Environment variables
-.env
-!.env.example
+# ── Docker ────────────────────────────────────────────────────────────
+docker-compose.override.yml
 
-# Editor directories and files
+# ── Editor ───────────────────────────────────────────────────────────
 .vscode/*
 !.vscode/extensions.json
-.idea
-.DS_Store
+!.vscode/settings.json
+.idea/
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
 
-# Docker
-docker-compose.override.yml
-pgdata/
-
-# OS files
+# ── OS ────────────────────────────────────────────────────────────────
+.DS_Store
 Thumbs.db
+Desktop.ini
+ehthumbs.db
+
+# ── Build / dist artifacts ────────────────────────────────────────────
+build/
+*.tsbuildinfo
+
+# ── Test artifacts ────────────────────────────────────────────────────
+.pytest_cache/
+tests/__pycache__/
+
+# ── Internal planning docs (not for public repo) ──────────────────────
+backend_prompt.md
+frontend_implementation_status.md
+project_blueprint.md

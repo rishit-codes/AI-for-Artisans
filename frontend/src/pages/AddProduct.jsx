@@ -1,7 +1,8 @@
-import { Link, useLocation } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { motion } from "framer-motion";
 import DashboardLayout from "../components/DashboardLayout";
+import api from "../services/api";
 import "./AddProduct.css";
 
 // ── Icons ──────────────────────────────────────────────────────────────────────
@@ -82,12 +83,39 @@ function Toggle({ on, onToggle }) {
 
 // ── Page component ─────────────────────────────────────────────────────────────
 export default function AddProductPage() {
+    const navigate = useNavigate();
     const [bgRemoval, setBgRemoval] = useState(true);
     const [keywords, setKeywords] = useState("");
+    const [title, setTitle] = useState("");
+    const [material, setMaterial] = useState("");
+    const [description, setDescription] = useState("");
     const [price, setPrice] = useState("1250");
     const [stockQty, setStockQty] = useState("1");
     const [category, setCategory] = useState("Textiles");
-    const [generated, setGenerated] = useState(true); // show sample output by default
+    const [generated, setGenerated] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [error, setError] = useState("");
+
+    const handleSave = async (isListed = false) => {
+        setIsSubmitting(true);
+        setError("");
+        try {
+            await api.post('/products', {
+                name: title,
+                description: description || "Detailed description pending.",
+                category: category,
+                price: parseFloat(price),
+                stock_qty: parseInt(stockQty, 10),
+                is_listed: isListed,
+            });
+            navigate('/my-crafts');
+        } catch (err) {
+            console.error(err);
+            setError(err.response?.data?.detail || "Failed to save product");
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
 
     const saveButton = (
         <button className="btn-upload" style={{
@@ -227,14 +255,19 @@ export default function AddProductPage() {
                                         <label className="form-label">Product Title</label>
                                         <input
                                             type="text"
+                                            value={title}
+                                            onChange={(e) => setTitle(e.target.value)}
                                             placeholder="e.g., Blue Silk Scarf"
                                             className="form-input"
+                                            required
                                         />
                                     </div>
                                     <div className="form-group">
                                         <label className="form-label">Base Material</label>
                                         <input
                                             type="text"
+                                            value={material}
+                                            onChange={(e) => setMaterial(e.target.value)}
                                             placeholder="e.g., Pure Mulberry Silk"
                                             className="form-input"
                                         />
@@ -274,9 +307,13 @@ export default function AddProductPage() {
                                         <div className="ai-output-grid">
                                             <div className="ai-output-box">
                                                 <p className="ai-output-lang lang-en">English</p>
-                                                <p className="ai-output-text">
-                                                    Exquisite hand-woven scarf crafted from pure mulberry silk. Featuring a vibrant floral pattern in deep ocean blues, this piece embodies traditional craftsmanship with a modern touch.
-                                                </p>
+                                                <textarea
+                                                    value={description}
+                                                    onChange={(e) => setDescription(e.target.value)}
+                                                    className="ai-output-text"
+                                                    style={{ width: '100%', minHeight: '100px', background: 'transparent', border: 'none', resize: 'vertical' }}
+                                                    placeholder="Edit description here..."
+                                                />
                                             </div>
                                             <div className="ai-output-box">
                                                 <p className="ai-output-lang lang-hi">Hindi (हिंदी)</p>
@@ -357,6 +394,8 @@ export default function AddProductPage() {
                                         </div>
                                     </div>
                                 </div> {/* close form-row-2 */}
+
+                                {error && <p style={{ color: '#ef4444', marginTop: '1rem', fontSize: '14px' }}>{error}</p>}
                             </motion.div> {/* close ap-right-col */}
                         </div> {/* close ap-content-grid */}
 
@@ -378,10 +417,10 @@ export default function AddProductPage() {
                                 </Link>
                             </div>
                             <div className="footer-right">
-                                <button className="btn-save-draft">
+                                <button className="btn-save-draft" onClick={() => handleSave(false)} disabled={isSubmitting}>
                                     Save Draft
                                 </button>
-                                <button className="btn-publish">
+                                <button className="btn-publish" onClick={() => handleSave(true)} disabled={isSubmitting}>
                                     Save & Publish
                                     <RocketIcon />
                                 </button>

@@ -1,115 +1,64 @@
-# 🎨 AI-for-Artisans (ArtisanGPS)
+# 🎨 ArtisanGPS — AI for Artisans
 
-An AI-powered market intelligence platform designed to empower traditional and rural Indian artisans with actionable insights, trend predictions, and production planning tools.
+AI-powered market intelligence platform for Indian artisans.
 
-## Tech Stack
+| Layer    | Technology                                     |
+| -------- | ---------------------------------------------- |
+| Frontend | React 19 · Vite · Framer Motion · React Router |
+| Backend  | FastAPI · SQLAlchemy (async) · Pydantic · JWT  |
+| Database | PostgreSQL 16                                  |
+| DevOps   | Docker · Docker Compose                        |
 
-| Layer    | Technology                                      |
-| -------- | ----------------------------------------------- |
-| Frontend | React 19 · Vite · Framer Motion · React Router  |
-| Backend  | FastAPI · SQLAlchemy (async) · Pydantic          |
-| Database | PostgreSQL 16                                    |
-| ML       | Time-series forecasting · NLP · Computer Vision  |
-| DevOps   | Docker · Docker Compose                          |
 
----
+## 🚀 Start the Application
 
-## 🚀 Quick Start (Docker — Recommended)
+## 🐳 Full Docker Stack (DB + Backend)
 
-> **Prerequisites:** [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running.
+Run **all commands from the root `AI-for-Artisans/` folder**.
 
-```bash
-# Clone the repository
-git clone https://github.com/Unnati-88/AI-for-Artisans.git
-cd AI-for-Artisans
-
-# Start PostgreSQL + Backend in containers
-docker compose up --build -d
-
-# Check everything is running
-docker compose ps
+```powershell
+docker compose up --build -d       # build & start both services
+docker compose ps                  # check status
+docker compose logs -f backend     # follow backend logs
+docker compose restart backend     # restart backend
+docker compose down                # stop everything
+docker compose exec db psql -U postgres -d artisangps  # open DB shell
 ```
 
-- **API:** [http://localhost:8000](http://localhost:8000)
-- **Swagger Docs:** [http://localhost:8000/docs](http://localhost:8000/docs)
+> The frontend is **not containerised** — always start it with `npm run dev`.
+### Start the backend (from `backend/` folder)
 
-### Docker Commands Cheat Sheet
-
-```bash
-docker compose up -d            # Start containers (detached)
-docker compose up --build -d    # Rebuild & start (after requirements.txt changes)
-docker compose down             # Stop containers
-docker compose logs backend     # View backend logs
-docker compose logs -f backend  # Follow backend logs (live)
-docker compose restart backend  # Restart backend only
+```powershell
+.\venv\Scripts\python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
----
+→ API: http://localhost:8000  
+→ Swagger: http://localhost:8000/docs
 
-## 🖥️ Manual Setup (Without Docker)
+###  Start the frontend (new terminal, from `frontend/` folder)
 
-### Backend
-
-```bash
-cd backend
-
-# Create and activate virtual environment
-python -m venv venv
-
-# Windows
-.\venv\Scripts\Activate
-
-# macOS/Linux
-source venv/bin/activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Set up environment variables
-cp .env.example .env
-# Edit .env with your PostgreSQL credentials
-
-# Run the server (hot-reload enabled)
-uvicorn app.main:app --reload
-```
-
-> **Note:** You need a running PostgreSQL instance with a database named `artisangps`. Update `DATABASE_URL` in `.env` accordingly.
-
-### Frontend
-
-```bash
+```powershell
 cd frontend
-
-# Install dependencies
-npm install
-
-# Start development server
-npm run dev
+npm install        # first time only
+npm run dev -- --port 5173
 ```
 
-- **App:** [http://localhost:5173](http://localhost:5173)
+→ App: http://localhost:5173
 
----
 
 ## ⚙️ Environment Variables
 
-Copy the example and update values as needed:
-
-```bash
-cp backend/.env.example backend/.env
-```
-
-| Variable                     | Description                    | Default                                                     |
-| ---------------------------- | ------------------------------ | ----------------------------------------------------------- |
-| `DATABASE_URL`               | PostgreSQL connection string   | `postgresql+asyncpg://postgres:postgres@localhost:5432/artisangps` |
-| `SECRET_KEY`                 | JWT signing key                | `changeme-super-secret-key`                                 |
-| `ALGORITHM`                  | JWT algorithm                  | `HS256`                                                     |
-| `ACCESS_TOKEN_EXPIRE_MINUTES`| Token expiry duration          | `60`                                                        |
-
-> ⚠️ **Important:** Change `SECRET_KEY` to a strong random value before deploying to production.
+| Variable            | Description                      |
+| ------------------- | -------------------------------- |
+| `DATABASE_URL`      | PostgreSQL asyncpg connection    |
+| `JWT_SECRET_KEY`    | JWT signing secret (32+ chars)   |
+| `JWT_EXPIRE_DAYS`   | Token lifetime in days           |
+| `ANTHROPIC_API_KEY` | Claude key for Advisor feature   |
+| `FRONTEND_URL`      | Added to CORS allowlist          |
+| `VITE_API_URL`      | Backend URL consumed by frontend |
 
 ---
 
 ## 📄 License
 
-This project is built for educational and social impact purposes.
+Built for educational and social impact purposes.
