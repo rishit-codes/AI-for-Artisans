@@ -1,6 +1,7 @@
 import React, { useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
+import { useAuth } from "../context/AuthContext";
 
 // ── Icons ────────────────────────────────────────────────────────────────────
 
@@ -72,6 +73,13 @@ const navItems = [
 export default function DashboardLayout({ children, headerActions }) {
     const { pathname } = useLocation();
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const { user, logout } = useAuth();
+    const navigate = useNavigate();
+
+    const handleLogout = () => {
+        logout();
+        navigate("/login");
+    };
 
     return (
         <div className="dashboard-container">
@@ -138,10 +146,10 @@ export default function DashboardLayout({ children, headerActions }) {
 
                     <Link to="/profile" className={`sidebar-profile-section ${pathname === '/profile' ? 'active' : ''}`} style={{ display: pathname === '/home' || pathname === '/profile' ? 'flex' : 'none', textDecoration: 'none', color: 'inherit' }}>
                         <div className="sidebar-profile-img-box">
-                            <img src="/images/ramesh_kumar.png" alt="Ramesh Kumar" className="sidebar-profile-img" />
+                            <img src="/images/ramesh_kumar.png" alt={user?.full_name || "Ramesh Kumar"} className="sidebar-profile-img" />
                         </div>
                         <div className="sidebar-profile-info">
-                            <p className="sidebar-profile-name">Ramesh Kumar</p>
+                            <p className="sidebar-profile-name">{user?.full_name || "Ramesh Kumar"}</p>
                             <p className="sidebar-profile-role">Master Weaver</p>
                         </div>
                     </Link>
@@ -164,7 +172,7 @@ export default function DashboardLayout({ children, headerActions }) {
                     </nav>
 
                     <div className="sidebar-bottom" style={{ visibility: pathname === '/home' ? 'visible' : 'hidden' }}>
-                        <button className="logout-btn">
+                        <button className="logout-btn" onClick={handleLogout}>
                             <LogoutIcon />
                             Logout
                         </button>

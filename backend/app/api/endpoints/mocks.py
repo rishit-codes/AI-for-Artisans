@@ -6,12 +6,39 @@ router = APIRouter()
 @router.get("/trends")
 async def get_mock_trends() -> Any:
     return [
-        { "id": 1, "title": "Pastel Phulkari", "category": "Embroidery", "interest_score": 87, "tags": ["floral", "pastel", "Punjab"], "description": "Soft pastel tones replacing traditional bright Phulkari — high demand in urban gifting segment." },
-        { "id": 2, "title": "Geometric Dhurrie", "category": "Weaving", "interest_score": 74, "tags": ["geometric", "minimal", "home-decor"], "description": "Clean geometric motifs on flat-woven dhurries trending in home décor e-commerce." },
-        { "id": 3, "title": "Indigo Block Print", "category": "Printing", "interest_score": 91, "tags": ["indigo", "block-print", "sustainable"], "description": "Natural indigo block prints seeing a surge driven by sustainability-conscious buyers." },
-        { "id": 4, "title": "Madhubani on Fabric", "category": "Painting", "interest_score": 68, "tags": ["madhubani", "Bihar", "cultural"], "description": "Traditional Madhubani motifs applied to sarees and stoles — popular in craft exhibitions." },
-        { "id": 5, "title": "Kantha Stitch Quilts", "category": "Embroidery", "interest_score": 82, "tags": ["kantha", "Bengal", "quilts"], "description": "Running stitch Kantha quilts trending in international artisan marketplaces." },
-        { "id": 6, "title": "Warli on Tote Bags", "category": "Painting", "interest_score": 79, "tags": ["warli", "tribal", "accessories"], "description": "Warli tribal art applied to everyday accessories bridging traditional and modern markets." }
+        {
+            "id": 1,
+            "author": "Meera Textile Insights",
+            "title": "Wedding Season Surge",
+            "timestamp": "2 hours ago",
+            "image_url": "/images/loom_weaving.png",
+            "content": "Traditional Banarasi handlooms with festive reds, deep golds, and royal blues are seeing peak demand this wedding season. Weavers report a 40% surge in orders — lotus and peacock motifs in magenta-gold are the top request.",
+            "tags": ["WeddingSilk", "FloralMotif"],
+            "likes": "1.2k",
+            "comments": 89
+        },
+        {
+            "id": 2,
+            "author": "Arjun Dye Works",
+            "title": "Sustainable Dyes Trending",
+            "timestamp": "5 hours ago",
+            "image_url": "/images/natural_dyes.png",
+            "content": "Eco-conscious global buyers are actively sourcing naturally dyed cotton — indigo, turmeric, and madder red are the top picks. Market demand is up 25% this quarter, with premium pricing for certified natural dye products.",
+            "tags": ["NaturalDyes", "IndigoRevival", "SustainableCraft"],
+            "likes": "856",
+            "comments": 42
+        },
+        {
+            "id": 3,
+            "author": "Rajasthan Craft Hub",
+            "title": "Cotton Block Prints",
+            "timestamp": "1 day ago",
+            "image_url": "/images/block_print.png",
+            "content": "Sanganeri and Bagru block-printed kurtas and dupattas are surging in export orders — the US and EU markets alone have seen a 35% increase in demand for authentic hand-block prints this season.",
+            "tags": ["BlockPrint", "SanganeriPrint", "RajasthanCraft", "Cotton"],
+            "likes": "2.1k",
+            "comments": 156
+        }
     ]
 
 @router.get("/materials/prices")
