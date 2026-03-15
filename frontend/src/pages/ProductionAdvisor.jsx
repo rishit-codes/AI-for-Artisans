@@ -1,4 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
+import { useState, useRef, useEffect } from "react";
+import { useAuth } from "../context/AuthContext";
 import { motion } from "framer-motion";
 import DashboardLayout from "../components/DashboardLayout";
 import "./ProductionAdvisor.css";
@@ -269,6 +271,83 @@ function TaskCard({ item }) {
 export default function ProductionAdvisorPage() {
     const location = useLocation();
     const pathname = location.pathname;
+    const { token } = useAuth();
+    
+    // Chat state
+    const [messages, setMessages] = useState([]);
+    const [inputValue, setInputValue] = useState("");
+    const [isStreaming, setIsStreaming] = useState(false);
+    const messagesEndRef = useRef(null);
+
+    // Auto-scroll to bottom of chat
+    const scrollToBottom = () => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    };
+
+    useEffect(() => {
+        scrollToBottom();
+    }, [messages]);
+
+    const handleSendMessage = async (e) => {
+        e.preventDefault();
+        if (!inputValue.trim() || isStreaming) return;
+
+        const userMsg = { role: "user", content: inputValue };
+        setMessages((prev) => [...prev, userMsg]);
+        setInputValue("");
+        setIsStreaming(true);
+
+        // Add a placeholder assistant message
+        setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
+
+        try {
+            const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+            const response = await fetch(`${baseUrl}/advisor/chat`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ message: userMsg.content }),
+            });
+
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder('utf-8');
+            let done = false;
+
+            while (!done) {
+                const { value, done: doneReading } = await reader.read();
+                done = doneReading;
+                const chunkValue = decoder.decode(value, { stream: true });
+                
+                // Update the last message (the assistant's reply)
+                if (chunkValue) {
+                    setMessages((prev) => {
+                        const newMsgs = [...prev];
+                        const lastIndex = newMsgs.length - 1;
+                        if (newMsgs[lastIndex].role === "assistant") {
+                            newMsgs[lastIndex].content += chunkValue;
+                        }
+                        return newMsgs;
+                    });
+                }
+            }
+        } catch (error) {
+            console.error("Error fetching AI response:", error);
+            setMessages((prev) => {
+                const newMsgs = [...prev];
+                const lastIndex = newMsgs.length - 1;
+                newMsgs[lastIndex].content = "Sorry, I am having trouble connecting right now.";
+                return newMsgs;
+            });
+        } finally {
+            setIsStreaming(false);
+        }
+    };
 
     const topNavTabs = (
         <div className="topbar-nav-links">
@@ -321,8 +400,45 @@ export default function ProductionAdvisorPage() {
                                 </div>
                             </div>
 
-                            {/* Timeline */}
-                            <div className="timeline-container">
+                            {/* Chat Interface Layer */}
+                            <div className="advisor-chat-container">
+                                <div className="chat-messages">
+                                    {messages.length === 0 ? (
+                                        <div className="chat-placeholder">
+                                            <WandIcon />
+                                            <p>Hi, I'm your Production AI. Ask me about planning, materials, or weaving techniques!</p>
+                                        </div>
+                                    ) : (
+                                        messages.map((msg, idx) => (
+                                            <div key={idx} className={`chat-message ${msg.role === 'user' ? 'user-message' : 'ai-message'}`}>
+                                                <div className="message-content">{msg.content}</div>
+                                            </div>
+                                        ))
+                                    )}
+                                    <div ref={messagesEndRef} />
+                                </div>
+                                
+                                <form className="chat-input-area" onSubmit={handleSendMessage}>
+                                    <input
+                                        type="text"
+                                        className="chat-input"
+                                        placeholder="Ask for advice..."
+                                        value={inputValue}
+                                        onChange={(e) => setInputValue(e.target.value)}
+                                        disabled={isStreaming}
+                                        required
+                                    />
+                                    <button type="submit" className="chat-submit-btn" disabled={isStreaming || !inputValue.trim()}>
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                            <line x1="22" y1="2" x2="11" y2="13" />
+                                            <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                                        </svg>
+                                    </button>
+                                </form>
+                            </div>
+
+                            {/* Timeline - Push down if needed, but visually underneath in flex column */}
+                            <div className="timeline-container mt-8">
                                 {/* Vertical line */}
                                 <div className="timeline-line" />
 

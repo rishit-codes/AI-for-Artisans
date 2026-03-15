@@ -1,18 +1,22 @@
-from pydantic import BaseModel
+from typing import Optional
+from pydantic import BaseModel, EmailStr, ConfigDict
 
+class RegisterRequest(BaseModel):
+    email: EmailStr
+    full_name: str
+    password: str
+    craft_type: Optional[str] = None
+    location: Optional[str] = None
+    
+    model_config = ConfigDict(extra='forbid')
 
 class LoginRequest(BaseModel):
-    mobile: str
+    email: EmailStr
     password: str
-
-
-class SignupRequest(BaseModel):
-    name: str
-    mobile: str
-    password: str
-    role: str = "Artisan"
-
+    
+    model_config = ConfigDict(extra='forbid')
 
 class TokenResponse(BaseModel):
     access_token: str
-    token_type: str = "bearer"
+    token_type: str
+    user: dict  # Will be populated with UserRead

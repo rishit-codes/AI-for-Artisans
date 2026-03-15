@@ -1,7 +1,8 @@
 import { Link, useLocation } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import DashboardLayout from "../components/DashboardLayout";
+import api from "../services/api";
 import "./MyCrafts.css";
 
 // ── Icons ──────────────────────────────────────────────────────────────────────
@@ -86,7 +87,11 @@ const badgeStyles = {
     "Stable": { dot: "bg-green-400", text: "text-green-600", bg: "bg-green-50" },
     "Growing": { dot: "bg-emerald-500", text: "text-emerald-700", bg: "bg-emerald-50" },
     "Trending": { dot: "bg-amber-500", text: "text-amber-700", bg: "bg-amber-50" },
+    // Default for real DB products (no badge field)
+    "default": { dot: "bg-gray-400", text: "text-gray-600", bg: "bg-gray-50" },
 };
+
+const getDefaultBadge = (product) => badgeStyles[product.badge] ?? badgeStyles["default"];
 
 const products = [
     { id: 1, name: "Banarasi Silk Saree", material: "Hand-woven traditional silk", stock: 12, price: "₹18,500", badge: "High Demand", image: "/images/banarasi_saree.jpg" },
@@ -100,37 +105,37 @@ const products = [
 // ── Product Card ───────────────────────────────────────────────────────────────
 
 function ProductCard({ product }) {
-    const badge = badgeStyles[product.badge];
+    const badge = getDefaultBadge(product);
     return (
         <div className="product-card">
             {/* Image */}
             <div className="product-image-container">
                 <img
-                    src={product.image}
+                    src={product.image_url || "/images/terracotta_pot.jpg"}
                     alt={product.name}
                     className="product-image"
                 />
-                {/* Badge */}
+                {/* Badge (Placeholder mapping) */}
                 <div className={`product-badge ${badge.bg} ${badge.text}`}>
                     <span className={`badge-dot ${badge.dot}`} />
-                    {product.badge}
+                    {product.is_listed ? "Listed" : "Draft"}
                 </div>
             </div>
 
             {/* Info */}
             <div className="product-info">
                 <h3 className="product-title">{product.name}</h3>
-                <p className="product-material">{product.material}</p>
+                <p className="product-material">{product.material || "Craft"}</p>
 
                 {/* Stock + Price */}
                 <div className="product-stats">
                     <div>
                         <p className="stat-label">Stock</p>
-                        <p className="stat-value">{product.stock} Units</p>
+                        <p className="stat-value">{product.stock_qty} Units</p>
                     </div>
                     <div>
                         <p className="stat-label">Price</p>
-                        <p className="stat-value-price">{product.price}</p>
+                        <p className="stat-value-price">₹{product.price}</p>
                     </div>
                 </div>
             </div>
@@ -145,10 +150,27 @@ export default function MyCraftsPage() {
     const pathname = location.pathname;
     const [search, setSearch] = useState("");
     const [category, setCategory] = useState("All Categories");
+    const [products, setProducts] = useState([]);
+    const [loading, setLoading] = useState(true);
+    
+    useEffect(() => {
+        const fetchProducts = async () => {
+            try {
+                const response = await api.get('/products');
+                setProducts(response.data);
+            } catch (error) {
+                console.error("Error fetching products:", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchProducts();
+    }, []);
 
     const filtered = products.filter((p) =>
-        p.name.toLowerCase().includes(search.toLowerCase()) ||
-        p.material.toLowerCase().includes(search.toLowerCase())
+        (p.name?.toLowerCase().includes(search.toLowerCase()) ||
+         p.category?.toLowerCase().includes(search.toLowerCase())) &&
+        (category === "All Categories" || p.category === category)
     );
 
     return (
@@ -221,19 +243,23 @@ export default function MyCraftsPage() {
                     </motion.div>
 
                     {/* Product Grid */}
-                    <motion.div 
-                        className="product-grid"
-                        initial={{ opacity: 0, y: 20 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        viewport={{ once: false, amount: 0.1 }}
-                        transition={{ duration: 0.8, delay: 0.4 }}
-                    >
-                        {filtered.map((product) => (
-                            <ProductCard key={product.id} product={product} />
-                        ))}
-                    </motion.div>
+                    {loading ? (
+                        <div style={{ textAlign: 'center', padding: '2rem' }}>Loading crafts...</div>
+                    ) : (
+                        <motion.div 
+                            className="product-grid"
+                            initial={{ opacity: 0, y: 20 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            viewport={{ once: false, amount: 0.1 }}
+                            transition={{ duration: 0.8, delay: 0.4 }}
+                        >
+                            {filtered.map((product) => (
+                                <ProductCard key={product.id} product={product} />
+                            ))}
+                        </motion.div>
+                    )}
 
-                    {filtered.length === 0 && (
+                    {!loading && filtered.length === 0 && (
                         <div className="empty-state">
                             <p className="empty-state-text">No crafts found for "{search}"</p>
                         </div>

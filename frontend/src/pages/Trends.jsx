@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
+import api from "../services/api";
 import { motion } from "framer-motion";
 import DashboardLayout from "../components/DashboardLayout";
 import "./Trends.css";
@@ -74,8 +75,25 @@ const trendTabs = ["All Trends", "Wedding Season", "Cotton", "Sustainable Dyes"]
 
 export default function TrendsPage() {
     const [activeTab, setActiveTab] = useState("All Trends");
+    const [trends, setTrends] = useState([]);
+    const [loading, setLoading] = useState(true);
     const location = useLocation();
     const pathname = location.pathname;
+
+    useEffect(() => {
+        const fetchTrends = async () => {
+            try {
+                const response = await api.get('/mocks/trends');
+                setTrends(response.data);
+            } catch (error) {
+                console.error("Error fetching trends:", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchTrends();
+    }, []);
 
     const topNavTabs = (
         <div className="topbar-nav-links">
@@ -84,6 +102,11 @@ export default function TrendsPage() {
             <Link to="/constraints" className={`nav-link ${pathname === '/constraints' ? 'active-link' : ''}`}>Material Costs</Link>
         </div>
     );
+
+    // Filter logic
+    const filteredTrends = activeTab === "All Trends" 
+        ? trends 
+        : trends.filter(t => t.tags.includes(activeTab.replace(' ', '')) || t.title.includes(activeTab) || t.content.includes(activeTab));
 
     return (
         <DashboardLayout headerActions={topNavTabs}>
@@ -132,163 +155,69 @@ export default function TrendsPage() {
                                 </div>
                             </div>
 
-                            {/* Trend Card 1 */}
-                            {(activeTab === "All Trends" || activeTab === "Wedding Season") && (
-                                <div className="trend-card">
-                                    <div className="trend-card-header">
-                                        <div className="header-info">
-                                            <div className="avatar bg-amber-100 text-amber-700">M</div>
-                                            <div>
-                                                <h3 className="author-name">Meera Textile Insights</h3>
-                                                <p className="post-meta">Silk Weaving Trends · 2 hours ago</p>
+                            {loading ? (
+                                <div style={{ textAlign: 'center', padding: '2rem' }}>Loading trends...</div>
+                            ) : (
+                                filteredTrends.map((trend) => (
+                                    <div key={trend.id} className="trend-card">
+                                        <div className="trend-card-header">
+                                            <div className="header-info">
+                                                <div className="avatar bg-amber-100 text-amber-700">
+                                                    {trend.author.charAt(0)}
+                                                </div>
+                                                <div>
+                                                    <h3 className="author-name">{trend.author}</h3>
+                                                    <p className="post-meta">{trend.timestamp}</p>
+                                                </div>
+                                            </div>
+                                            <button className="menu-btn">
+                                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                                                    <circle cx="12" cy="12" r="1.5" fill="currentColor" />
+                                                    <circle cx="12" cy="5" r="1.5" fill="currentColor" />
+                                                    <circle cx="12" cy="19" r="1.5" fill="currentColor" />
+                                                </svg>
+                                            </button>
+                                        </div>
+
+                                        {trend.image_url && (
+                                            <div className="media-container bg-gray-200">
+                                                <img src={trend.image_url} alt="Trend" className="media-img" />
+                                            </div>
+                                        )}
+
+                                        <div className="post-content">
+                                            <h4 style={{ margin: '0 0 0.5rem 0', fontWeight: 'bold' }}>{trend.title}</h4>
+                                            <p className="post-text mb-4">
+                                                {trend.content}
+                                            </p>
+
+                                            <div className="tags-container-alt">
+                                                {trend.tags.map(tag => (
+                                                    <span key={tag} className="post-tag-alt text-teal-600">#{tag}</span>
+                                                ))}
+                                            </div>
+
+                                            <div className="engagement-bar" style={{ marginTop: '1rem' }}>
+                                                <button className="action-btn hover-red">
+                                                    <HeartIcon />
+                                                    <span>{trend.likes}</span>
+                                                </button>
+                                                <button className="action-btn hover-green">
+                                                    <CommentIcon />
+                                                    <span>{trend.comments}</span>
+                                                </button>
+                                                <button className="action-btn hover-blue">
+                                                    <ShareIcon />
+                                                    <span>Share</span>
+                                                </button>
                                             </div>
                                         </div>
-                                        <button className="menu-btn">
-                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                                                <circle cx="12" cy="12" r="1.5" fill="currentColor" />
-                                                <circle cx="12" cy="5" r="1.5" fill="currentColor" />
-                                                <circle cx="12" cy="19" r="1.5" fill="currentColor" />
-                                            </svg>
-                                        </button>
                                     </div>
-
-                                    <div className="media-container">
-                                        <img src="/images/loom_weaving.png" alt="Trend" className="media-img" />
-                                        <div className="play-overlay">
-                                            <PlayIcon />
-                                        </div>
-                                    </div>
-
-                                    <div className="post-content">
-                                        <p className="post-text">
-                                            Traditional Banarasi handlooms with festive reds, deep golds, and royal blues are seeing peak demand this wedding season. Weavers report a <span className="text-bold">40% surge in orders</span> — lotus and peacock motifs in magenta-gold are the top request. Start weaving now to catch the prime delivery window. <span className="read-more">Read more</span>
-                                        </p>
-
-                                        <div className="tags-container">
-                                            <span className="post-tag">#WeddingSilk</span>
-                                            <span className="post-tag">#FloralMotif</span>
-                                        </div>
-
-                                        <div className="engagement-bar">
-                                            <button className="action-btn hover-red">
-                                                <HeartIcon />
-                                                <span>1.2k</span>
-                                            </button>
-                                            <button className="action-btn hover-green">
-                                                <CommentIcon />
-                                                <span>89</span>
-                                            </button>
-                                            <button className="action-btn hover-blue">
-                                                <ShareIcon />
-                                                <span>Share</span>
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
+                                ))
                             )}
-
-                            {/* Trend Card 2 */}
-                            {(activeTab === "All Trends" || activeTab === "Sustainable Dyes") && (
-                                <div className="trend-card">
-                                    <div className="trend-card-header">
-                                        <div className="header-info">
-                                            <div className="avatar bg-teal-100 text-teal-700">A</div>
-                                            <div>
-                                                <h3 className="author-name">Arjun Dye Works</h3>
-                                                <p className="post-meta">Natural Dyes & Sustainability · 5 hours ago</p>
-                                            </div>
-                                        </div>
-                                        <button className="menu-btn">
-                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                                                <circle cx="12" cy="12" r="1.5" fill="currentColor" />
-                                                <circle cx="12" cy="5" r="1.5" fill="currentColor" />
-                                                <circle cx="12" cy="19" r="1.5" fill="currentColor" />
-                                            </svg>
-                                        </button>
-                                    </div>
-                                    <div className="media-container bg-gray-200">
-                                        <img src="/images/natural_dyes.png" alt="Natural dye pots in artisan workshop" className="media-img" />
-                                    </div>
-                                    <div className="post-content">
-                                        <div className="tags-container-alt">
-                                            <span className="post-tag-alt text-teal-600">#NaturalDyes</span>
-                                            <span className="post-tag-alt text-teal-600">#IndigoRevival</span>
-                                            <span className="post-tag-alt text-teal-600">#SustainableCraft</span>
-                                        </div>
-                                        <p className="post-text mb-4">
-                                            Eco-conscious global buyers are actively sourcing naturally dyed cotton — indigo, turmeric, and madder red are the top picks. Market demand is up <span className="text-bold">25% this quarter</span>, with premium pricing for certified natural dye products. Artisans using plant-based dyes are fetching 30–40% higher margins.
-                                        </p>
-                                        <div className="engagement-bar">
-                                            <button className="action-btn hover-red">
-                                                <HeartIcon />
-                                                <span>856</span>
-                                            </button>
-                                            <button className="action-btn hover-green">
-                                                <CommentIcon />
-                                                <span>42</span>
-                                            </button>
-                                            <button className="action-btn hover-blue">
-                                                <ShareIcon />
-                                                <span>Share</span>
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Trend Card 3 */}
-                            {(activeTab === "All Trends" || activeTab === "Cotton") && (
-                                <div className="trend-card">
-                                    <div className="trend-card-header">
-                                        <div className="header-info">
-                                            <div className="avatar bg-indigo-100 text-indigo-700">R</div>
-                                            <div>
-                                                <h3 className="author-name">Rajasthan Craft Hub</h3>
-                                                <p className="post-meta">Block Printing · Jaipur · 1 day ago</p>
-                                            </div>
-                                        </div>
-                                        <button className="menu-btn">
-                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                                                <circle cx="12" cy="12" r="1.5" fill="currentColor" />
-                                                <circle cx="12" cy="5" r="1.5" fill="currentColor" />
-                                                <circle cx="12" cy="19" r="1.5" fill="currentColor" />
-                                            </svg>
-                                        </button>
-                                    </div>
-                                    <div className="media-container bg-gray-200">
-                                        <img src="/images/block_print.png" alt="Traditional Rajasthani block printing workshop" className="media-img" />
-                                        <div className="play-overlay">
-                                            <PlayIcon />
-                                        </div>
-                                    </div>
-                                    <div className="post-content">
-                                        <div className="tags-container-alt">
-                                            <span className="post-tag-alt text-indigo-600">#BlockPrint</span>
-                                            <span className="post-tag-alt text-indigo-600">#SanganeriPrint</span>
-                                            <span className="post-tag-alt text-indigo-600">#RajasthanCraft</span>
-                                        </div>
-                                        <p className="post-text mb-4">
-                                            Sanganeri and Bagru block-printed kurtas and dupattas are surging in export orders — the US and EU markets alone have seen a <span className="text-bold">35% increase</span> in demand for authentic hand-block prints this season. Premium buyers are paying 2× retail for certified handmade pieces.
-                                        </p>
-                                        <div className="engagement-bar">
-                                            <button className="action-btn hover-red">
-                                                <HeartIcon />
-                                                <span>2.1k</span>
-                                            </button>
-                                            <button className="action-btn hover-green">
-                                                <CommentIcon />
-                                                <span>156</span>
-                                            </button>
-                                            <button className="action-btn hover-blue">
-                                                <ShareIcon />
-                                                <span>Share</span>
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-
                         </motion.div>
+
+                         {/* End of Feed Column */}
 
                         {/* ══ RIGHT SIDEBAR - Market Intelligence ══ */}
                         <motion.aside

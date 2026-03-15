@@ -1,42 +1,33 @@
-from pydantic import BaseModel
+import uuid
+from datetime import datetime
+from typing import Optional
+from pydantic import BaseModel, ConfigDict, Field
 
-
-class ProductCreate(BaseModel):
+class ProductBase(BaseModel):
     name: str
-    material: str = ""
-    stock: int = 0
-    price: str = "₹0"
-    badge: str = ""
-    image_url: str = ""
-    category: str = "Textiles"
-    description_en: str = ""
-    description_hi: str = ""
+    description: Optional[str] = None
+    category: Optional[str] = None
+    price: float = Field(gt=0)
+    stock_qty: int = Field(ge=0, default=0)
+    is_listed: Optional[bool] = True
 
-
-class ProductRead(BaseModel):
-    id: int
-    artisan_id: int
-    name: str
-    material: str
-    stock: int
-    price: str
-    badge: str
-    image_url: str
-    category: str
-    description_en: str
-    description_hi: str
-
-    class Config:
-        from_attributes = True
-
+class ProductCreate(ProductBase):
+    model_config = ConfigDict(extra='forbid')
 
 class ProductUpdate(BaseModel):
-    name: str | None = None
-    material: str | None = None
-    stock: int | None = None
-    price: str | None = None
-    badge: str | None = None
-    image_url: str | None = None
-    category: str | None = None
-    description_en: str | None = None
-    description_hi: str | None = None
+    name: Optional[str] = None
+    description: Optional[str] = None
+    category: Optional[str] = None
+    price: Optional[float] = Field(None, gt=0)
+    stock_qty: Optional[int] = Field(None, ge=0)
+    is_listed: Optional[bool] = None
+
+    model_config = ConfigDict(extra='forbid')
+
+class ProductRead(ProductBase):
+    id: uuid.UUID
+    artisan_id: uuid.UUID
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)

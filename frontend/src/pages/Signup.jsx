@@ -3,6 +3,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import './Login.css'; // Reusing Login.css for structural consistency
 
+import { useAuth } from '../context/AuthContext';
+
 const LogoIcon = () => (
   <svg width="28" height="28" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path d="M20 30 C20 30 8 26 8 14 C8 14 14 16 18 24" fill="#22c55e" />
@@ -13,14 +15,31 @@ const LogoIcon = () => (
 
 export default function Signup() {
   const [fullName, setFullName] = useState('');
-  const [mobileNumber, setMobileNumber] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  
+  const { register } = useAuth();
   const navigate = useNavigate();
 
-  const handleSignup = (e) => {
+  const handleSignup = async (e) => {
     e.preventDefault();
-    // Simulate signup and redirect to home
-    navigate('/home');
+    setIsLoading(true);
+    setError('');
+    
+    const result = await register({
+      email: email,
+      full_name: fullName,
+      password: password
+    });
+    
+    setIsLoading(false);
+    if (result.success) {
+      navigate('/home');
+    } else {
+      setError(result.error);
+    }
   };
 
   return (
@@ -60,21 +79,17 @@ export default function Signup() {
             </div>
           </div>
 
-          {/* Mobile Number Field */}
+          {/* Email Field */}
           <div className="form-group">
-            <label>Mobile Number</label>
+            <label>Email Address</label>
             <div className="phone-input-group">
-              <div className="country-code">
-                <span className="flag">🇮🇳</span>
-                <span>+91</span>
-                <span className="chevron">▾</span>
-              </div>
               <input
-                type="tel"
-                placeholder="9876543210"
-                value={mobileNumber}
-                onChange={(e) => setMobileNumber(e.target.value)}
+                type="email"
+                placeholder="e.g. ramesh@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 required
+                style={{ paddingLeft: '1rem' }}
               />
             </div>
           </div>
@@ -100,7 +115,11 @@ export default function Signup() {
             </div>
           </div>
 
-          <button type="submit" className="auth-btn-primary">Create Account</button>
+          <button type="submit" className="auth-btn-primary" disabled={isLoading}>
+            {isLoading ? 'Creating Account...' : 'Create Account'}
+          </button>
+          
+          {error && <p style={{ color: '#ef4444', marginTop: '1rem', textAlign: 'center', fontSize: '14px' }}>{error}</p>}
         </form>
 
         <div className="auth-footer-text">

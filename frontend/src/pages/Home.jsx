@@ -1,4 +1,7 @@
 import { Link, useNavigate, useLocation } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useAuth } from "../context/AuthContext";
+import api from "../services/api";
 import { motion } from "framer-motion";
 import DashboardLayout from "../components/DashboardLayout";
 import "./Home.css";
@@ -101,6 +104,31 @@ export default function HomePage() {
     const navigate = useNavigate();
     const location = useLocation();
     const pathname = location.pathname;
+    const { user } = useAuth();
+    
+    const [dashboardData, setDashboardData] = useState(null);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchDashboardData = async () => {
+            try {
+                const response = await api.get('/dashboard/summary');
+                setDashboardData(response.data);
+            } catch (error) {
+                console.error("Error fetching dashboard data:", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchDashboardData();
+    }, []);
+
+    // Get today's date
+    const today = new Date();
+    const options = { weekday: 'long', day: 'numeric', month: 'short' };
+    const dateString = today.toLocaleDateString('en-IN', options);
+
     return (
         <DashboardLayout>
             <div className="home-content">
@@ -116,14 +144,14 @@ export default function HomePage() {
                         transition={{ duration: 0.8, delay: 0.2 }}
                     >
                         <div>
-                            <h2 className="greeting-title">Namaste, Ramesh ji</h2>
+                            <h2 className="greeting-title">Namaste, {user?.full_name?.split(' ')[0] || 'Artisan'} ji</h2>
                             <p className="greeting-subtitle">
-                                Here is your plan for <span className="highlight-green">Tuesday, 14 Oct</span>
+                                Here is your plan for <span className="highlight-green">{dateString}</span>
                             </p>
                         </div>
                         <div className="greeting-right">
-                            <p className="next-market-label">Next Market Day</p>
-                            <p className="next-market-value">in 2 Days</p>
+                            <p className="next-market-label">Total Products</p>
+                            <p className="next-market-value">{loading ? '...' : dashboardData?.total_products || 0}</p>
                         </div>
                     </motion.div>
 
