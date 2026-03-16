@@ -1,4 +1,9 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, func
+import uuid
+from datetime import datetime
+from decimal import Decimal
+from typing import Optional
+from sqlalchemy import String, ForeignKey, DateTime, Numeric, func, text
+from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
 
@@ -8,10 +13,15 @@ class Order(Base):
 
     __tablename__ = "orders"
 
-    id = Column(Integer, primary_key=True, index=True)
-    artisan_id = Column(Integer, ForeignKey("artisans.id"), nullable=False, index=True)
-    product_id = Column(Integer, ForeignKey("products.id"), nullable=False, index=True)
-    quantity = Column(Integer, nullable=False, default=1)
-    total_price = Column(String(50), default="₹0")
-    status = Column(String(20), default="pending")  # pending, fulfilled, cancelled
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, server_default=text("gen_random_uuid()"))
+    artisan_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    product_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        ForeignKey("products.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    quantity: Mapped[int] = mapped_column(nullable=False, default=1)
+    total_price: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False, default=Decimal("0.00"))
+    currency: Mapped[str] = mapped_column(String(3), nullable=False, default="INR")
+    status: Mapped[str] = mapped_column(String(20), default="pending")  # pending, fulfilled, cancelled
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

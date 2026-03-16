@@ -1,5 +1,6 @@
 import pytest
 import pytest_asyncio
+import os
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from app.main import app
@@ -7,8 +8,13 @@ from app.db.session import get_db
 from app.models.user import Base
 from app.core.config import settings
 
-# Test DB — uses postgres:postgres credentials matching Docker Compose
-TEST_DATABASE_URL = "postgresql+asyncpg://postgres:postgres@localhost:5432/artisangps_test"
+# Test DB URL is configurable and docker-aware.
+if os.getenv("TEST_DATABASE_URL"):
+    TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL")
+elif os.path.exists("/.dockerenv"):
+    TEST_DATABASE_URL = "postgresql+asyncpg://postgres:postgres@db:5432/artisangps_test"
+else:
+    TEST_DATABASE_URL = "postgresql+asyncpg://postgres:postgres@localhost:5432/artisangps_test"
 
 @pytest_asyncio.fixture(scope="function")
 async def client() -> AsyncClient:

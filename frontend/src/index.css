@@ -60,7 +60,8 @@ body {
   color: var(--brand-charcoal);
   -webkit-font-smoothing: antialiased;
   overscroll-behavior: none;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 /* ── Typography & Headings ── */

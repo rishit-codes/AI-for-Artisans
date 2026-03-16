@@ -5,6 +5,32 @@ import "./Landing.css";
 
 export default function LandingPage() {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    const footerSections = [
+        {
+            title: "Platform",
+            links: [
+                { label: "How it Works", href: "#steps" },
+                { label: "Pricing Data", href: "#features" },
+                { label: "Success Stories", href: "#cta" },
+            ],
+        },
+        {
+            title: "Connect",
+            links: [
+                { label: "For NGOs", href: "#cta" },
+                { label: "For Government", href: "#cta" },
+                { label: "Retail Partners", href: "#cta" },
+            ],
+        },
+        {
+            title: "Resources",
+            links: [
+                { label: "Blog", to: "/login" },
+                { label: "Report", to: "/signup" },
+                { label: "Terms", href: "#footer" },
+            ],
+        },
+    ];
 
     return (
         <div className="landing-container">
@@ -185,6 +211,99 @@ export default function LandingPage() {
                 </div>
             </section>
 
+            {/* ══════════════════════════════════════════
+                OUR IMPACT / STEPS SECTION
+            ══════════════════════════════════════════ */}
+            <section id="steps" className="steps-section">
+                <div className="steps-container">
+                    <motion.div
+                        className="steps-left"
+                        initial={{ opacity: 0, x: -20 }}
+                        whileInView={{ opacity: 1, x: 0 }}
+                        viewport={{ once: false, amount: 0.1, margin: "-80px" }}
+                        transition={{ duration: 0.8 }}
+                    >
+                        <h2>
+                            Our Impact Journey<br />for Every Artisan
+                        </h2>
+
+                        <div className="steps-list">
+                            <motion.div
+                                className="step-item"
+                                initial={{ opacity: 0, y: 12 }}
+                                whileInView={{ opacity: 1, y: 0 }}
+                                viewport={{ once: false, amount: 0.1 }}
+                                transition={{ duration: 0.6, delay: 0.05 }}
+                            >
+                                <div className="step-number">1</div>
+                                <div>
+                                    <h4>Understand Local + Global Demand</h4>
+                                    <p>
+                                        We decode market movement into simple guidance, so artisans can decide what to make and when.
+                                    </p>
+                                </div>
+                            </motion.div>
+
+                            <motion.div
+                                className="step-item"
+                                initial={{ opacity: 0, y: 12 }}
+                                whileInView={{ opacity: 1, y: 0 }}
+                                viewport={{ once: false, amount: 0.1 }}
+                                transition={{ duration: 0.6, delay: 0.12 }}
+                            >
+                                <div className="step-number">2</div>
+                                <div>
+                                    <h4>Plan Production with Confidence</h4>
+                                    <p>
+                                        From material windows to seasonal motifs, artisans receive practical prompts before demand peaks.
+                                    </p>
+                                </div>
+                            </motion.div>
+
+                            <motion.div
+                                className="step-item"
+                                initial={{ opacity: 0, y: 12 }}
+                                whileInView={{ opacity: 1, y: 0 }}
+                                viewport={{ once: false, amount: 0.1 }}
+                                transition={{ duration: 0.6, delay: 0.2 }}
+                            >
+                                <div className="step-number">3</div>
+                                <div>
+                                    <h4>Grow Income, Preserve Heritage</h4>
+                                    <p>
+                                        Better pricing and timing help rural craft communities scale sustainably without losing traditional identity.
+                                    </p>
+                                </div>
+                            </motion.div>
+                        </div>
+                    </motion.div>
+
+                    <motion.div
+                        className="steps-right"
+                        initial={{ opacity: 0, x: 20 }}
+                        whileInView={{ opacity: 1, x: 0 }}
+                        viewport={{ once: false, amount: 0.2, margin: "-80px" }}
+                        transition={{ duration: 0.8, delay: 0.1 }}
+                    >
+                        <div className="loom-image-wrapper">
+                            <img
+                                src="/images/loom_weaving.png"
+                                alt="Traditional loom weaving"
+                                className="loom-image"
+                            />
+                        </div>
+
+                        <div className="loom-badge">
+                            <div className="step-number" style={{ width: 36, height: 36 }}>AI</div>
+                            <div>
+                                <p className="badge-title">Community Reach</p>
+                                <p className="badge-value">+2.5x Better Demand Visibility</p>
+                            </div>
+                        </div>
+                    </motion.div>
+                </div>
+            </section>
+
 
             {/* ══════════════════════════════════════════
                 CTA BANNER
@@ -228,17 +347,17 @@ export default function LandingPage() {
 
                         {/* Nav columns */}
                         <div className="footer-links">
-                            {[
-                                { title: "Platform", links: ["How it Works", "Pricing Data", "Success Stories"] },
-                                { title: "Connect", links: ["For NGOs", "For Government", "Retail Partners"] },
-                                { title: "Resources", links: ["Blog", "Report", "Terms"] },
-                            ].map(({ title, links }) => (
+                            {footerSections.map(({ title, links }) => (
                                 <div key={title} className="footer-link-col">
                                     <h5>{title}</h5>
                                     <ul>
-                                        {links.map(item => (
-                                            <li key={item}>
-                                                <Link to="#">{item}</Link>
+                                        {links.map((item) => (
+                                            <li key={item.label}>
+                                                {item.to ? (
+                                                    <Link to={item.to}>{item.label}</Link>
+                                                ) : (
+                                                    <a href={item.href}>{item.label}</a>
+                                                )}
                                             </li>
                                         ))}
                                     </ul>
