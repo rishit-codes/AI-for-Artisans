@@ -16,7 +16,7 @@ AI-powered market intelligence platform for Indian artisans.
 
 Run **all commands from the root `AI-for-Artisans/` folder**.
 
-```powershell
+```bash
 docker compose up --build -d       # build & start both services
 docker compose ps                  # check status
 docker compose logs -f backend     # follow backend logs
@@ -26,18 +26,39 @@ docker compose exec db psql -U postgres -d artisangps  # open DB shell
 ```
 
 > The frontend is **not containerised** — always start it with `npm run dev`.
-### Start the backend (from `backend/` folder)
+
+### Start the backend (without Docker, optional)
+
+#### Linux / macOS
+
+```bash
+cd backend
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+alembic upgrade head
+uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+```
+
+#### Windows (PowerShell)
 
 ```powershell
-.\venv\Scripts\python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+cd backend
+python -m venv .venv
+.\.venv\Scripts\activate
+pip install -r requirements.txt
+alembic upgrade head
+uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
+
+> `127.0.0.1` is preferred for local development to avoid exposing the dev server on all interfaces.
 
 → API: http://localhost:8000  
 → Swagger: http://localhost:8000/docs
 
 ###  Start the frontend (new terminal, from `frontend/` folder)
 
-```powershell
+```bash
 cd frontend
 npm install        # first time only
 npm run dev -- --port 5173

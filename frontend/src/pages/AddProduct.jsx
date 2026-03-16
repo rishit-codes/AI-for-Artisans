@@ -102,6 +102,7 @@ export default function AddProductPage() {
         try {
             await api.post('/products', {
                 name: title,
+                material: material || null,
                 description: description || "Detailed description pending.",
                 category: category,
                 price: parseFloat(price),

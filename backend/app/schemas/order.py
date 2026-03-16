@@ -1,24 +1,28 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from datetime import datetime
+import uuid
+from decimal import Decimal
+from typing import Optional
 
 
 class OrderCreate(BaseModel):
-    product_id: int
+    product_id: uuid.UUID
     quantity: int = 1
-    total_price: str = "₹0"
+    total_price: Decimal = Decimal("0.00")
+    currency: str = "INR"
 
 
 class OrderRead(BaseModel):
-    id: int
-    artisan_id: int
-    product_id: int
+    id: uuid.UUID
+    artisan_id: uuid.UUID
+    product_id: Optional[uuid.UUID]
     quantity: int
-    total_price: str
+    total_price: Decimal
+    currency: str
     status: str
     created_at: datetime | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class OrderUpdate(BaseModel):

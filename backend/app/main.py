@@ -8,6 +8,7 @@ import os
 from app.core.config import settings
 from app.core.exceptions import ArtisanNotFoundError, ArtisanForbiddenError, ArtisanConflictError, InvalidCredentialsError
 from app.api.endpoints import api_router
+from app.db.base import init_db
 
 # Setup logging
 logging.basicConfig(
@@ -18,11 +19,8 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    if settings.ENVIRONMENT == "production":
-        # Run Alembic migrations on startup in production
-        import subprocess
-        logger.info("Running alembic migrations...")
-        subprocess.run(["alembic", "upgrade", "head"], check=True)
+    # Ensure core tables exist for local/dev startup before first request.
+    await init_db()
     yield
     # Shutdown logic if any
 

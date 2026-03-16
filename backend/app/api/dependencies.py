@@ -21,12 +21,15 @@ async def get_current_user(
         user_id_str: str = payload.get("sub")
         if user_id_str is None:
             raise InvalidCredentialsError()
+        user_id = uuid.UUID(user_id_str)
     except JWTError:
+        raise InvalidCredentialsError()
+    except ValueError:
         raise InvalidCredentialsError()
     
     # We don't have get_by_id in crud yet, we could use email or id. Let's do get_by_id logic here natively or append it.
     from sqlalchemy import select
-    stmt = select(User).where(User.id == uuid.UUID(user_id_str))
+    stmt = select(User).where(User.id == user_id)
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()
     

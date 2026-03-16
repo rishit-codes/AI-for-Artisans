@@ -5,8 +5,10 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class ProductBase(BaseModel):
     name: str
+    material: Optional[str] = None
     description: Optional[str] = None
     category: Optional[str] = None
+    image_url: Optional[str] = None
     price: float = Field(gt=0)
     stock_qty: int = Field(ge=0, default=0)
     is_listed: Optional[bool] = True

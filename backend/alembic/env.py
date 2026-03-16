@@ -11,8 +11,8 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from app.core.config import settings
-from app.models.user import Base
-import app.models
+from app.models import Base
+import app.models  # noqa: F401
 
 config = context.config
 

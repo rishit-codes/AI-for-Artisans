@@ -16,6 +16,8 @@ dist-ssr/
 # ── Backend — Python ──────────────────────────────────────────────────
 venv/
 .venv/
+.python-version
+.envrc
 __pycache__/
 *.py[cod]
 *.pyo
@@ -25,7 +27,6 @@ __pycache__/
 .eggs/
 .mypy_cache/
 .ruff_cache/
-.pytest_cache/
 htmlcov/
 .coverage
 coverage.xml
