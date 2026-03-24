@@ -41,3 +41,17 @@ api.interceptors.response.use(
 );
 
 export default api;
+
+export async function getAdvisorFeed(artisanId) {
+  const token = localStorage.getItem('token');
+  const res = await fetch(`${baseURL}/advisor/feed?artisan_id=${artisanId}`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+    }
+  });
+  if (!res.ok) throw new Error('Feed request failed');
+  return res.json();
+}
+

@@ -271,8 +271,9 @@ function TaskCard({ item }) {
 export default function ProductionAdvisorPage() {
     const location = useLocation();
     const pathname = location.pathname;
-    const { token } = useAuth();
-    
+    const { token, user } = useAuth();
+    const artisanId = user?.id || "48ca70ea-7851-4a3d-bb92-13b29229237a"; // Seeded fallback
+
     // Chat state
     const [messages, setMessages] = useState([]);
     const [inputValue, setInputValue] = useState("");
@@ -281,7 +282,15 @@ export default function ProductionAdvisorPage() {
 
     // Auto-scroll to bottom of chat
     const scrollToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+        if (messagesEndRef.current) {
+            const container = messagesEndRef.current.parentElement;
+            if (container) {
+                container.scrollTo({
+                    top: container.scrollHeight,
+                    behavior: "smooth"
+                });
+            }
+        }
     };
 
     useEffect(() => {
@@ -323,7 +332,7 @@ export default function ProductionAdvisorPage() {
                 const { value, done: doneReading } = await reader.read();
                 done = doneReading;
                 const chunkValue = decoder.decode(value, { stream: true });
-                
+
                 // Update the last message (the assistant's reply)
                 if (chunkValue) {
                     setMessages((prev) => {
@@ -346,6 +355,14 @@ export default function ProductionAdvisorPage() {
             });
         } finally {
             setIsStreaming(false);
+        }
+    };
+
+    const handleKeyDown = (e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            e.stopPropagation();
+            handleSendMessage(e);
         }
     };
 
@@ -417,7 +434,7 @@ export default function ProductionAdvisorPage() {
                                     )}
                                     <div ref={messagesEndRef} />
                                 </div>
-                                
+
                                 <form className="chat-input-area" onSubmit={handleSendMessage}>
                                     <input
                                         type="text"
@@ -425,6 +442,7 @@ export default function ProductionAdvisorPage() {
                                         placeholder="Ask for advice..."
                                         value={inputValue}
                                         onChange={(e) => setInputValue(e.target.value)}
+                                        onKeyDown={handleKeyDown}
                                         disabled={isStreaming}
                                         required
                                     />

@@ -78,3 +78,7 @@ tests/__pycache__/
 backend_prompt.md
 frontend_implementation_status.md
 project_blueprint.md
+project_status_report.md
+
+# ── Jupyter Notebooks ─────────────────────────────────────────────────
+.ipynb_checkpoints/

@@ -34,6 +34,6 @@ async def get_current_user(
     user = result.scalar_one_or_none()
     
     if user is None:
-        raise ArtisanNotFoundError()
+        raise InvalidCredentialsError()
     
     return user
