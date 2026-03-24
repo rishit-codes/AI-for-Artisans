@@ -90,3 +90,4 @@ async def health_check():
 async def root():
     return {"message": "Welcome to ArtisanGPS API"}
 
+ 
