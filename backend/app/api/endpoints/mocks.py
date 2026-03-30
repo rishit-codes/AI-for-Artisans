@@ -15,7 +15,9 @@ async def get_mock_trends() -> Any:
             "content": "Traditional Banarasi handlooms with festive reds, deep golds, and royal blues are seeing peak demand this wedding season. Weavers report a 40% surge in orders — lotus and peacock motifs in magenta-gold are the top request.",
             "tags": ["WeddingSilk", "FloralMotif"],
             "likes": "1.2k",
-            "comments": 89
+            "comments": 89,
+            "performance_badge": "Top Performer",
+            "niche": "Banarasi Silk"
         },
         {
             "id": 2,
@@ -26,7 +28,9 @@ async def get_mock_trends() -> Any:
             "content": "Eco-conscious global buyers are actively sourcing naturally dyed cotton — indigo, turmeric, and madder red are the top picks. Market demand is up 25% this quarter, with premium pricing for certified natural dye products.",
             "tags": ["NaturalDyes", "IndigoRevival", "SustainableCraft"],
             "likes": "856",
-            "comments": 42
+            "comments": 42,
+            "performance_badge": "Rising Trend",
+            "niche": "Chikankari"
         },
         {
             "id": 3,
@@ -37,7 +41,9 @@ async def get_mock_trends() -> Any:
             "content": "Sanganeri and Bagru block-printed kurtas and dupattas are surging in export orders — the US and EU markets alone have seen a 35% increase in demand for authentic hand-block prints this season.",
             "tags": ["BlockPrint", "SanganeriPrint", "RajasthanCraft", "Cotton"],
             "likes": "2.1k",
-            "comments": 156
+            "comments": 156,
+            "performance_badge": "High Margin",
+            "niche": "Kalamkari"
         }
     ]
 

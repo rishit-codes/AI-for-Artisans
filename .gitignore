@@ -79,6 +79,17 @@ backend_prompt.md
 frontend_implementation_status.md
 project_blueprint.md
 project_status_report.md
+demandForecasting.md
+model1_phase2.md
+project.md
 
 # ── Jupyter Notebooks ─────────────────────────────────────────────────
 .ipynb_checkpoints/
+
+# ── Machine Learning Artifacts ─────────────────────────────────────────
+backend/lightning_logs/*
+!backend/lightning_logs/.gitkeep
+backend/checkpoints/*
+!backend/checkpoints/.gitkeep
+backend/data/models/*
+!backend/data/models/.gitkeep

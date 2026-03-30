@@ -3,6 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import api from "../services/api";
 import { motion } from "framer-motion";
 import DashboardLayout from "../components/DashboardLayout";
+import NicheInsightsCard from "../components/trends/NicheInsightsCard";
 import "./Trends.css";
 
 // ── Icons ────────────────────────────────────────────────────────────────────
@@ -170,13 +171,20 @@ export default function TrendsPage() {
                                                     <p className="post-meta">{trend.timestamp}</p>
                                                 </div>
                                             </div>
-                                            <button className="menu-btn">
-                                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                                                    <circle cx="12" cy="12" r="1.5" fill="currentColor" />
-                                                    <circle cx="12" cy="5" r="1.5" fill="currentColor" />
-                                                    <circle cx="12" cy="19" r="1.5" fill="currentColor" />
-                                                </svg>
-                                            </button>
+                                            <div className="flex items-center gap-2">
+                                                {trend.performance_badge && (
+                                                    <span className="performance-badge">
+                                                        {trend.performance_badge}
+                                                    </span>
+                                                )}
+                                                <button className="menu-btn">
+                                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                                                        <circle cx="12" cy="12" r="1.5" fill="currentColor" />
+                                                        <circle cx="12" cy="5" r="1.5" fill="currentColor" />
+                                                        <circle cx="12" cy="19" r="1.5" fill="currentColor" />
+                                                    </svg>
+                                                </button>
+                                            </div>
                                         </div>
 
                                         {trend.image_url && (
@@ -235,6 +243,9 @@ export default function TrendsPage() {
                                 </svg>
                                 <h3>Market Intelligence</h3>
                             </div>
+
+                            {/* Niche Market Insights (Dynamic) */}
+                            <NicheInsightsCard />
 
                             {/* Artisan AI Suggestion Card */}
                             <div className="intel-card ai-suggestion-card">

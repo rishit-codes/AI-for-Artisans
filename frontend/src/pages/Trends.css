@@ -280,6 +280,17 @@
   color: #4f46e5;
 }
 
+.performance-badge {
+  padding: 0.25rem 0.625rem;
+  background-color: #fef2f2;
+  color: #ef4444;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 9999px;
+  border: 1px solid #fee2e2;
+  white-space: nowrap;
+}
+
 .engagement-bar {
   display: flex;
   align-items: center;
@@ -505,4 +516,25 @@
   font-size: 12px;
   font-weight: 600;
   color: #DC2626;
+}
+
+/* Niche Insights Custom Tweaks */
+.niche-insights-card {
+  border-left: 4px solid #16A34A; /* Green accent if healthy */
+}
+
+.niche-insights-card .fc-header h4 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.niche-insights-card .fc-item {
+  border-bottom: 1px solid #f3f4f6;
+  padding-bottom: 0.75rem;
+}
+
+.niche-insights-card .fc-item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
 }

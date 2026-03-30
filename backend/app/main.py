@@ -9,6 +9,7 @@ from app.core.config import settings
 from app.core.exceptions import ArtisanNotFoundError, ArtisanForbiddenError, ArtisanConflictError, InvalidCredentialsError
 from app.api.endpoints import api_router
 from app.db.base import init_db
+from app.services.scheduler import setup_scheduler, shutdown_scheduler
 
 # Setup logging
 logging.basicConfig(
@@ -21,8 +22,9 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     # Ensure core tables exist for local/dev startup before first request.
     await init_db()
+    setup_scheduler()
     yield
-    # Shutdown logic if any
+    shutdown_scheduler()
 
 app = FastAPI(title="ArtisanGPS API", lifespan=lifespan)
 
@@ -89,5 +91,3 @@ async def health_check():
 @app.get("/")
 async def root():
     return {"message": "Welcome to ArtisanGPS API"}
-
- 
