@@ -5,7 +5,6 @@ class Settings(BaseSettings):
     JWT_SECRET_KEY: str
     JWT_EXPIRE_DAYS: int = 7
     ANTHROPIC_API_KEY: str
-    GROQ_API_KEY: str
     FRONTEND_URL: str
     ENVIRONMENT: str = "development"
 

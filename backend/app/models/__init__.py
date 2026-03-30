@@ -4,3 +4,7 @@ from .product import Product
 from .order import Order
 from .material import Material
 from .artisan import Artisan
+from .sale import Sale
+from .market_signal import MarketSignal
+from .prediction import Prediction
+from .model_version import ModelVersion
