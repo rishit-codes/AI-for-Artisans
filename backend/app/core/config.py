@@ -5,6 +5,7 @@ class Settings(BaseSettings):
     JWT_SECRET_KEY: str
     JWT_EXPIRE_DAYS: int = 7
     ANTHROPIC_API_KEY: str
+    ALPHA_VANTAGE_API_KEY: str = "demo"
     FRONTEND_URL: str
     ENVIRONMENT: str = "development"
 

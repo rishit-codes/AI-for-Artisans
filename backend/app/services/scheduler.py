@@ -59,6 +59,18 @@ async def weekly_deepar_retrain():
     except Exception as e:
         logger.error(f"DeepAR retrain wrapper failed: {e}")
 
+async def fetch_live_commodities():
+    """Job 4: Fetch live commodity prices from Alpha Vantage"""
+    logger.info("Scheduler: Fetching live commodities starting...")
+    from app.db.session import AsyncSessionLocal
+    from app.services.commodity_fetcher import update_commodity_prices
+    
+    try:
+        async with AsyncSessionLocal() as db:
+            await update_commodity_prices(db)
+    except Exception as e:
+        logger.error(f"Failed to fetch live commodities: {e}")
+
 def setup_scheduler():
     # Schedule Job 2 (1am daily IST)
     scheduler.add_job(fetch_market_signals, 'cron', hour=1, minute=0, timezone='Asia/Kolkata')
@@ -68,6 +80,9 @@ def setup_scheduler():
     
     # Schedule Job 3 (2:30am daily IST)
     scheduler.add_job(weekly_deepar_retrain, 'cron', hour=2, minute=30, timezone='Asia/Kolkata')
+    
+    # Schedule Job 4 (3:00am daily IST)
+    scheduler.add_job(fetch_live_commodities, 'cron', hour=3, minute=0, timezone='Asia/Kolkata')
     
     # Start the scheduler
     scheduler.start()
