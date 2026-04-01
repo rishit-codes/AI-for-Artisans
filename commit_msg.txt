@@ -1,0 +1,22 @@
+feat(phase3): Implement Live AI Pipelines, DeepAR Forecasting & Dynamic UI Match
+
+Overview:
+Completes the ArtisanGPS Phase 3 architectural goals. The application has successfully transitioned away from static mock structures into a live, real-time AI ecosystem capable of predicting prices, querying commodity metrics, and projecting trends to the user interface. 
+
+Backend Core Services & Logic:
+- Replaced all static `mocks.py` API payloads.
+- Integrated Alpha Vantage via `commodity_fetcher.py`. Live material market prices are actively parsed daily over APScheduler daemon scripts.
+- Integrated Groq LLaMA models to actively read backend commodity context and construct "JSON Mode" production business advice strings on the fly for artisanal queries.
+
+Demand Forecasting (ML):
+- The `generate_shared_models.py` script now properly digests offline benchmarking (Kaggle Retail formats) and conducts baseline training using GluonTS/PyTorch DeepAR predictors.
+- PyTorch serialized binaries (.pth/.ckpt) are generated logically, validating the ML architecture's operational readiness. Model output loops are functional for inference ingestion.
+
+Frontend Subsystems & Real-Time Syncing:
+- The React Frontend successfully drops placeholder constants and captures real-time HTTP metrics. Market Intelligence, Timeline, and Supply modules display live active data.
+- UI/UX Polish: Implemented bespoke `animate-pulse` Skeleton logic and `framer-motion` cascading to beautifully mask API/LLM latency without jarring component jumping.
+- Fired hover-scale and backdrop glassmorphism to refine the look into a premium build.
+
+Housekeeping:
+- Cleaned and consolidated dependency logic in `requirements.txt`.
+- Hardened `.gitignore` to prevent PyTorch .pth model leakage.

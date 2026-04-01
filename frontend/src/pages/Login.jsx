@@ -6,10 +6,12 @@ import './Login.css';
 import { useAuth } from '../context/AuthContext';
 
 const LogoIcon = () => (
-  <svg width="28" height="28" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M20 30 C20 30 8 26 8 14 C8 14 14 16 18 24" fill="#22c55e" />
-    <path d="M20 30 C20 30 32 26 32 14 C32 14 26 16 22 24" fill="#22c55e" />
-    <path d="M20 30 C20 30 14 18 20 8 C26 18 20 30 20 30Z" fill="#16a34a" />
+  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="6" />
+    <path d="M12 2v4 M12 18v4 M2 12h4 M18 12h4" />
+    <path d="M4.93 4.93l2.83 2.83 M16.24 16.24l2.83 2.83 M4.93 19.07l2.83-2.83" />
+    <path d="M16 8l4.5-4.5 M16 3.5h4.5v4.5" strokeLinejoin="miter" />
+    <polygon points="12,7 13.5,10.5 17,12 13.5,13.5 12,17 10.5,13.5 7,12 10.5,10.5" fill="none" />
   </svg>
 );
 

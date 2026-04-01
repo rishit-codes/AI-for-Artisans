@@ -3,6 +3,7 @@ import { useState, useRef, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { motion } from "framer-motion";
 import DashboardLayout from "../components/DashboardLayout";
+import api from "../services/api";
 import "./ProductionAdvisor.css";
 
 // ── Icons ──────────────────────────────────────────────────────────────────────
@@ -84,54 +85,7 @@ const WandIcon = () => (
 
 // ── Data ──
 
-const TIMELINE_ITEMS = [
-    {
-        timeLabel: "TODAY",
-        nodeColor: "icon-bg-blue",
-        nodeIcon: <WaterDropIcon />,
-        title: "Indigo Dyeing Phase",
-        badge: { label: "Safe for Dyeing", variant: "green" },
-        description: "Humidity is currently at 45% with clear skies. Perfect conditions for outdoor drying of the new indigo batch.",
-        pills: [
-            { label: "☀️ Full Sun, 32°C", variant: "outline" },
-            { label: "💧 Low Humidity", variant: "outline" },
-        ],
-        cardBg: "card-bg-white",
-    },
-    {
-        timeLabel: "TOMORROW",
-        nodeColor: "icon-bg-green",
-        nodeIcon: <WeaveIcon />,
-        title: "Silk Weaving",
-        badge: { label: "High Priority", variant: "amber" },
-        description: "Begin weaving the red and gold silk sarees. AI predicts a 20% surge in demand in the next 3 weeks.",
-        aiAdvice: "Keep silk yarns away from direct afternoon heat.",
-        cardBg: "card-bg-green",
-    },
-    {
-        timeLabel: "IN 3 WEEKS",
-        nodeColor: "icon-bg-amber",
-        nodeIcon: <PartyIcon />,
-        title: "Diwali Festival Readiness",
-        description: "All festive stock should be ready for dispatch to major mandis. Target completion for all red/gold patterns.",
-        pills: [
-            { label: "Target: 50 Sarees", variant: "solidAmber" },
-            { label: "Current: 12 Ready", variant: "solidGreen" },
-        ],
-        image: "/images/diwali_sarees.jpg",
-        cardBg: "card-bg-amber",
-    },
-    {
-        timeLabel: "NEXT MONTH",
-        nodeColor: "icon-bg-pink",
-        nodeIcon: <WandIcon />,
-        title: "Design Planning: Wedding Season",
-        badge: { label: "Planning", variant: "pink" },
-        description: "Start drafting new peacock and floral motifs. Review AI market trends for trending color palettes in urban markets.",
-        footerLink: { label: "View Trend Report", href: "/trends" },
-        cardBg: "card-bg-pink",
-    },
-];
+// TIMELINE_ITEMS replaced by dynamic fetching inside the component
 
 const badgeStyles = {
     green: "badge-green",
@@ -268,6 +222,32 @@ function TaskCard({ item }) {
     );
 }
 
+const SkeletonTimelineCard = () => (
+    <div className="task-card-container animate-pulse">
+        <div className="timeline-node-col">
+            <div className="timeline-node bg-gray-200 border-none"></div>
+        </div>
+        <div className="task-content-col">
+            <div className="h-4 bg-gray-200 rounded w-24 mb-4"></div>
+            <div className="task-card-box bg-white border border-gray-100 shadow-sm opacity-60">
+                <div className="task-card-header pb-2">
+                    <div className="h-6 bg-gray-200 rounded w-1/2"></div>
+                    <div className="h-6 bg-gray-200 rounded-full w-24"></div>
+                </div>
+                <div className="mt-4">
+                    <div className="h-4 bg-gray-200 rounded w-full mb-3"></div>
+                    <div className="h-4 bg-gray-200 rounded w-5/6 mb-5"></div>
+                    
+                    <div className="flex gap-3">
+                        <div className="h-8 bg-gray-200 rounded-full w-24"></div>
+                        <div className="h-8 bg-gray-200 rounded-full w-32"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+);
+
 export default function ProductionAdvisorPage() {
     const location = useLocation();
     const pathname = location.pathname;
@@ -279,6 +259,49 @@ export default function ProductionAdvisorPage() {
     const [inputValue, setInputValue] = useState("");
     const [isStreaming, setIsStreaming] = useState(false);
     const messagesEndRef = useRef(null);
+    const [timelineItems, setTimelineItems] = useState([]);
+    const [loadingTimeline, setLoadingTimeline] = useState(true);
+
+    // Fetch Timeline Data
+    useEffect(() => {
+        const fetchTimeline = async () => {
+            try {
+                const res = await api.get('/production/timeline');
+                const mapped = res.data.map((item, idx) => {
+                    let nodeIcon, nodeColor, cardBg;
+                    if (idx % 4 === 0) {
+                        nodeIcon = <WaterDropIcon />; nodeColor = "icon-bg-blue"; cardBg = "card-bg-white";
+                    } else if (idx % 4 === 1) {
+                        nodeIcon = <WeaveIcon />; nodeColor = "icon-bg-green"; cardBg = "card-bg-green";
+                    } else if (idx % 4 === 2) {
+                        nodeIcon = <PartyIcon />; nodeColor = "icon-bg-amber"; cardBg = "card-bg-amber";
+                    } else {
+                        nodeIcon = <WandIcon />; nodeColor = "icon-bg-pink"; cardBg = "card-bg-pink";
+                    }
+
+                    return {
+                        timeLabel: item.time_label,
+                        title: item.title,
+                        description: item.description,
+                        badge: item.badge,
+                        pills: item.pills,
+                        aiAdvice: item.ai_advice,
+                        image: item.image_url,
+                        footerLink: item.footer_link,
+                        nodeIcon,
+                        nodeColor,
+                        cardBg
+                    };
+                });
+                setTimelineItems(mapped);
+            } catch (error) {
+                console.error("Error fetching timeline:", error);
+            } finally {
+                setLoadingTimeline(false);
+            }
+        };
+        fetchTimeline();
+    }, []);
 
     // Auto-scroll to bottom of chat
     const scrollToBottom = () => {
@@ -462,9 +485,17 @@ export default function ProductionAdvisorPage() {
 
                                 {/* Task cards */}
                                 <div className="timeline-cards">
-                                    {TIMELINE_ITEMS.map((item, i) => (
-                                        <TaskCard key={i} item={item} />
-                                    ))}
+                                    {loadingTimeline ? (
+                                        <>
+                                            <SkeletonTimelineCard />
+                                            <SkeletonTimelineCard />
+                                            <SkeletonTimelineCard />
+                                        </>
+                                    ) : (
+                                        timelineItems.map((item, i) => (
+                                            <TaskCard key={i} item={item} />
+                                        ))
+                                    )}
                                 </div>
                             </div>
                         </div>

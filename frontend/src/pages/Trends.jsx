@@ -74,26 +74,64 @@ const navItems = [
 
 const trendTabs = ["All Trends", "Wedding Season", "Cotton", "Sustainable Dyes"];
 
+const SkeletonTrendCard = () => (
+    <div className="trend-card animate-pulse">
+        <div className="trend-card-header">
+            <div className="header-info">
+                <div className="avatar bg-gray-200 w-10 h-10 rounded-full border-none"></div>
+                <div className="flex flex-col gap-2">
+                    <div className="h-4 bg-gray-200 rounded w-32"></div>
+                    <div className="h-3 bg-gray-200 rounded w-20"></div>
+                </div>
+            </div>
+            <div className="h-6 w-6 bg-gray-200 rounded-full"></div>
+        </div>
+        <div className="media-container bg-gray-200 w-full h-48 rounded-lg mt-4"></div>
+        <div className="post-content mt-4">
+            <div className="h-6 bg-gray-200 rounded w-3/4 mb-3"></div>
+            <div className="h-4 bg-gray-200 rounded w-full mb-2"></div>
+            <div className="h-4 bg-gray-200 rounded w-5/6 mb-4"></div>
+            <div className="flex gap-2">
+                <div className="h-6 bg-gray-200 rounded-full w-16"></div>
+                <div className="h-6 bg-gray-200 rounded-full w-20"></div>
+            </div>
+        </div>
+    </div>
+);
+
+const SkeletonIntelligenceCard = () => (
+    <div className="intel-card animate-pulse">
+        <div className="h-6 bg-gray-200 rounded w-1/2 mb-4"></div>
+        <div className="h-4 bg-gray-200 rounded w-full mb-2"></div>
+        <div className="h-4 bg-gray-200 rounded w-5/6"></div>
+    </div>
+);
+
 export default function TrendsPage() {
     const [activeTab, setActiveTab] = useState("All Trends");
     const [trends, setTrends] = useState([]);
+    const [intelligence, setIntelligence] = useState(null);
     const [loading, setLoading] = useState(true);
     const location = useLocation();
     const pathname = location.pathname;
 
     useEffect(() => {
-        const fetchTrends = async () => {
+        const fetchAll = async () => {
             try {
-                const response = await api.get('/mocks/trends');
-                setTrends(response.data);
+                const [trendsRes, intelRes] = await Promise.all([
+                    api.get('/trends'),
+                    api.get('/trends/intelligence')
+                ]);
+                setTrends(trendsRes.data);
+                setIntelligence(intelRes.data);
             } catch (error) {
-                console.error("Error fetching trends:", error);
+                console.error("Error fetching data:", error);
             } finally {
                 setLoading(false);
             }
         };
 
-        fetchTrends();
+        fetchAll();
     }, []);
 
     const topNavTabs = (
@@ -157,7 +195,11 @@ export default function TrendsPage() {
                             </div>
 
                             {loading ? (
-                                <div style={{ textAlign: 'center', padding: '2rem' }}>Loading trends...</div>
+                                <>
+                                    <SkeletonTrendCard />
+                                    <SkeletonTrendCard />
+                                    <SkeletonTrendCard />
+                                </>
                             ) : (
                                 filteredTrends.map((trend) => (
                                     <div key={trend.id} className="trend-card">
@@ -247,8 +289,15 @@ export default function TrendsPage() {
                             {/* Niche Market Insights (Dynamic) */}
                             <NicheInsightsCard />
 
-                            {/* Artisan AI Suggestion Card */}
-                            <div className="intel-card ai-suggestion-card">
+                            {loading || !intelligence ? (
+                                <>
+                                    <SkeletonIntelligenceCard />
+                                    <SkeletonIntelligenceCard />
+                                </>
+                            ) : (
+                                <>
+                                    {/* Artisan AI Suggestion Card */}
+                                    <div className="intel-card ai-suggestion-card">
                                 <div className="ai-suggestion-header">
                                     <div className="ai-icon-box">
                                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
@@ -257,17 +306,17 @@ export default function TrendsPage() {
                                         </svg>
                                     </div>
                                     <div className="ai-suggestion-titles">
-                                        <h4>Artisan AI Suggestion</h4>
-                                        <p>Based on your browsing history</p>
+                                        <h4>{intelligence.ai_suggestion?.title || "Artisan AI Suggestion"}</h4>
+                                        <p>{intelligence.ai_suggestion?.subtitle || "Market Optimization Tip"}</p>
                                     </div>
                                 </div>
 
                                 <p className="ai-suggestion-text">
-                                    The magenta lotus design shown in the feed has a <span className="ai-highlight">20% higher profit margin</span> if produced using the locally sourced raw silk currently on sale.
+                                    {intelligence.ai_suggestion?.text}
                                 </p>
 
                                 <button className="ai-btn">
-                                    Calculate Potential Profit
+                                    {intelligence.ai_suggestion?.action || "View Full Details"}
                                 </button>
                             </div>
 
@@ -281,65 +330,40 @@ export default function TrendsPage() {
                                 </div>
 
                                 <div className="fc-list">
-                                    {/* Mulberry Silk */}
-                                    <div className="fc-item">
-                                        <div className="fc-item-icon">
-                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                                                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
-                                                    stroke="#6B7280" strokeWidth="2" fill="none" />
-                                            </svg>
-                                        </div>
-                                        <div className="fc-item-body">
-                                            <div className="fc-item-row mb-1">
-                                                <span className="fc-item-name">Mulberry Silk</span>
-                                                <span className="fc-item-price">₹4,200</span>
-                                            </div>
-                                            <div className="fc-item-row">
-                                                <span className="fc-status-alert">Low Stock Alert</span>
-                                                <span className="fc-trend-up">+8.3% ↗</span>
-                                            </div>
-                                        </div>
-                                    </div>
+                                    {intelligence.material_forecast.map((item, idx) => {
+                                        const isUp = item.trend.includes('↗');
+                                        const isDown = item.trend.includes('↘');
+                                        let statusClass = "fc-status-good";
+                                        if (item.status.toLowerCase().includes('alert') || item.status.toLowerCase().includes('high')) {
+                                            statusClass = "fc-status-alert";
+                                        }
 
-                                    {/* Cotton Yarn */}
-                                    <div className="fc-item">
-                                        <div className="fc-item-icon">
-                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                                                <circle cx="12" cy="12" r="8" stroke="#6B7280" strokeWidth="2" />
-                                            </svg>
-                                        </div>
-                                        <div className="fc-item-body">
-                                            <div className="fc-item-row mb-1">
-                                                <span className="fc-item-name">Cotton Yarn</span>
-                                                <span className="fc-item-price">₹850</span>
+                                        return (
+                                            <div key={idx} className="fc-item">
+                                                <div className="fc-item-icon">
+                                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                                                        <circle cx="12" cy="12" r="8" stroke="#6B7280" strokeWidth="2" />
+                                                    </svg>
+                                                </div>
+                                                <div className="fc-item-body">
+                                                    <div className="fc-item-row mb-1">
+                                                        <span className="fc-item-name">{item.name}</span>
+                                                        <span className="fc-item-price">{item.price}</span>
+                                                    </div>
+                                                    <div className="fc-item-row">
+                                                        <span className={statusClass}>{item.status}</span>
+                                                        <span className={isUp ? "fc-trend-up" : isDown ? "fc-trend-down" : "fc-trend-flat"}>
+                                                            {item.trend}
+                                                        </span>
+                                                    </div>
+                                                </div>
                                             </div>
-                                            <div className="fc-item-row">
-                                                <span className="fc-status-good">Stable Demand</span>
-                                                <span className="fc-trend-up">+1.1% ↗</span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Natural Indigo */}
-                                    <div className="fc-item">
-                                        <div className="fc-item-icon">
-                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                                                <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z" stroke="#6B7280" strokeWidth="2" fill="none" />
-                                            </svg>
-                                        </div>
-                                        <div className="fc-item-body">
-                                            <div className="fc-item-row mb-1">
-                                                <span className="fc-item-name">Natural Indigo</span>
-                                                <span className="fc-item-price">₹1,800</span>
-                                            </div>
-                                            <div className="fc-item-row">
-                                                <span className="fc-status-alert">Price Drop</span>
-                                                <span className="fc-trend-down">-3.4% ↘</span>
-                                            </div>
-                                        </div>
-                                    </div>
+                                        );
+                                    })}
                                 </div>
                             </div>
+                                </>
+                            )}
 
                         </motion.aside>
                     </div>
