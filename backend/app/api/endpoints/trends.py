@@ -84,73 +84,21 @@ Each object must follow this strict schema:
         ]
 
 @router.get("/intelligence")
-async def get_intelligence(db: AsyncSession = Depends(get_db)):
-    """
-    AI suggestion + raw material forecast sidebar data generated via LLM & Live DB Constraints.
-    """
-    try:
-        # 1. Fetch live Material constraints
-        m_result = await db.execute(select(Material))
-        materials = m_result.scalars().all()
-        
-        mat_context = []
-        material_forecast = []
-        
-        for m in materials:
-            status_text = "Price Drop" if m.trend == "down" else "High Cost Alert" if m.trend == "up" else "Stable"
-            material_forecast.append({
-                "name": m.commodity_full_name or m.name,
-                "price": m.price,
-                "status": status_text,
-                "trend": f"{m.change_pct} {'↗' if 'up' in m.trend else '↘' if 'down' in m.trend else '→'}"
-            })
-            mat_context.append(f"{m.commodity_full_name} is currently {m.price} tracking {m.change_pct} ({m.trend})")
-            
-        mat_str = "; ".join(mat_context) if mat_context else "No active tracking data."
-
-        # 2. Prompt LLM for `ai_suggestion`
-        prompt = f"""You are an AI financial analyst for a rural Indian artisan.
-Live Market Supply Costs: {mat_str}
-
-Evaluate the costs. Provide a purely objective JSON object with key "ai_suggestion" containing:
-{{
-  "title": "Artisan AI Suggestion",
-  "subtitle": "Market Optimization Tip",
-  "text": "1 highly insightful localized 20-word tip correlating a specific material's price shift with profit strategies (e.g. 'Since Cotton Yarn dropped 5%, bulk orders now will yield 15% better margins')",
-  "action": "Calculate Potential Profit"
-}}
-"""
-
-        api_key = settings.GROQ_API_KEY
-        client = AsyncGroq(api_key=api_key)
-        
-        completion = await client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[{"role": "user", "content": prompt}],
-            response_format={"type": "json_object"},
-            temperature=0.7,
-        )
-        
-        response_text = completion.choices[0].message.content
-        data = json.loads(response_text)
-        ai_suggestion = data.get("ai_suggestion", {})
-        
-        return {
-            "ai_suggestion": ai_suggestion,
-            "material_forecast": material_forecast,
-        }
-        
-    except Exception as e:
-        logger.error(f"Error generating dynamic intelligence via Groq: {e}")
-        # Fallback Mock
-        return {
-            "ai_suggestion": {
-                "title": "Artisan AI Suggestion",
-                "subtitle": "Based on browsing history",
-                "text": "The magenta lotus design has a higher profit margin using locally sourced raw silk.",
-                "action": "Calculate Profit",
-            },
-            "material_forecast": [
-                {"name": "Database Error", "price": "₹0", "status": "Failed to load", "trend": "0%"}
-            ]
-        }
+async def get_intelligence():
+    """AI suggestion + raw material forecast sidebar data."""
+    return {
+        "ai_suggestion": {
+            "title": "Artisan AI Suggestion",
+            "subtitle": "Based on your browsing history",
+            "text": (
+                "The magenta lotus design shown in the feed has a 20% higher profit "
+                "margin if produced using the locally sourced raw silk currently on sale."
+            ),
+            "action": "Calculate Potential Profit",
+        },
+        "material_forecast": [
+            {"name": "Mulberry Silk", "price": "₹4,200", "status": "Low Stock Alert", "trend": "+8.3% ↗"},
+            {"name": "Cotton Yarn", "price": "₹850", "status": "Stable Demand", "trend": "+1.1% ↗"},
+            {"name": "Natural Indigo", "price": "₹1,800", "status": "Price Drop", "trend": "-3.4% ↘"},
+        ],
+    }
