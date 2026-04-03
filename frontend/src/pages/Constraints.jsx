@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import DashboardLayout from "../components/DashboardLayout";
+import api from "../services/api";
 import "./Constraints.css";
 
 // ── Icons ──────────────────────────────────────────────────────────────────────
@@ -75,134 +76,105 @@ function Sparkline({ points, color, fill }) {
 
 // ── Commodity price cards ──────────────────────────────────────────────────────
 
-const commodities = [
-    {
-        name: "Cotton\nYarn",
-        price: "₹245",
-        unit: "/ kg",
-        change: "-2.4%",
-        trend: "down",
-        color: "#22c55e",
-        points: "0,20 20,25 40,18 60,28 80,22 100,30 120,35",
-        fill: "M0,20 20,25 40,18 60,28 80,22 100,30 120,35 L120,40 L0,40",
-        icon: (
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="1.8">
-                <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z" />
-            </svg>
-        ),
-    },
-    {
-        name: "Mulberry\nSilk",
-        price: "₹4,200",
-        unit: "/ kg",
-        change: "+1.8%",
-        trend: "up",
-        color: "#ef4444",
-        points: "0,35 20,30 40,32 60,25 80,20 100,15 120,10",
-        fill: "M0,35 20,30 40,32 60,25 80,20 100,15 120,10 L120,40 L0,40",
-        icon: (
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="1.8">
-                <path d="M20 7H4a2 2 0 00-2 2v6a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z" />
-                <path d="M12 7V5m0 14v-2" />
-            </svg>
-        ),
-    },
-    {
-        name: "Brass\nSheet",
-        price: "₹580",
-        unit: "/ kg",
-        change: "— 0.0%",
-        trend: "flat",
-        color: "#9ca3af",
-        points: "0,20 20,21 40,19 60,20 80,21 100,20 120,20",
-        fill: "M0,20 20,21 40,19 60,20 80,21 100,20 120,20 L120,40 L0,40",
-        icon: (
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="1.8">
-                <rect x="3" y="8" width="18" height="12" rx="2" />
-                <path d="M7 8V6a2 2 0 012-2h6a2 2 0 012 2v2" />
-            </svg>
-        ),
-    },
-    {
-        name: "Copper\nWire",
-        price: "₹790",
-        unit: "/ kg",
-        change: "+3.1%",
-        trend: "up",
-        color: "#ef4444",
-        points: "0,38 20,32 40,34 60,28 80,22 100,16 120,8",
-        fill: "M0,38 20,32 40,34 60,28 80,22 100,16 120,8 L120,40 L0,40",
-        icon: (
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="1.8">
-                <path d="M12 3v18M5 7l7-4 7 4M5 17l7 4 7-4" />
-            </svg>
-        ),
-    },
-];
+// static constants moved to dynamic component state
 
-// ── Mandi comparison data ──────────────────────────────────────────────────────
+// ── Skeleton Loaders ────────────────────────────────────────────────────────────
 
-const mandiData = {
-    Textiles: [
-        {
-            commodity: "Cotton Yarn (40s)",
-            sub: "Per kg",
-            local: { value: "₹245", best: false },
-            surat: { value: "₹230", best: true },
-            delhi: { value: "₹240", best: false },
-            action: "Source from Surat",
-        },
-        {
-            commodity: "Mulberry Silk",
-            sub: "Per kg",
-            local: { value: "₹4,200", best: true },
-            surat: { value: "₹4,350", best: false },
-            delhi: { value: "₹4,280", best: false },
-            action: "Buy Local",
-        },
-        {
-            commodity: "Zari (Imitation)",
-            sub: "Per spool",
-            local: { value: "₹850", best: false },
-            surat: { value: "₹840", best: false },
-            delhi: { value: "₹810", best: true },
-            action: "Source from Delhi",
-        },
-    ],
-    Metals: [
-        {
-            commodity: "Brass Sheet",
-            sub: "Per kg",
-            local: { value: "₹580", best: false },
-            surat: { value: "₹560", best: true },
-            delhi: { value: "₹575", best: false },
-            action: "Source from Surat",
-        },
-        {
-            commodity: "Copper Wire",
-            sub: "Per kg",
-            local: { value: "₹790", best: false },
-            surat: { value: "₹810", best: false },
-            delhi: { value: "₹770", best: true },
-            action: "Source from Delhi",
-        },
-        {
-            commodity: "Silver Thread",
-            sub: "Per gram",
-            local: { value: "₹95", best: true },
-            surat: { value: "₹98", best: false },
-            delhi: { value: "₹97", best: false },
-            action: "Buy Local",
-        },
-    ],
-};
+const SkeletonPriceCard = () => (
+    <div className="price-card animate-pulse opacity-70">
+        <div className="card-top">
+            <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-gray-200 rounded-md"></div>
+                <div className="w-20 h-5 bg-gray-200 rounded"></div>
+            </div>
+            <div className="w-12 h-5 bg-gray-200 rounded-full"></div>
+        </div>
+        <div className="price-display mt-4">
+            <div className="w-24 h-8 bg-gray-200 rounded mb-2"></div>
+        </div>
+        <div className="w-full h-10 mt-6 bg-gradient-to-r from-gray-100 to-gray-50 rounded"></div>
+    </div>
+);
 
-// ── Page ────────────────────────────────────────────────────────────────────────
+const SkeletonMandiRow = () => (
+    <tr className="animate-pulse opacity-60">
+        <td>
+            <div className="h-4 bg-gray-200 rounded w-24 mb-2"></div>
+            <div className="h-3 bg-gray-100 rounded w-16"></div>
+        </td>
+        <td><div className="h-4 bg-gray-200 rounded w-16"></div></td>
+        <td><div className="h-4 bg-gray-200 rounded w-16"></div></td>
+        <td><div className="h-4 bg-gray-200 rounded w-16"></div></td>
+        <td><div className="h-4 bg-gray-200 rounded w-20"></div></td>
+    </tr>
+);
 
 export default function MaterialCostsPage() {
     const location = useLocation();
     const pathname = location.pathname;
     const [activeTab, setActiveTab] = useState("Textiles");
+    const [commodities, setCommodities] = useState([]);
+    const [mandiData, setMandiData] = useState({ Textiles: [], Metals: [] });
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchData = async () => {
+            try {
+                const [commRes, mandiTexts, mandiMetals] = await Promise.all([
+                    api.get('/materials/commodities'),
+                    api.get('/materials/mandi?category=Textiles'),
+                    api.get('/materials/mandi?category=Metals')
+                ]);
+
+                const mappedComm = commRes.data.map(item => {
+                    let icon;
+                    if (item.name.includes("Cotton")) {
+                        icon = <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="1.8"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z" /></svg>;
+                    } else if (item.name.includes("Silk")) {
+                        icon = <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="1.8"><path d="M20 7H4a2 2 0 00-2 2v6a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z" /><path d="M12 7V5m0 14v-2" /></svg>;
+                    } else if (item.name.includes("Brass")) {
+                        icon = <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="1.8"><rect x="3" y="8" width="18" height="12" rx="2" /><path d="M7 8V6a2 2 0 012-2h6a2 2 0 012 2v2" /></svg>;
+                    } else {
+                        icon = <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="1.8"><path d="M12 3v18M5 7l7-4 7 4M5 17l7 4 7-4" /></svg>;
+                    }
+
+                    return {
+                        name: item.name.replace(" ", "\n"),
+                        price: item.price,
+                        unit: item.unit,
+                        change: item.change_pct,
+                        trend: item.trend,
+                        color: item.color,
+                        points: item.sparkline_points,
+                        fill: `M${item.sparkline_points} L120,40 L0,40`,
+                        icon
+                    };
+                });
+                setCommodities(mappedComm);
+
+                const mapMandi = (rows) => rows.map(r => ({
+                    commodity: r.commodity,
+                    sub: r.sub,
+                    local: { value: r.local_price, best: r.local_best },
+                    surat: { value: r.surat_price, best: r.surat_best },
+                    delhi: { value: r.delhi_price, best: r.delhi_best },
+                    action: r.action
+                }));
+
+                setMandiData({
+                    Textiles: mapMandi(mandiTexts.data),
+                    Metals: mapMandi(mandiMetals.data)
+                });
+
+            } catch (error) {
+                console.error("Error fetching material data:", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchData();
+    }, []);
 
     const topNavTabs = (
         <div className="topbar-nav-links">
@@ -273,14 +245,22 @@ export default function MaterialCostsPage() {
                     </motion.div>
 
                     {/* ── Price Cards Grid ── */}
-                    <motion.div
-                        className="cards-grid"
-                        initial={{ opacity: 0, y: 20 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        viewport={{ once: false, amount: 0.1 }}
-                        transition={{ duration: 0.8, delay: 0.3 }}
-                    >
-                        {commodities.map((item) => {
+                    {loading ? (
+                        <div className="cards-grid">
+                            <SkeletonPriceCard />
+                            <SkeletonPriceCard />
+                            <SkeletonPriceCard />
+                            <SkeletonPriceCard />
+                        </div>
+                    ) : (
+                        <motion.div
+                            className="cards-grid"
+                            initial={{ opacity: 0, y: 20 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            viewport={{ once: false, amount: 0.1 }}
+                            transition={{ duration: 0.8, delay: 0.3 }}
+                        >
+                            {commodities.map((item) => {
                             const isUp = item.trend === "up";
                             const isDown = item.trend === "down";
                             let trendClass = "trend-flat";
@@ -288,7 +268,7 @@ export default function MaterialCostsPage() {
                             if (isDown) trendClass = "trend-down";
 
                             return (
-                                <div key={item.name} className="price-card">
+                                <div key={item.name} className="price-card hover:-translate-y-1 hover:shadow-xl transition-all duration-300">
                                     <div className="card-top">
                                         <div className="card-title-group">
                                             <div className="card-icon">
@@ -313,7 +293,8 @@ export default function MaterialCostsPage() {
                                 </div>
                             );
                         })}
-                    </motion.div>
+                        </motion.div>
+                    )}
 
                     {/* ── Local Mandi Comparison ── */}
                     <motion.div
@@ -355,8 +336,16 @@ export default function MaterialCostsPage() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {mandiData[activeTab].map((row, i) => (
-                                        <tr key={i}>
+                                    {loading ? (
+                                        <>
+                                            <SkeletonMandiRow />
+                                            <SkeletonMandiRow />
+                                            <SkeletonMandiRow />
+                                            <SkeletonMandiRow />
+                                        </>
+                                    ) : (
+                                        mandiData[activeTab] && mandiData[activeTab].map((row, i) => (
+                                            <tr key={i}>
                                             <td>
                                                 <p className="cell-title">{row.commodity}</p>
                                                 <p className="cell-sub">{row.sub}</p>
@@ -385,7 +374,7 @@ export default function MaterialCostsPage() {
                                                 </button>
                                             </td>
                                         </tr>
-                                    ))}
+                                    )))}
                                 </tbody>
                             </table>
                         </div>

@@ -3,6 +3,16 @@ import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import "./Landing.css";
 
+const LogoIcon = () => (
+  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="6" />
+    <path d="M12 2v4 M12 18v4 M2 12h4 M18 12h4" />
+    <path d="M4.93 4.93l2.83 2.83 M16.24 16.24l2.83 2.83 M4.93 19.07l2.83-2.83" />
+    <path d="M16 8l4.5-4.5 M16 3.5h4.5v4.5" strokeLinejoin="miter" />
+    <polygon points="12,7 13.5,10.5 17,12 13.5,13.5 12,17 10.5,13.5 7,12 10.5,10.5" fill="none" />
+  </svg>
+);
+
 export default function LandingPage() {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const footerSections = [
@@ -51,8 +61,9 @@ export default function LandingPage() {
                 {/* ── NAVBAR — transparent, floated over hero ── */}
                 <header className="hero-header">
                     {/* Logo */}
-                    <Link to="/" className="hero-logo">
-                        <img src="/images/logo.png" alt="ArtisanGPS" style={{ height: '40px', width: 'auto' }} />
+                    <Link to="/" className="hero-logo" style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'white', textDecoration: 'none' }}>
+                        <LogoIcon />
+                        <span style={{ fontSize: '24px', fontWeight: 'bold' }}>ArtisanGPS</span>
                     </Link>
 
                     {/* Desktop Nav */}
@@ -337,8 +348,9 @@ export default function LandingPage() {
                     <div className="footer-top">
                         {/* Brand */}
                         <div className="footer-brand">
-                            <div className="footer-logo">
-                                <img src="/images/logo.png" alt="ArtisanGPS" style={{ height: '64px' }} />
+                            <div className="footer-logo" style={{ display: 'flex', alignItems: 'center', gap: '12px', color: 'white', marginBottom: '16px' }}>
+                                <div style={{ transform: 'scale(1.5)', transformOrigin: 'left center' }}><LogoIcon /></div>
+                                <span style={{ fontSize: '32px', fontWeight: 'bold' }}>ArtisanGPS</span>
                             </div>
                             <p className="footer-desc">
                                 An AI-first market intelligence platform designed to empower rural Indian artisans with global insights.

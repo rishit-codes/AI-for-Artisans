@@ -1,5 +1,0 @@
-gluonts>=0.15.0
-torch>=2.1.0
-ujson>=5.8.0
-pytorch-lightning
-lightning
