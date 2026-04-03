@@ -87,6 +87,8 @@ project.md
 .ipynb_checkpoints/
 
 # ── Machine Learning Artifacts ─────────────────────────────────────────
+*.pth
+*.ckpt
 backend/lightning_logs/*
 !backend/lightning_logs/.gitkeep
 backend/checkpoints/*
