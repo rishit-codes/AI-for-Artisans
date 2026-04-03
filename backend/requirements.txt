@@ -25,3 +25,6 @@ torch>=2.1.0
 ujson>=5.8.0
 pytorch-lightning
 lightning
+
+aiosqlite>=0.22.0
+pytrends>=4.9.0

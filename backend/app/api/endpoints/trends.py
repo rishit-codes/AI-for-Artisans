@@ -108,49 +108,47 @@ async def get_intelligence(db: AsyncSession = Depends(get_db)):
             
         mat_str = "; ".join(mat_context) if mat_context else "No active tracking data."
 
-        # 2. Prompt LLM for `ai_suggestion`
-        prompt = f"""You are an AI financial analyst for a rural Indian artisan.
-Live Market Supply Costs: {mat_str}
+        # 2. Groq AI suggestion — isolated so live DB material data is ALWAYS returned
+        ai_suggestion = {
+            "title": "Artisan AI Suggestion",
+            "subtitle": "Market Optimization Tip",
+            "text": f"Based on live data, plan purchases wisely: {mat_str[:100]}",
+            "action": "Calculate Potential Profit",
+        }
+        try:
+            api_key = settings.GROQ_API_KEY
+            client = AsyncGroq(api_key=api_key)
+            prompt = (
+                "You are an AI analyst for Indian artisans. "
+                f"Live supply costs: {mat_str}. "
+                'Return JSON with key "ai_suggestion": {title, subtitle, text (1 localized 20-word profit tip), action}.'
+            )
+            completion = await client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[{"role": "user", "content": prompt}],
+                response_format={"type": "json_object"},
+                temperature=0.7,
+            )
+            groq_data = json.loads(completion.choices[0].message.content)
+            ai_suggestion = groq_data.get("ai_suggestion", ai_suggestion)
+        except Exception as groq_err:
+            logger.warning(f"Groq AI failed, using data-driven fallback: {groq_err}")
 
-Evaluate the costs. Provide a purely objective JSON object with key "ai_suggestion" containing:
-{{
-  "title": "Artisan AI Suggestion",
-  "subtitle": "Market Optimization Tip",
-  "text": "1 highly insightful localized 20-word tip correlating a specific material's price shift with profit strategies (e.g. 'Since Cotton Yarn dropped 5%, bulk orders now will yield 15% better margins')",
-  "action": "Calculate Potential Profit"
-}}
-"""
-
-        api_key = settings.GROQ_API_KEY
-        client = AsyncGroq(api_key=api_key)
-        
-        completion = await client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[{"role": "user", "content": prompt}],
-            response_format={"type": "json_object"},
-            temperature=0.7,
-        )
-        
-        response_text = completion.choices[0].message.content
-        data = json.loads(response_text)
-        ai_suggestion = data.get("ai_suggestion", {})
-        
         return {
             "ai_suggestion": ai_suggestion,
             "material_forecast": material_forecast,
         }
-        
+
     except Exception as e:
-        logger.error(f"Error generating dynamic intelligence via Groq: {e}")
-        # Fallback Mock
+        logger.error(f"Intelligence endpoint DB error: {e}")
         return {
             "ai_suggestion": {
                 "title": "Artisan AI Suggestion",
-                "subtitle": "Based on browsing history",
-                "text": "The magenta lotus design has a higher profit margin using locally sourced raw silk.",
-                "action": "Calculate Profit",
+                "subtitle": "Service temporarily unavailable",
+                "text": "Market data is loading. Please check back shortly.",
+                "action": "Retry",
             },
             "material_forecast": [
-                {"name": "Database Error", "price": "₹0", "status": "Failed to load", "trend": "0%"}
-            ]
+                {"name": "Service Unavailable", "price": "—", "status": "Retry shortly", "trend": "→"}
+            ],
         }
