@@ -23,7 +23,7 @@ async def fetch_alpha_vantage_data(function: str) -> List[float]:
     
     async with httpx.AsyncClient() as client:
         try:
-            response = await client.get(url, timeout=10.0)
+            response = await client.get(url, timeout=60.0)
             response.raise_for_status()
             data = response.json()
             
