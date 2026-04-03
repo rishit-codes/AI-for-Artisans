@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { api } from '../api' // Assuming standard api/axios setup in the project, we import it or define default axios
+import api from '../services/api' // Assuming standard api/axios setup in the project
 
 const usePredictionsStore = create((set, get) => ({
   forecast: null,
