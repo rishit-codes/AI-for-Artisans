@@ -115,6 +115,8 @@ function TaskCard({ item }) {
         aiAdvice,
         image,
         footerLink,
+        estimatedTime,
+        workVolume,
         cardBg = "card-bg-white",
     } = item;
 
@@ -178,6 +180,31 @@ function TaskCard({ item }) {
                     ) : (
                         <>
                             <p className="task-desc">{description}</p>
+
+                            {/* NEW: Work & Time Metrics Row */}
+                            {(estimatedTime || workVolume) && (
+                                <div style={{marginTop: '0.6rem', marginBottom: '0.4rem', display: 'flex', gap: '1rem', fontSize: '0.78rem', color: '#4b5563', padding: '0.4rem 0.6rem', backgroundColor: 'rgba(249, 250, 251, 0.6)', borderRadius: '0.5rem', border: '1px solid #f3f4f6', width: 'fit-content'}}>
+                                    {estimatedTime && (
+                                        <div style={{display: 'flex', alignItems: 'center', gap: '0.3rem'}}>
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                                                <circle cx="12" cy="12" r="10"/>
+                                                <polyline points="12 6 12 12 16 14"/>
+                                            </svg>
+                                            <span style={{fontWeight: 600, color: '#374151'}}>{estimatedTime}</span>
+                                        </div>
+                                    )}
+                                    {workVolume && (
+                                        <div style={{display: 'flex', alignItems: 'center', gap: '0.3rem'}}>
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                                                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                                                <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+                                                <line x1="12" y1="22.08" x2="12" y2="12"/>
+                                            </svg>
+                                            <span style={{fontWeight: 600, color: '#374151'}}>{workVolume}</span>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
 
                             {/* Weather / condition pills */}
                             {pills && (
@@ -280,14 +307,16 @@ export default function ProductionAdvisorPage() {
                     }
 
                     return {
-                        timeLabel: item.time_label,
+                        timeLabel: item.timeLabel || item.time_label,
                         title: item.title,
                         description: item.description,
                         badge: item.badge,
                         pills: item.pills,
-                        aiAdvice: item.ai_advice,
-                        image: item.image_url,
-                        footerLink: item.footer_link,
+                        aiAdvice: item.aiAdvice || item.ai_advice,
+                        estimatedTime: item.estimatedTime,
+                        workVolume: item.workVolume,
+                        image: item.image_url || item.image,
+                        footerLink: item.footer_link || item.footerLink,
                         nodeIcon,
                         nodeColor,
                         cardBg
@@ -362,7 +391,10 @@ export default function ProductionAdvisorPage() {
                         const newMsgs = [...prev];
                         const lastIndex = newMsgs.length - 1;
                         if (newMsgs[lastIndex].role === "assistant") {
-                            newMsgs[lastIndex].content += chunkValue;
+                            newMsgs[lastIndex] = {
+                                ...newMsgs[lastIndex],
+                                content: newMsgs[lastIndex].content + chunkValue
+                            };
                         }
                         return newMsgs;
                     });

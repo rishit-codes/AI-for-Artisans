@@ -25,3 +25,4 @@ torch>=2.1.0
 ujson>=5.8.0
 pytorch-lightning
 lightning
+holidays

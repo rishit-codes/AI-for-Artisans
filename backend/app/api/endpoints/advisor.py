@@ -95,23 +95,46 @@ async def get_advisor_feed(
         
         # We can dynamically guess their craft via Artisan mapping, but we default to Textile/Weaver
         craft_type = "textile"
-        days_to_festival = get_days_to_next_festival(craft_type)
+        fest_info = get_days_to_next_festival(craft_type)
+        days_to_festival = fest_info["days_away"] if fest_info else 30
+        festival_name = fest_info["name"] if fest_info else "Upcoming Festival"
+        
+        # 1.5. Gather Live Weather (Open-Meteo for Jaipar example)
+        weather_str = "Clear, 30°C, 45% Humidity"
+        import httpx
+        try:
+            async with httpx.AsyncClient() as client:
+                w_url = "https://api.open-meteo.com/v1/forecast?latitude=26.9124&longitude=75.7873&current=temperature_2m,relative_humidity_2m,precipitation"
+                w_res = await client.get(w_url, timeout=3.0)
+                if w_res.status_code == 200:
+                    w_data = w_res.json()
+                    curr = w_data.get("current", {})
+                    weather_str = f"Temp: {curr.get('temperature_2m', 30)}°C, Humidity: {curr.get('relative_humidity_2m', 45)}%, Precip: {curr.get('precipitation', 0)}mm"
+        except Exception as e:
+            logger.warning(f"Open-Meteo fetch failed: {e}")
+
+        import datetime
+        current_month = datetime.datetime.now().strftime("%B")
 
         # 2. Build Intelligent Prompt
         prompt = f"""You are an expert AI logistics and production advisor for a rural Indian {craft_type} artisan.
 Current Context:
+- Current Month: {current_month}
+- Live Local Weather: {weather_str}
 - Live Raw Material Trends: {mat_str}
-- Next Major Sales Festival: {days_to_festival} days away.
+- Next Major Sales Festival: '{festival_name}' is {days_to_festival} days away.
 
 Based on this precise real-world context, generate a 3-step production timeline for the artisan:
-Step 1: Focus on immediate action (Today).
+Step 1: Focus on immediate action (Today) considering the exact weather.
 Step 2: Focus on preparations (Tomorrow).
-Step 3: Focus on macro goals (This Week).
+Step 3: Focus on macro goals (This Week) aiming for {festival_name}.
 
 CRITICAL INSTRUCTIONS:
 - If a raw material cost is trending UP, advise caution or substituting locally.
 - If a raw material is trending DOWN or FLAT, advise stockpiling or pushing production.
+- Very Important: It is {current_month}. NEVER suggest winter wear (like scarves or heavy wools) in hot seasons. Keep all suggestions strictly seasonally appropriate.
 - Keep descriptions under 15 words.
+- STRICT CHRONOLOGY REQUIRED: The output array MUST be ordered identically: [Index 0: TODAY, Index 1: TOMORROW, Index 2: THIS WEEK]. Do not mix the order.
 
 You MUST output ONLY a valid JSON object containing exactly one key "feed" mapped to an array of 3 objects.
 Each of the 3 objects must be structured identically to this schema, using appropriate dynamic content:
@@ -126,7 +149,9 @@ Each of the 3 objects must be structured identically to this schema, using appro
     {{ "label": "Cost Saver", "variant": "outline" }},
     {{ "label": "Action Needed", "variant": "secondary" }}
   ],
-  "aiAdvice": "1 sentence specific tip about the material trends or festival proximity."
+  "aiAdvice": "1 sentence specific tip about the material trends or festival proximity.",
+  "estimatedTime": "e.g., 4 Hours",
+  "workVolume": "e.g., Output: 10 units"
 }}
 """
         

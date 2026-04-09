@@ -34,16 +34,16 @@ async def get_trends(
 Generate 3 social media-style trend posts globally relevant to: {tab if tab != "All Trends" else "Textiles, Pottery, and Metalwork"}.
 
 You MUST output ONLY a valid JSON object containing exactly one key "trends" mapped to an array of 3 objects.
-Each object must follow this strict schema:
+Each object must follow this strict schema exactly:
 {{
-  "id": integer (1 to 3),
-  "author_name": "Fictional Business Name",
-  "author_initial": "F",
-  "category": "Keyword Category",
-  "posted_ago": "2 hours ago",
-  "image_url": "CHOOSE ONE OF: {AVAILABLE_IMAGES}",
-  "body_text": "2-3 highly engaging sentences about a market trend, export demand, or sustainable shift.",
-  "tags": ["#Trend", "#Craft"],
+  "id": integer (1, 2, or 3),
+  "author": "Fictional Artisan Name",
+  "title": "Short Catchy Headline",
+  "content": "2-3 highly engaging sentences about a market trend, export demand, or sustainable shift.",
+  "timestamp": "2 hours ago",
+  "image_url": "MUST BE EXACTLY ONE STRING FROM THIS LIST: {AVAILABLE_IMAGES}",
+  "tags": ["Trend", "Craft"],
+  "performance_badge": "Trending Up",
   "likes": "1.2k",
   "comments": 89
 }}
@@ -69,44 +69,99 @@ Each object must follow this strict schema:
         return [
             {
                 "id": 1,
-                "author_name": "Meera Textile Insights (Fallback)",
-                "author_initial": "M",
-                "category": "Wedding Season",
-                "posted_ago": "2 hours ago",
+                "author": "Meera Textile Insights (Fallback)",
+                "title": " Peak Demand in Weddings",
+                "content": "Traditional Banarasi handlooms with festive reds are seeing peak demand this wedding season.",
+                "timestamp": "2 hours ago",
                 "image_url": "/images/loom_weaving.png",
-                "body_text": (
-                    "Traditional Banarasi handlooms with festive reds are seeing peak demand this wedding season."
-                ),
-                "tags": ["#WeddingSilk", "#FloralMotif"],
+                "tags": ["WeddingSilk", "FloralMotif"],
+                "performance_badge": "Trending Up",
                 "likes": "1.2k",
                 "comments": 89,
             }
         ]
 
+import httpx
+from datetime import datetime, timedelta
+
+_commodity_cache_v2 = {
+    "timestamp": None,
+    "data": [],
+    "mat_str": ""
+}
+
+def get_mock_commodity(c):
+    # Base fallback prices if Alpha Vantage API limit is reached
+    mocks = {
+        "COTTON": (73.0, 74.5), 
+        "COPPER": (8500.0, 8300.0), 
+        "ALUMINUM": (3000.0, 3100.0), 
+        "NATURAL_GAS": (2.1, 2.0)
+    }
+    return mocks.get(c, (100.0, 100.0))
+
 @router.get("/intelligence")
 async def get_intelligence(db: AsyncSession = Depends(get_db)):
     """
-    AI suggestion + raw material forecast sidebar data generated via LLM & Live DB Constraints.
+    AI suggestion + raw material forecast sidebar data generated via LLM & Live Alpha Vantage API.
     """
     try:
-        # 1. Fetch live Material constraints
-        m_result = await db.execute(select(Material))
-        materials = m_result.scalars().all()
+        global _commodity_cache_v2
         
-        mat_context = []
+        # 1. Fetch live Material constraints from Alpha Vantage (Cached to prevent API rate limit burning)
         material_forecast = []
-        
-        for m in materials:
-            status_text = "Price Drop" if m.trend == "down" else "High Cost Alert" if m.trend == "up" else "Stable"
-            material_forecast.append({
-                "name": m.commodity_full_name or m.name,
-                "price": m.price,
-                "status": status_text,
-                "trend": f"{m.change_pct} {'↗' if 'up' in m.trend else '↘' if 'down' in m.trend else '→'}"
-            })
-            mat_context.append(f"{m.commodity_full_name} is currently {m.price} tracking {m.change_pct} ({m.trend})")
+        if _commodity_cache_v2["data"] and _commodity_cache_v2["timestamp"]:
+            if datetime.now() - _commodity_cache_v2["timestamp"] < timedelta(hours=1):
+                material_forecast = _commodity_cache_v2["data"]
+                mat_str = _commodity_cache_v2["mat_str"]
+                
+        if not material_forecast:
+            mat_context = []
+            api_key = settings.ALPHA_VANTAGE_API_KEY
+            # Commodities critical to local Indian artisans (Textile, Jewelry, Metalcraft, Pottery kilns)
+            commodities = ["COTTON", "COPPER", "ALUMINUM", "NATURAL_GAS"]
             
-        mat_str = "; ".join(mat_context) if mat_context else "No active tracking data."
+            async with httpx.AsyncClient() as client:
+                for commodity in commodities:
+                    curr_val, prev_val = None, None
+                    try:
+                        url = f"https://www.alphavantage.co/query?function={commodity}&interval=monthly&apikey={api_key}"
+                        resp = await client.get(url, timeout=4.0)
+                        if resp.status_code == 200:
+                            data = resp.json()
+                            if "data" in data and len(data["data"]) >= 2:
+                                curr_val = float(data["data"][0]["value"])
+                                prev_val = float(data["data"][1]["value"])
+                    except Exception as e:
+                        logger.error(f"Failed to fetch {commodity}: {e}")
+                    
+                    if curr_val is None or prev_val is None:
+                        curr_val, prev_val = get_mock_commodity(commodity)
+                        
+                    # Apply USD to INR conversion mock (~83.5)
+                    curr_inr = curr_val * 83.5
+                    
+                    change = ((curr_val - prev_val) / prev_val) * 100
+                    trend_dir = "up" if change > 0 else "down" if change < 0 else "flat"
+                    trend_str = f"{abs(change):.1f}% {'↗' if change > 0 else '↘'}"
+                    
+                    status_text = "Price Drop" if trend_dir == "down" else "High Cost Alert" if trend_dir == "up" else "Stable"
+                    
+                    material_forecast.append({
+                        "name": commodity.capitalize().replace("_", " "),
+                        "price": f"₹{curr_inr:,.0f}",
+                        "status": status_text,
+                        "trend": trend_str
+                    })
+                    mat_context.append(f"{commodity} is currently ₹{curr_inr:,.0f} trending {trend_str}")
+
+            mat_str = "; ".join(mat_context)
+            
+            # Save to Cache to protect Alpha Vantage rate limits (25/day)
+            if material_forecast:
+                _commodity_cache_v2["data"] = material_forecast
+                _commodity_cache_v2["mat_str"] = mat_str
+                _commodity_cache_v2["timestamp"] = datetime.now()
 
         # 2. Prompt LLM for `ai_suggestion`
         prompt = f"""You are an AI financial analyst for a rural Indian artisan.
