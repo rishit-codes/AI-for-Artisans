@@ -1,7 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "../context/AuthContext";
+import api from "../services/api";
 
 // ── Icons ────────────────────────────────────────────────────────────────────
 
@@ -78,6 +79,37 @@ export default function DashboardLayout({ children, headerActions }) {
     const { user, logout } = useAuth();
     const navigate = useNavigate();
 
+    const [liveTemp, setLiveTemp] = useState("--°C");
+    const [marketStatus, setMarketStatus] = useState("ANALYZING");
+
+    useEffect(() => {
+        const fetchNavData = async () => {
+            // Fetch live weather for Vadodara
+            try {
+                const wUrl = "https://api.open-meteo.com/v1/forecast?latitude=22.3072&longitude=73.1812&current=temperature_2m";
+                const wRes = await fetch(wUrl);
+                const wData = await wRes.json();
+                if (wData?.current?.temperature_2m) {
+                    setLiveTemp(`${Math.round(wData.current.temperature_2m)}°C`);
+                }
+            } catch (e) {
+                console.error("Dashboard weather fetch failed");
+            }
+
+            // Fetch live market sentiment from intelligence
+            try {
+                const mRes = await api.get('/trends/intelligence');
+                if (mRes.data && mRes.data.material_forecast) {
+                    const upTrends = mRes.data.material_forecast.filter(m => String(m.trend).includes("up") || String(m.trend).includes("↗"));
+                    setMarketStatus(upTrends.length > 1 ? "STRONG" : "STABLE");
+                }
+            } catch (e) {
+                 setMarketStatus("STABLE");
+            }
+        };
+        fetchNavData();
+    }, []);
+
     const handleLogout = () => {
         logout();
         navigate("/login");
@@ -122,13 +154,13 @@ export default function DashboardLayout({ children, headerActions }) {
                 <div className="topbar-right">
                     {headerActions}
                     <div className="header-indicators">
-                        <div className="market-indicator">
+                        <div className={`market-indicator ${marketStatus === 'STRONG' ? 'market-strong' : 'market-stable'}`}>
                             <span className="market-dot"></span>
-                            MARKET: STRONG
+                            MARKET: {marketStatus}
                         </div>
                         <div className="weather-indicator">
                             <SunIcon />
-                            32°C
+                            {liveTemp}
                         </div>
                     </div>
                 </div>

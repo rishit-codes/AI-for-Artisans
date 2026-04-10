@@ -14,6 +14,8 @@ from app.models.user import User
 from app.models.material import Material
 from app.db.session import get_db
 from app.services.festivals import get_days_to_next_festival
+import httpx
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -26,15 +28,15 @@ class ChatRequest(BaseModel):
     message: str
     conversation_history: Optional[List[ChatMessage]] = []
 
-async def stream_groq_response(messages: List[Dict[str, Any]]):
-    current_date = "March 16, 2026"  # Static for demo, could be datetime.now()
+async def stream_groq_response(messages: List[Dict[str, Any]], live_context: str):
+    current_date = datetime.now().strftime("%B %d, %Y")
     system_prompt = (
         f"Today is {current_date}. "
-        "You are a production advisor for Indian artisans. You help with "
-        "craft techniques, material selection, production planning, and quality guidance. "
-        "Keep answers practical, concise, and relevant to traditional Indian crafts. "
-        "Respond exclusively in English. "
-        "Use Groq's fast response to give helpful advice."
+        "You are a highly intelligent production advisor and a real assistant for rural Indian artisans. "
+        "You help with craft techniques, material selection, production planning, and quality guidance. "
+        f"Real-time Live Context for your suggestions (DO NOT hallucinate data, rely on this): {live_context}. "
+        "Keep answers practical, concise, context-aware, and highly relevant. "
+        "IMPORTANT: You MUST respond EVERYTHING in BOTH English and Gujarati. First output your complete English response, then output a visual divider (e.g., '---'), and then output the exact Gujarati translation."
     )
 
     client = AsyncGroq(api_key=settings.GROQ_API_KEY)
@@ -61,8 +63,33 @@ async def stream_groq_response(messages: List[Dict[str, Any]]):
 @router.post("/chat", response_class=StreamingResponse)
 async def chat_with_advisor(
     request: ChatRequest,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ) -> Any:
+    # Build live context
+    m_result = await db.execute(select(Material))
+    materials = m_result.scalars().all()
+    mat_context = [f"{m.commodity_full_name or m.name}: {m.price} (Trend: {m.trend.upper()})" for m in materials]
+    mat_str = ", ".join(mat_context) if mat_context else "No active tracking data."
+    
+    weather_str = "Clear, 30°C, 45% Humidity"
+    try:
+        async with httpx.AsyncClient() as client:
+            w_url = "https://api.open-meteo.com/v1/forecast?latitude=22.3072&longitude=73.1812&current=temperature_2m,relative_humidity_2m,precipitation"
+            w_res = await client.get(w_url, timeout=3.0)
+            if w_res.status_code == 200:
+                w_data = w_res.json()
+                curr = w_data.get("current", {})
+                weather_str = f"Temp: {curr.get('temperature_2m', 30)}°C, Humidity: {curr.get('relative_humidity_2m', 45)}%, Precip: {curr.get('precipitation', 0)}mm"
+    except Exception as e:
+        logger.warning(f"Live Weather fetch failed in chat: {e}")
+        
+    fest_info = get_days_to_next_festival("textile")
+    festival_name = fest_info["name"] if fest_info else "Upcoming Festival"
+    days_to_festival = fest_info["days_away"] if fest_info else 30
+
+    live_context = f"Weather: {weather_str} | Market Materials: {mat_str} | Next big event: {festival_name} in {days_to_festival} days."
+
     # Build messages log
     messages = []
     for msg in request.conversation_history:
@@ -70,7 +97,7 @@ async def chat_with_advisor(
     messages.append({"role": "user", "content": request.message})
     
     return StreamingResponse(
-        stream_groq_response(messages),
+        stream_groq_response(messages, live_context),
         media_type="text/event-stream"
     )
 
@@ -101,10 +128,9 @@ async def get_advisor_feed(
         
         # 1.5. Gather Live Weather (Open-Meteo for Jaipar example)
         weather_str = "Clear, 30°C, 45% Humidity"
-        import httpx
         try:
             async with httpx.AsyncClient() as client:
-                w_url = "https://api.open-meteo.com/v1/forecast?latitude=26.9124&longitude=75.7873&current=temperature_2m,relative_humidity_2m,precipitation"
+                w_url = "https://api.open-meteo.com/v1/forecast?latitude=22.3072&longitude=73.1812&current=temperature_2m,relative_humidity_2m,precipitation"
                 w_res = await client.get(w_url, timeout=3.0)
                 if w_res.status_code == 200:
                     w_data = w_res.json()
@@ -113,8 +139,7 @@ async def get_advisor_feed(
         except Exception as e:
             logger.warning(f"Open-Meteo fetch failed: {e}")
 
-        import datetime
-        current_month = datetime.datetime.now().strftime("%B")
+        current_month = datetime.now().strftime("%B")
 
         # 2. Build Intelligent Prompt
         prompt = f"""You are an expert AI logistics and production advisor for a rural Indian {craft_type} artisan.
