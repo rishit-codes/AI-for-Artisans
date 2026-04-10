@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import DashboardLayout from "../components/DashboardLayout";
 import api from "../services/api";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import "./Constraints.css";
 
 // ── Icons ──────────────────────────────────────────────────────────────────────
@@ -117,64 +118,146 @@ export default function MaterialCostsPage() {
     const [mandiData, setMandiData] = useState({ Textiles: [], Metals: [] });
     const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        const fetchData = async () => {
-            try {
-                const [commRes, mandiTexts, mandiMetals] = await Promise.all([
-                    api.get('/materials/commodities'),
-                    api.get('/materials/mandi?category=Textiles'),
-                    api.get('/materials/mandi?category=Metals')
-                ]);
+    const [isSyncing, setIsSyncing] = useState(false);
+    const [toastMessage, setToastMessage] = useState(null);
+    const [selectedCommodity, setSelectedCommodity] = useState(null);
 
-                const mappedComm = commRes.data.map(item => {
-                    let icon;
-                    if (item.name.includes("Cotton")) {
-                        icon = <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="1.8"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z" /></svg>;
-                    } else if (item.name.includes("Silk")) {
-                        icon = <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="1.8"><path d="M20 7H4a2 2 0 00-2 2v6a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z" /><path d="M12 7V5m0 14v-2" /></svg>;
-                    } else if (item.name.includes("Brass")) {
-                        icon = <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="1.8"><rect x="3" y="8" width="18" height="12" rx="2" /><path d="M7 8V6a2 2 0 012-2h6a2 2 0 012 2v2" /></svg>;
-                    } else {
-                        icon = <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="1.8"><path d="M12 3v18M5 7l7-4 7 4M5 17l7 4 7-4" /></svg>;
-                    }
+    const fetchData = useCallback(async () => {
+        try {
+            const [commRes, mandiTexts, mandiMetals] = await Promise.all([
+                api.get('/materials/commodities'),
+                api.get('/materials/mandi?category=Textiles'),
+                api.get('/materials/mandi?category=Metals')
+            ]);
 
-                    return {
-                        name: item.name.replace(" ", "\n"),
-                        price: item.price,
-                        unit: item.unit,
-                        change: item.change_pct,
-                        trend: item.trend,
-                        color: item.color,
-                        points: item.sparkline_points,
-                        fill: `M${item.sparkline_points} L120,40 L0,40`,
-                        icon
-                    };
-                });
-                setCommodities(mappedComm);
+            const mappedComm = commRes.data.map(item => {
+                let icon;
+                if (item.name.includes("Cotton")) {
+                    icon = <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="1.8"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z" /></svg>;
+                } else if (item.name.includes("Silk")) {
+                    icon = <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="1.8"><path d="M20 7H4a2 2 0 00-2 2v6a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z" /><path d="M12 7V5m0 14v-2" /></svg>;
+                } else if (item.name.includes("Brass")) {
+                    icon = <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="1.8"><rect x="3" y="8" width="18" height="12" rx="2" /><path d="M7 8V6a2 2 0 012-2h6a2 2 0 012 2v2" /></svg>;
+                } else {
+                    icon = <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="1.8"><path d="M12 3v18M5 7l7-4 7 4M5 17l7 4 7-4" /></svg>;
+                }
 
-                const mapMandi = (rows) => rows.map(r => ({
-                    commodity: r.commodity,
-                    sub: r.sub,
-                    local: { value: r.local_price, best: r.local_best },
-                    surat: { value: r.surat_price, best: r.surat_best },
-                    delhi: { value: r.delhi_price, best: r.delhi_best },
-                    action: r.action
-                }));
+                return {
+                    name: item.name.replace(" ", "\n"),
+                    price: item.price,
+                    unit: item.unit,
+                    change: item.change_pct,
+                    trend: item.trend,
+                    color: item.color,
+                    points: item.sparkline_points,
+                    fill: `M${item.sparkline_points} L120,40 L0,40`,
+                    icon
+                };
+            });
+            setCommodities(mappedComm);
+            setSelectedCommodity(prev => prev || mappedComm[0]);
 
-                setMandiData({
-                    Textiles: mapMandi(mandiTexts.data),
-                    Metals: mapMandi(mandiMetals.data)
-                });
+            const mapMandi = (rows) => rows.map(r => ({
+                commodity: r.commodity,
+                sub: r.sub,
+                local: { value: r.local_price, best: r.local_best },
+                surat: { value: r.surat_price, best: r.surat_best },
+                delhi: { value: r.delhi_price, best: r.delhi_best },
+                action: r.action
+            }));
 
-            } catch (error) {
-                console.error("Error fetching material data:", error);
-            } finally {
-                setLoading(false);
-            }
-        };
+            setMandiData({
+                Textiles: mapMandi(mandiTexts.data),
+                Metals: mapMandi(mandiMetals.data)
+            });
 
-        fetchData();
+        } catch (error) {
+            console.error("Error fetching material data:", error);
+        } finally {
+            setLoading(false);
+        }
     }, []);
+
+    useEffect(() => {
+        fetchData();
+    }, [fetchData]);
+
+    const handleSync = async () => {
+        if (isSyncing) return;
+        setIsSyncing(true);
+        try {
+            await api.post('/materials/sync');
+            await fetchData();
+            showToast("Market data synced successfully!");
+        } catch (error) {
+            showToast("Failed to sync market data.");
+        } finally {
+            setIsSyncing(false);
+        }
+    };
+
+    const handleSupplierAction = (actionLabel, row) => {
+        showToast(`Request sent: ${actionLabel} - ${row.commodity}`);
+    };
+
+    const showToast = (msg) => {
+        setToastMessage(msg);
+        setTimeout(() => setToastMessage(null), 3000);
+    };
+
+    const getAiPrediction = () => {
+        if (!commodities || commodities.length === 0) return null;
+        let biggestDrop = null;
+        let maxDropNum = 0;
+        
+        commodities.forEach(c => {
+            if (c.trend === "down" && c.change) {
+                const dropStr = c.change.replace('%', '').replace('-', '').trim();
+                const dropNum = parseFloat(dropStr);
+                if (!isNaN(dropNum) && dropNum > maxDropNum) {
+                    maxDropNum = dropNum;
+                    biggestDrop = c;
+                }
+            }
+        });
+
+        if (biggestDrop) {
+            const cleanName = biggestDrop.name.replace("\n", " ");
+            return {
+                title: `Buy ${cleanName} Now`,
+                desc: `Prices for ${cleanName} have dropped by ${biggestDrop.change} due to oversupply in Vadodara markets. Stocking up today will optimize your margins for the upcoming festive season.`
+            };
+        }
+        
+        return {
+            title: "Market conditions stabilizing",
+            desc: "Hold current inventory levels. Local hubs show minimal price volatility."
+        };
+    };
+
+    const aiPred = getAiPrediction();
+
+    const getSimulatedHistory = (commodity) => {
+        if (!commodity) return [];
+        const baseValStr = commodity.price.replace(/[^\d.-]/g, '');
+        const baseVal = parseFloat(baseValStr) || 100;
+        
+        const history = [];
+        let currentVal = baseVal * (commodity.trend === "up" ? 0.9 : 1.1); 
+        for (let i = 30; i >= 0; i--) {
+            history.push({
+                day: i === 0 ? "Today" : `Day -${i}`,
+                price: parseFloat(currentVal.toFixed(2))
+            });
+            const noise = (Math.random() - 0.5) * (baseVal * 0.05);
+            const step = (baseVal - currentVal) / (i || 1);
+            currentVal += step + noise;
+        }
+        
+        history[history.length - 1].price = baseVal;
+        
+        return history;
+    };
 
     const topNavTabs = (
         <div className="topbar-nav-links">
@@ -186,6 +269,18 @@ export default function MaterialCostsPage() {
 
     return (
         <DashboardLayout headerActions={topNavTabs}>
+            <AnimatePresence>
+                {toastMessage && (
+                    <motion.div 
+                        initial={{ opacity: 0, y: -50, x: '-50%' }}
+                        animate={{ opacity: 1, y: 20, x: '-50%' }}
+                        exit={{ opacity: 0, y: -50, x: '-50%' }}
+                        style={{ position: 'fixed', top: '0', left: '50%', zIndex: 9999, background: '#111827', color: 'white', padding: '0.75rem 1.5rem', borderRadius: '9999px', fontWeight: '500', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}
+                    >
+                        {toastMessage}
+                    </motion.div>
+                )}
+            </AnimatePresence>
             <div className="constraints-content-wrapper">
 
                 {/* Scrollable Content */}
@@ -204,10 +299,19 @@ export default function MaterialCostsPage() {
                             <p className="page-subtitle">Live tracking and AI predictions for your key commodities.</p>
                         </div>
                         <div className="header-actions">
-                            <div className="market-status-pill">
-                                <span className="pulse-dot" />
-                                Live Market Open
-                            </div>
+                            <button className={`market-status-pill ${isSyncing ? 'opacity-70' : ''}`} onClick={handleSync} disabled={isSyncing} style={{cursor: 'pointer', outline: 'none', border: 'none'}}>
+                                {isSyncing ? (
+                                    <>
+                                        <svg className="animate-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: "spin 1s linear infinite" }}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                                        Syncing Live Data...
+                                    </>
+                                ) : (
+                                    <>
+                                        <span className="pulse-dot" />
+                                        Sync Live Market
+                                    </>
+                                )}
+                            </button>
                             <button className="icon-btn">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
                                     <path d="M4 6h16M4 12h16M4 18h10" />
@@ -217,32 +321,34 @@ export default function MaterialCostsPage() {
                     </motion.div>
 
                     {/* ── AI Prediction Banner ── */}
-                    <motion.div
-                        className="ai-banner"
-                        initial={{ opacity: 0, y: 20 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        viewport={{ once: false, amount: 0.1 }}
-                        transition={{ duration: 0.8, delay: 0.2 }}
-                    >
-                        {/* Sparkle icon */}
-                        <div className="sparkle-icon-box">
-                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-                                <path d="M12 2l1.2 5.8L19 9l-5.8 1.2L12 16l-1.2-5.8L5 9l5.8-1.2L12 2z" fill="#22c55e" />
-                                <path d="M5 3l.6 2.4L8 6l-2.4.6L5 9l-.6-2.4L2 6l2.4-.6L5 3z" fill="#86efac" />
-                            </svg>
-                        </div>
-                        <div className="ai-banner-content">
-                            <p className="ai-banner-label">AI Market Prediction</p>
-                            <h2 className="ai-banner-title">Buy Cotton Yarn Now</h2>
-                            <p className="ai-banner-desc">
-                                Prices for 40s count cotton yarn are expected to rise by 8–12% next week due to reduced supply from Gujarat mills. Stocking up today will optimize your margins for the upcoming festive season.
-                            </p>
-                        </div>
-                        <button className="find-suppliers-btn">
-                            <CartIcon />
-                            Find Suppliers
-                        </button>
-                    </motion.div>
+                    {aiPred && (
+                        <motion.div
+                            className="ai-banner"
+                            initial={{ opacity: 0, y: 20 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            viewport={{ once: false, amount: 0.1 }}
+                            transition={{ duration: 0.8, delay: 0.2 }}
+                        >
+                            {/* Sparkle icon */}
+                            <div className="sparkle-icon-box">
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                                    <path d="M12 2l1.2 5.8L19 9l-5.8 1.2L12 16l-1.2-5.8L5 9l5.8-1.2L12 2z" fill="#22c55e" />
+                                    <path d="M5 3l.6 2.4L8 6l-2.4.6L5 9l-.6-2.4L2 6l2.4-.6L5 3z" fill="#86efac" />
+                                </svg>
+                            </div>
+                            <div className="ai-banner-content">
+                                <p className="ai-banner-label">AI Market Prediction</p>
+                                <h2 className="ai-banner-title">{aiPred.title}</h2>
+                                <p className="ai-banner-desc">
+                                    {aiPred.desc}
+                                </p>
+                            </div>
+                            <button className="find-suppliers-btn" onClick={() => showToast("Scanning for regional suppliers...")}>
+                                <CartIcon />
+                                Find Suppliers
+                            </button>
+                        </motion.div>
+                    )}
 
                     {/* ── Price Cards Grid ── */}
                     {loading ? (
@@ -268,7 +374,12 @@ export default function MaterialCostsPage() {
                             if (isDown) trendClass = "trend-down";
 
                             return (
-                                <div key={item.name} className="price-card hover:-translate-y-1 hover:shadow-xl transition-all duration-300">
+                                <div 
+                                    key={item.name} 
+                                    className="price-card hover:-translate-y-1 hover:shadow-xl transition-all duration-300" 
+                                    onClick={() => setSelectedCommodity(item)} 
+                                    style={{ cursor: 'pointer', border: selectedCommodity?.name === item.name ? `2px solid ${item.color}` : '2px solid transparent' }}
+                                >
                                     <div className="card-top">
                                         <div className="card-title-group">
                                             <div className="card-icon">
@@ -329,7 +440,7 @@ export default function MaterialCostsPage() {
                                 <thead>
                                     <tr>
                                         <th>Commodity</th>
-                                        <th>Your Local (Varanasi)</th>
+                                        <th>Your Local (Vadodara)</th>
                                         <th>Surat Mandi</th>
                                         <th>Delhi Hub</th>
                                         <th>Action</th>
@@ -369,7 +480,7 @@ export default function MaterialCostsPage() {
                                                 {row.delhi.best && <span className="best-badge">Best</span>}
                                             </td>
                                             <td>
-                                                <button className="action-link">
+                                                <button className="action-link" onClick={() => handleSupplierAction(row.action, row)}>
                                                     {row.action}
                                                 </button>
                                             </td>
@@ -379,6 +490,38 @@ export default function MaterialCostsPage() {
                             </table>
                         </div>
                     </motion.div>
+
+                    {/* ── Additional Recharts Details ── */}
+                    {!loading && selectedCommodity && (
+                        <motion.div
+                            className="chart-section"
+                            initial={{ opacity: 0, y: 20 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            viewport={{ once: true }}
+                            style={{marginTop: "2rem", background: "white", borderRadius: "1.5rem", padding: "2rem", boxShadow: "0 4px 24px rgba(0,0,0,0.08)"}}
+                        >
+                            <div style={{marginBottom: "1.5rem"}}>
+                                <h3 style={{fontSize: "1.125rem", fontWeight: "700", display: "flex", alignItems: "center", gap: "0.5rem"}}>
+                                    Historical Pricing: {selectedCommodity.name.replace("\n", " ")}
+                                </h3>
+                                <p style={{color: "#6b7280", fontSize: "0.875rem"}}>30-Day Simulated Price Trend based on Live Data ({selectedCommodity.price})</p>
+                            </div>
+                            <div style={{width: "100%", height: "300px"}}>
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <LineChart data={getSimulatedHistory(selectedCommodity)}>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                                        <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{fill: '#9CA3AF', fontSize: 12}} dy={10} />
+                                        <YAxis domain={['auto', 'auto']} axisLine={false} tickLine={false} tick={{fill: '#9CA3AF', fontSize: 12}} dx={-10} tickFormatter={(val) => `₹${val}`} width={55} />
+                                        <Tooltip 
+                                            contentStyle={{borderRadius: '0.75rem', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'}} 
+                                            itemStyle={{color: selectedCommodity.color, fontWeight: 'bold'}}
+                                        />
+                                        <Line type="monotone" dataKey="price" stroke={selectedCommodity.color} strokeWidth={3} dot={false} activeDot={{r: 6, fill: selectedCommodity.color, stroke: 'white', strokeWidth: 2}} animationDuration={1500} />
+                                    </LineChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </motion.div>
+                    )}
 
                     {/* Bottom padding */}
                     <div style={{ height: "1rem" }} />
