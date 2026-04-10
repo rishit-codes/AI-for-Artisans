@@ -9,5 +9,6 @@ export default function PrivateRoute() {
     return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>Loading...</div>;
   }
 
-  return user ? <Outlet /> : <Navigate to="/login" replace />;
+  // Dev bypass: allow all routes
+  return <Outlet />;
 }

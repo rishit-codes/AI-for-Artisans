@@ -209,3 +209,21 @@ Evaluate the costs. Provide a purely objective JSON object with key "ai_suggesti
                 {"name": "Database Error", "price": "₹0", "status": "Failed to load", "trend": "0%"}
             ]
         }
+async def get_intelligence():
+    """AI suggestion + raw material forecast sidebar data."""
+    return {
+        "ai_suggestion": {
+            "title": "Artisan AI Suggestion",
+            "subtitle": "Based on your browsing history",
+            "text": (
+                "The magenta lotus design shown in the feed has a 20% higher profit "
+                "margin if produced using the locally sourced raw silk currently on sale."
+            ),
+            "action": "Calculate Potential Profit",
+        },
+        "material_forecast": [
+            {"name": "Mulberry Silk", "price": "₹4,200", "status": "Low Stock Alert", "trend": "+8.3% ↗"},
+            {"name": "Cotton Yarn", "price": "₹850", "status": "Stable Demand", "trend": "+1.1% ↗"},
+            {"name": "Natural Indigo", "price": "₹1,800", "status": "Price Drop", "trend": "-3.4% ↘"},
+        ],
+    }

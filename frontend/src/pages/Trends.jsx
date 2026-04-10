@@ -145,9 +145,13 @@ export default function TrendsPage() {
     );
 
     // Filter logic
-    const filteredTrends = activeTab === "All Trends" 
-        ? trends 
-        : trends.filter(t => t.tags.includes(activeTab.replace(' ', '')) || t.title.includes(activeTab) || t.content.includes(activeTab));
+    const filteredTrends = activeTab === "All Trends"
+        ? trends
+        : trends.filter(t => {
+            const tags = Array.isArray(t.tags) ? t.tags : [];
+            const haystack = (t.body_text || '') + tags.join(' ');
+            return haystack.toLowerCase().includes(activeTab.toLowerCase());
+        });
 
     return (
         <DashboardLayout headerActions={topNavTabs}>
@@ -203,16 +207,22 @@ export default function TrendsPage() {
                                     <SkeletonTrendCard />
                                 </>
                             ) : (
-                                filteredTrends.map((trend) => (
+                                filteredTrends.map((trend) => {
+                                    const tags = Array.isArray(trend.tags) ? trend.tags : [];
+                                    const authorLabel = trend.author_name || trend.author || '?';
+                                    const initial = trend.author_initial || authorLabel.charAt(0);
+                                    const timeLabel = trend.posted_ago || trend.timestamp || '';
+                                    const bodyText = trend.body_text || trend.content || '';
+                                    return (
                                     <div key={trend.id} className="trend-card">
                                         <div className="trend-card-header">
                                             <div className="header-info">
                                                 <div className="avatar bg-amber-100 text-amber-700">
-                                                    {trend.author.charAt(0)}
+                                                    {initial}
                                                 </div>
                                                 <div>
-                                                    <h3 className="author-name">{trend.author}</h3>
-                                                    <p className="post-meta">{trend.timestamp}</p>
+                                                    <h3 className="author-name">{authorLabel}</h3>
+                                                    <p className="post-meta">{timeLabel}</p>
                                                 </div>
                                             </div>
                                             <div className="flex items-center gap-2">
@@ -238,25 +248,25 @@ export default function TrendsPage() {
                                         )}
 
                                         <div className="post-content">
-                                            <h4 style={{ margin: '0 0 0.5rem 0', fontWeight: 'bold' }}>{trend.title}</h4>
-                                            <p className="post-text mb-4">
-                                                {trend.content}
-                                            </p>
+                                            <h4 style={{ margin: '0 0 0.5rem 0', fontWeight: 'bold' }}>
+                                                {trend.category || trend.title || ''}
+                                            </h4>
+                                            <p className="post-text mb-4">{bodyText}</p>
 
                                             <div className="tags-container-alt">
-                                                {trend.tags.map(tag => (
-                                                    <span key={tag} className="post-tag-alt text-teal-600">#{tag}</span>
+                                                {tags.map(tag => (
+                                                    <span key={tag} className="post-tag-alt text-teal-600">{tag}</span>
                                                 ))}
                                             </div>
 
                                             <div className="engagement-bar" style={{ marginTop: '1rem' }}>
                                                 <button className="action-btn hover-red">
                                                     <HeartIcon />
-                                                    <span>{trend.likes}</span>
+                                                    <span>{trend.likes || 0}</span>
                                                 </button>
                                                 <button className="action-btn hover-green">
                                                     <CommentIcon />
-                                                    <span>{trend.comments}</span>
+                                                    <span>{trend.comments || 0}</span>
                                                 </button>
                                                 <button className="action-btn hover-blue">
                                                     <ShareIcon />
@@ -265,7 +275,8 @@ export default function TrendsPage() {
                                             </div>
                                         </div>
                                     </div>
-                                ))
+                                    );
+                                })
                             )}
                         </motion.div>
 

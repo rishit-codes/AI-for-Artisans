@@ -4,6 +4,9 @@ import { useAuth } from "../context/AuthContext";
 import { motion } from "framer-motion";
 import DashboardLayout from "../components/DashboardLayout";
 import api from "../services/api";
+import usePredictionsStore from "../store/predictionsStore";
+import DemandForecastChart from "../components/predictions/DemandForecastChart";
+import UpgradeNudge from "../components/predictions/UpgradeNudge";
 import "./ProductionAdvisor.css";
 
 // ── Icons ──────────────────────────────────────────────────────────────────────
@@ -288,6 +291,27 @@ export default function ProductionAdvisorPage() {
     const messagesEndRef = useRef(null);
     const [timelineItems, setTimelineItems] = useState([]);
     const [loadingTimeline, setLoadingTimeline] = useState(true);
+    const [activeProductId, setActiveProductId] = useState(null);
+
+    // AI Predictions state
+    const { forecast, nextFestival, fetchPredictions, isUpgrading, recordsToUpgrade } = usePredictionsStore();
+
+    // Fetch initial product and its 30-day forecast graph
+    useEffect(() => {
+        const initForecasting = async () => {
+            try {
+                const res = await api.get('/products');
+                if (res.data && res.data.length > 0) {
+                    const prodId = res.data[0].id;
+                    setActiveProductId(prodId);
+                    await fetchPredictions(prodId);
+                }
+            } catch (err) {
+                console.error("Failed to initialize forecasting product:", err);
+            }
+        };
+        initForecasting();
+    }, [fetchPredictions]);
 
     // Fetch Timeline Data
     useEffect(() => {
@@ -470,6 +494,24 @@ export default function ProductionAdvisorPage() {
                                         New Task
                                     </button>
                                 </div>
+                            </div>
+
+                            {/* Intelligent Demand Forecast Section */}
+                            <div className="forecast-section mt-8 mb-8 p-6 bg-white rounded-xl shadow-sm border border-gray-100">
+                                <div className="flex justify-between items-center mb-4">
+                                    <h2 className="text-xl font-bold text-gray-800">30-Day Demand Forecast</h2>
+                                    {recordsToUpgrade === 0 && (
+                                        <span className="bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-0.5 rounded">DeepAR Active</span>
+                                    )}
+                                </div>
+                                
+                                <DemandForecastChart forecastData={forecast} nextFestival={nextFestival} />
+                                
+                                {activeProductId && (
+                                    <div className="mt-6">
+                                        <UpgradeNudge productId={activeProductId} />
+                                    </div>
+                                )}
                             </div>
 
                             {/* Chat Interface Layer */}
