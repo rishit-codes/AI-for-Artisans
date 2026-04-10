@@ -312,7 +312,8 @@
   font-weight: 500;
 }
 
-.hover-red:hover {
+.hover-red:hover,
+.action-btn.liked {
   color: #E11D48;
 }
 
@@ -320,7 +321,8 @@
   color: #1A6B3C;
 }
 
-.hover-blue:hover {
+.hover-blue:hover,
+.action-btn.saved {
   color: #2563EB;
 }
 

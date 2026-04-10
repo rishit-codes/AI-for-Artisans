@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     ALPHA_VANTAGE_API_KEY: str = "demo"
     GROQ_API_KEY: str = ""
     FRONTEND_URL: str
+    UNSPLASH_API_KEY: str = ""
     ENVIRONMENT: str = "development"
     
     # Optional phase 3 configurations
