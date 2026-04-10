@@ -9,6 +9,7 @@ from app.core.config import settings
 from app.core.exceptions import ArtisanNotFoundError, ArtisanForbiddenError, ArtisanConflictError, InvalidCredentialsError
 from app.api.endpoints import api_router
 from app.db.base import init_db
+from app.db.seed import seed_database
 from app.services.scheduler import setup_scheduler, shutdown_scheduler
 
 # Setup logging
@@ -22,6 +23,7 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     # Ensure core tables exist for local/dev startup before first request.
     await init_db()
+    await seed_database()
     setup_scheduler()
     yield
     shutdown_scheduler()

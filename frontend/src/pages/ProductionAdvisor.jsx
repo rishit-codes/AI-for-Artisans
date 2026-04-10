@@ -293,6 +293,39 @@ export default function ProductionAdvisorPage() {
     const [loadingTimeline, setLoadingTimeline] = useState(true);
     const [activeProductId, setActiveProductId] = useState(null);
 
+    // Feed actions state
+    const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
+    const [activeFilter, setActiveFilter] = useState("All");
+    const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
+    const [newTaskTitle, setNewTaskTitle] = useState("");
+    const [newTaskDesc, setNewTaskDesc] = useState("");
+
+    const handleAddTask = (e) => {
+        e.preventDefault();
+        if (!newTaskTitle.trim()) return;
+        
+        const newTask = {
+            timeLabel: "JUST ADDED",
+            title: newTaskTitle,
+            description: newTaskDesc,
+            badge: { label: "Manual", variant: "blue" },
+            nodeColor: "icon-bg-blue",
+            cardBg: "card-bg-white",
+            nodeIcon: <WandIcon />
+        };
+        
+        setTimelineItems([newTask, ...timelineItems]);
+        setIsTaskModalOpen(false);
+        setNewTaskTitle("");
+        setNewTaskDesc("");
+    };
+
+    const displayedTimeline = timelineItems.filter(item => {
+        if (activeFilter === "All") return true;
+        const searchStr = `${item.title} ${item.badge?.label}`.toLowerCase();
+        return searchStr.includes(activeFilter.toLowerCase());
+    });
+
     // AI Predictions state
     const { forecast, nextFestival, fetchPredictions, isUpgrading, recordsToUpgrade } = usePredictionsStore();
 
@@ -373,13 +406,14 @@ export default function ProductionAdvisorPage() {
         scrollToBottom();
     }, [messages]);
 
-    const handleSendMessage = async (e) => {
-        e.preventDefault();
-        if (!inputValue.trim() || isStreaming) return;
+    const handleSendMessage = async (e, forcedText = null) => {
+        if (e) e.preventDefault();
+        const textToSubmit = forcedText || inputValue;
+        if (!textToSubmit.trim() || isStreaming) return;
 
-        const userMsg = { role: "user", content: inputValue };
+        const userMsg = { role: "user", content: textToSubmit };
         setMessages((prev) => [...prev, userMsg]);
-        setInputValue("");
+        if (!forcedText) setInputValue("");
         setIsStreaming(true);
 
         // Add a placeholder assistant message
@@ -430,6 +464,7 @@ export default function ProductionAdvisorPage() {
                 const newMsgs = [...prev];
                 const lastIndex = newMsgs.length - 1;
                 newMsgs[lastIndex].content = "Sorry, I am having trouble connecting right now.";
+                newMsgs[lastIndex].isError = true;
                 return newMsgs;
             });
         } finally {
@@ -443,6 +478,18 @@ export default function ProductionAdvisorPage() {
             e.stopPropagation();
             handleSendMessage(e);
         }
+    };
+
+    const handlePrintPrompt = (content) => {
+        const printWindow = window.open('', '', 'height=600,width=800');
+        printWindow.document.write('<html><head><title>Production Schedule</title>');
+        printWindow.document.write('<style>body{font-family: sans-serif; padding: 20px;} pre{white-space: pre-wrap; font-family: inherit;}</style>');
+        printWindow.document.write('</head><body>');
+        printWindow.document.write('<h2>Production Advice / અનુવાદ</h2>');
+        printWindow.document.write('<pre>' + content + '</pre>');
+        printWindow.document.write('</body></html>');
+        printWindow.document.close();
+        printWindow.print();
     };
 
     const topNavTabs = (
@@ -475,18 +522,29 @@ export default function ProductionAdvisorPage() {
                                         AI-optimized schedule based on weather, market demand, and upcoming cultural festivals.
                                     </p>
                                 </div>
-                                <div className="feed-actions">
+                                <div className="feed-actions" style={{ position: 'relative' }}>
                                     {/* Filter button */}
-                                    <button className="btn-filter">
+                                    <button className="btn-filter" onClick={() => setIsFilterMenuOpen(!isFilterMenuOpen)}>
                                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                             <line x1="4" y1="6" x2="20" y2="6" />
                                             <line x1="8" y1="12" x2="16" y2="12" />
                                             <line x1="11" y1="18" x2="13" y2="18" />
                                         </svg>
-                                        Filter
+                                        {activeFilter === "All" ? "Filter" : activeFilter}
                                     </button>
+
+                                    {isFilterMenuOpen && (
+                                        <div style={{ position: 'absolute', top: '100%', right: '110px', marginTop: '0.5rem', background: 'white', border: '1px solid #e5e7eb', borderRadius: '0.5rem', padding: '0.5rem', zIndex: 100, boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', minWidth: '150px' }}>
+                                            {["All", "Priority", "Preparation", "Manual"].map(opt => (
+                                                <button key={opt} onClick={() => { setActiveFilter(opt); setIsFilterMenuOpen(false); }} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '0.5rem 1rem', background: 'transparent', border: 'none', cursor: 'pointer', borderRadius: '0.25rem', color: activeFilter === opt ? '#1A6B3C' : '#374151', fontWeight: activeFilter === opt ? '600' : '400' }}>
+                                                    {opt}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+
                                     {/* New Task button */}
-                                    <button className="btn-new-task">
+                                    <button className="btn-new-task" onClick={() => setIsTaskModalOpen(true)}>
                                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                                             <line x1="12" y1="5" x2="12" y2="19" />
                                             <line x1="5" y1="12" x2="19" y2="12" />
@@ -496,23 +554,7 @@ export default function ProductionAdvisorPage() {
                                 </div>
                             </div>
 
-                            {/* Intelligent Demand Forecast Section */}
-                            <div className="forecast-section mt-8 mb-8 p-6 bg-white rounded-xl shadow-sm border border-gray-100">
-                                <div className="flex justify-between items-center mb-4">
-                                    <h2 className="text-xl font-bold text-gray-800">30-Day Demand Forecast</h2>
-                                    {recordsToUpgrade === 0 && (
-                                        <span className="bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-0.5 rounded">DeepAR Active</span>
-                                    )}
-                                </div>
-                                
-                                <DemandForecastChart forecastData={forecast} nextFestival={nextFestival} />
-                                
-                                {activeProductId && (
-                                    <div className="mt-6">
-                                        <UpgradeNudge productId={activeProductId} />
-                                    </div>
-                                )}
-                            </div>
+
 
                             {/* Chat Interface Layer */}
                             <div className="advisor-chat-container">
@@ -525,14 +567,46 @@ export default function ProductionAdvisorPage() {
                                     ) : (
                                         messages.map((msg, idx) => (
                                             <div key={idx} className={`chat-message ${msg.role === 'user' ? 'user-message' : 'ai-message'}`}>
-                                                <div className="message-content">{msg.content}</div>
+                                                {msg.isError ? (
+                                                    <div className="message-content ai-error-state">
+                                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                                                        System Offline - Please reconnect or authenticate.
+                                                    </div>
+                                                ) : msg.content === "" && isStreaming ? (
+                                                    <div className="message-content typing-indicator">
+                                                        <span className="typing-dot"></span>
+                                                        <span className="typing-dot"></span>
+                                                        <span className="typing-dot"></span>
+                                                    </div>
+                                                ) : (
+                                                    <div>
+                                                        <div className="message-content">{msg.content}</div>
+                                                        {msg.role === 'assistant' && (
+                                                            <div className="ai-message-footer">
+                                                                <button onClick={() => handlePrintPrompt(msg.content)} className="chat-print-btn" title="Print this advice">
+                                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+                                                                    Print
+                                                                </button>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
                                             </div>
                                         ))
                                     )}
                                     <div ref={messagesEndRef} />
                                 </div>
 
-                                <form className="chat-input-area" onSubmit={handleSendMessage}>
+                                {/* Quick Prompts */}
+                                {messages.length === 0 && (
+                                    <div className="quick-prompts-container">
+                                        <button type="button" className="quick-prompt-chip" onClick={() => handleSendMessage(null, "What textiles are trending for upcoming festivals?")}>What textiles are trending?</button>
+                                        <button type="button" className="quick-prompt-chip" onClick={() => handleSendMessage(null, "Compare Cotton vs Linen prices and demand.")}>Compare Cotton vs Linen</button>
+                                        <button type="button" className="quick-prompt-chip" onClick={() => handleSendMessage(null, "Generate a 10-day weaving schedule tailored for the current weather.")}>Generate a 10-day schedule</button>
+                                    </div>
+                                )}
+
+                                <form className="chat-input-area" onSubmit={(e) => handleSendMessage(e)}>
                                     <input
                                         type="text"
                                         className="chat-input"
@@ -565,10 +639,12 @@ export default function ProductionAdvisorPage() {
                                             <SkeletonTimelineCard />
                                             <SkeletonTimelineCard />
                                         </>
-                                    ) : (
-                                        timelineItems.map((item, i) => (
+                                    ) : displayedTimeline.length > 0 ? (
+                                        displayedTimeline.map((item, i) => (
                                             <TaskCard key={i} item={item} />
                                         ))
+                                    ) : (
+                                        <div style={{textAlign: 'center', padding: '2rem', color: '#6b7280'}}>No tasks found for this filter.</div>
                                     )}
                                 </div>
                             </div>
@@ -576,6 +652,29 @@ export default function ProductionAdvisorPage() {
                     </motion.div>
                 </div>
             </div>
+
+            {/* New Task Modal Overlay */}
+            {isTaskModalOpen && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+                    <div style={{ background: 'white', padding: '2rem', borderRadius: '1rem', width: '100%', maxWidth: '450px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)' }}>
+                        <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1.5rem', color: '#111827' }}>Create Custom Task</h2>
+                        <form onSubmit={handleAddTask}>
+                            <div style={{ marginBottom: '1rem' }}>
+                                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: 600, color: '#374151' }}>Task Title</label>
+                                <input required value={newTaskTitle} onChange={e => setNewTaskTitle(e.target.value)} type="text" placeholder="e.g. Order new looms" style={{ width: '100%', padding: '0.75rem', border: '1px solid #d1d5db', borderRadius: '0.5rem', outline: 'none' }} />
+                            </div>
+                            <div style={{ marginBottom: '2rem' }}>
+                                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: 600, color: '#374151' }}>Task Details</label>
+                                <textarea required value={newTaskDesc} onChange={e => setNewTaskDesc(e.target.value)} rows="3" placeholder="Description of the task..." style={{ width: '100%', padding: '0.75rem', border: '1px solid #d1d5db', borderRadius: '0.5rem', outline: 'none', resize: 'none' }} />
+                            </div>
+                            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+                                <button type="button" onClick={() => setIsTaskModalOpen(false)} style={{ padding: '0.625rem 1rem', color: '#4b5563', border: '1px solid #d1d5db', borderRadius: '0.5rem', background: 'white', fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
+                                <button type="submit" style={{ padding: '0.625rem 1.25rem', background: '#1A6B3C', color: 'white', borderRadius: '0.5rem', border: 'none', fontWeight: 600, cursor: 'pointer' }}>Create Task</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </DashboardLayout>
     );
 }

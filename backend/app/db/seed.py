@@ -13,9 +13,9 @@ async def seed_database():
     """Insert seed data if the database is empty."""
     async with AsyncSessionLocal() as db:
         # Check if already seeded
-        # result = await db.execute(select(User).limit(1))
-        # if result.scalar_one_or_none() is not None:
-        #    return  # Already seeded
+        result = await db.execute(select(User).limit(1))
+        if result.scalar_one_or_none() is not None:
+            return  # Already seeded
 
         # ── User (Auth V2 schema fallback) ──────────────
         user_id = uuid.UUID("48ca70ea-7851-4a3d-bb92-13b29229237a")
