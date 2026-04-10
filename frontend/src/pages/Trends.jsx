@@ -37,8 +37,8 @@ const CraftsIcon = () => (
     </svg>
 );
 
-const HeartIcon = () => (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+const HeartIcon = ({ filled }) => (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill={filled ? "currentColor" : "none"}>
         <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"
             stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
     </svg>
@@ -51,10 +51,9 @@ const CommentIcon = () => (
     </svg>
 );
 
-const ShareIcon = () => (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-        <path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8M16 6l-4-4-4 4M12 2v13"
-            stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+const BookmarkIcon = ({ filled }) => (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill={filled ? "currentColor" : "none"}>
+        <path d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
 );
 
@@ -72,7 +71,7 @@ const navItems = [
     { href: "/my-crafts", label: "My Crafts", Icon: CraftsIcon },
 ];
 
-const trendTabs = ["All Trends", "Wedding Season", "Cotton", "Sustainable Dyes"];
+const trendTabs = ["All Trends", "Home Decor", "Textiles", "Pottery", "Saved"];
 
 const SkeletonTrendCard = () => (
     <div className="trend-card animate-pulse">
@@ -112,28 +111,62 @@ export default function TrendsPage() {
     const [trends, setTrends] = useState([]);
     const [intelligence, setIntelligence] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [bookmarkedTrends, setBookmarkedTrends] = useState(() => {
+        const saved = localStorage.getItem('bookmarkedTrends');
+        return saved ? JSON.parse(saved) : [];
+    });
+    const [likedTrends, setLikedTrends] = useState({});
+    
+    const toggleLike = (trendTitle) => {
+        setLikedTrends(prev => ({...prev, [trendTitle]: !prev[trendTitle]}));
+    };
+
+    const toggleBookmark = (trend) => {
+        setBookmarkedTrends(prev => {
+            const isBookmarked = prev.some(t => t.title === trend.title);
+            let newBookmarks;
+            if (isBookmarked) {
+                newBookmarks = prev.filter(t => t.title !== trend.title);
+            } else {
+                newBookmarks = [...prev, trend];
+            }
+            localStorage.setItem('bookmarkedTrends', JSON.stringify(newBookmarks));
+            return newBookmarks;
+        });
+    };
     const [profitCalculated, setProfitCalculated] = useState(false);
     const [showAllForecast, setShowAllForecast] = useState(false);
     const location = useLocation();
     const pathname = location.pathname;
 
     useEffect(() => {
-        const fetchAll = async () => {
+        const fetchTrends = async () => {
+            setLoading(true);
             try {
-                const [trendsRes, intelRes] = await Promise.all([
-                    api.get('/trends'),
-                    api.get('/trends/intelligence')
-                ]);
+                // Fetching exactly once with All Trends to pull down 9 categorized posts
+                const trendsRes = await api.get(`/trends?tab=All Trends`);
                 setTrends(trendsRes.data);
-                setIntelligence(intelRes.data);
             } catch (error) {
-                console.error("Error fetching data:", error);
+                console.error("Error fetching trends:", error);
             } finally {
                 setLoading(false);
             }
         };
 
-        fetchAll();
+        fetchTrends();
+    }, []); // Removed activeTab dependency so it only fetches on mount
+
+    useEffect(() => {
+        const fetchIntel = async () => {
+            try {
+                const intelRes = await api.get('/trends/intelligence');
+                setIntelligence(intelRes.data);
+            } catch (error) {
+                console.error("Error fetching intelligence:", error);
+            }
+        };
+
+        fetchIntel();
     }, []);
 
     const topNavTabs = (
@@ -144,14 +177,19 @@ export default function TrendsPage() {
         </div>
     );
 
-    // Filter logic
-    const filteredTrends = activeTab === "All Trends"
-        ? trends
-        : trends.filter(t => {
+    // Instant local filtering logic
+    let filteredTrends = [];
+    if (activeTab === "Saved") {
+        filteredTrends = bookmarkedTrends;
+    } else if (activeTab === "All Trends") {
+        filteredTrends = trends;
+    } else {
+        filteredTrends = trends.filter(t => {
             const tags = Array.isArray(t.tags) ? t.tags : [];
-            const haystack = (t.body_text || '') + tags.join(' ');
-            return haystack.toLowerCase().includes(activeTab.toLowerCase());
+            const haystack = (t.body_text || t.category || t.title || '') + tags.join(' ');
+            return haystack.toLowerCase().replace(/\s+/g,'').includes(activeTab.toLowerCase().replace(/\s+/g,''));
         });
+    }
 
     return (
         <DashboardLayout headerActions={topNavTabs}>
@@ -260,17 +298,23 @@ export default function TrendsPage() {
                                             </div>
 
                                             <div className="engagement-bar" style={{ marginTop: '1rem' }}>
-                                                <button className="action-btn hover-red">
-                                                    <HeartIcon />
+                                                <button 
+                                                    className={`action-btn hover-red ${likedTrends[trend.title] ? 'liked' : ''}`}
+                                                    onClick={() => toggleLike(trend.title)}
+                                                >
+                                                    <HeartIcon filled={likedTrends[trend.title]} />
                                                     <span>{trend.likes || 0}</span>
                                                 </button>
                                                 <button className="action-btn hover-green">
                                                     <CommentIcon />
                                                     <span>{trend.comments || 0}</span>
                                                 </button>
-                                                <button className="action-btn hover-blue">
-                                                    <ShareIcon />
-                                                    <span>Share</span>
+                                                <button 
+                                                    className={`action-btn hover-blue ${bookmarkedTrends.some(t => t.title === trend.title) ? 'saved' : ''}`}
+                                                    onClick={() => toggleBookmark(trend)}
+                                                >
+                                                    <BookmarkIcon filled={bookmarkedTrends.some(t => t.title === trend.title)} />
+                                                    <span>{bookmarkedTrends.some(t => t.title === trend.title) ? "Saved" : "Save"}</span>
                                                 </button>
                                             </div>
                                         </div>
