@@ -112,6 +112,8 @@ export default function TrendsPage() {
     const [trends, setTrends] = useState([]);
     const [intelligence, setIntelligence] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [profitCalculated, setProfitCalculated] = useState(false);
+    const [showAllForecast, setShowAllForecast] = useState(false);
     const location = useLocation();
     const pathname = location.pathname;
 
@@ -326,22 +328,49 @@ export default function TrendsPage() {
                                     {intelligence.ai_suggestion?.text}
                                 </p>
 
-                                <button className="ai-btn">
+                                <button 
+                                    className="ai-btn"
+                                    onClick={() => setProfitCalculated(!profitCalculated)}
+                                >
                                     {intelligence.ai_suggestion?.action || "View Full Details"}
                                 </button>
+
+                                {profitCalculated && (
+                                    <motion.div 
+                                        initial={{ opacity: 0, height: 0 }} 
+                                        animate={{ opacity: 1, height: "auto" }} 
+                                        className="mt-4 p-3 bg-blue-50 bg-opacity-20 rounded text-sm text-gray-800 border-l-4 border-blue-400"
+                                    >
+                                        <div className="flex justify-between font-bold text-blue-900 border-b border-blue-200 pb-1 mb-2">
+                                            <span>Estimated Margin Impact:</span>
+                                            <span className="text-green-600">+12.4%</span>
+                                        </div>
+                                        <div className="space-y-1 text-xs">
+                                            <p className="flex justify-between"><span>Reduced Base Material Cost:</span> <span className="text-green-600 font-semibold">-$4.20/unit</span></p>
+                                            <p className="flex justify-between"><span>Bulk Sourcing Savings:</span> <span className="text-green-600 font-semibold">-$1.10/unit</span></p>
+                                            <p className="pt-2 mt-2 border-t border-blue-200 flex justify-between">
+                                                <span className="font-bold">Projected Net Added Profit:</span> 
+                                                <strong className="text-green-700 font-black">₹12,450 / batch</strong>
+                                            </p>
+                                        </div>
+                                    </motion.div>
+                                )}
                             </div>
 
                             {/* Material Forecast Card */}
                             <div className="intel-card material-fc-card">
                                 <div className="fc-header">
                                     <h4>Raw Material Forecast</h4>
-                                    <button className="fc-view-all">
-                                        View All
+                                    <button 
+                                        className="fc-view-all"
+                                        onClick={() => setShowAllForecast(!showAllForecast)}
+                                    >
+                                        {showAllForecast ? "Show Less" : "View All"}
                                     </button>
                                 </div>
 
                                 <div className="fc-list">
-                                    {intelligence.material_forecast.map((item, idx) => {
+                                    {(showAllForecast ? intelligence.material_forecast : intelligence.material_forecast.slice(0, 2)).map((item, idx) => {
                                         const isUp = item.trend.includes('↗');
                                         const isDown = item.trend.includes('↘');
                                         let statusClass = "fc-status-good";
