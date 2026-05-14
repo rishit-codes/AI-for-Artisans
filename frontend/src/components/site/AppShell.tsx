@@ -96,8 +96,8 @@ export const AppShell = ({
           <main className="flex-1 p-5 lg:p-8 space-y-8">
             {children}
             <footer className="pt-8 pb-4 text-xs text-muted-foreground font-data flex items-center justify-between border-t border-border">
-              <span>ArtisanGPS · बहीखाता v0.4 · sample data</span>
-              <Link to="/" className="hover:text-foreground">← back to landing</Link>
+              <span>ArtisanGPS · बहीखाता v0.4 · {new Date().getFullYear()}</span>
+              <Link to="/" className="hover:text-foreground">← home</Link>
             </footer>
           </main>
         </div>

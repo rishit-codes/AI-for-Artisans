@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { getMandiPrices } from "@/lib/api";
 import { ArrowDown, ArrowUp, MapPin, Truck, Filter, Download } from "lucide-react";
 import AppShell from "@/components/site/AppShell";
 
@@ -24,6 +26,55 @@ const suppliers = [
 
 const Mandi = () => {
   const [tab, setTab] = useState<"prices" | "suppliers">("prices");
+
+  const { data } = useQuery({
+    queryKey: ["allMandiPrices"],
+    queryFn: async () => {
+      try {
+        const [textiles, metals, pottery] = await Promise.all([
+          getMandiPrices("Textiles"),
+          getMandiPrices("Metals"),
+          getMandiPrices("Pottery"),
+        ]);
+        return [...textiles, ...metals, ...pottery];
+      } catch (e) {
+        return [];
+      }
+    },
+  });
+
+  const parseVal = (str: string) => {
+    const val = parseFloat(str?.replace(/[^0-9.]/g, "") || "0");
+    return isNaN(val) ? 0 : val;
+  };
+  const parseUnit = (str: string) => {
+    const parts = str?.split("/");
+    return parts?.length > 1 ? `/${parts[1]}` : "unit";
+  };
+
+  const displayRows = data && data.length > 0 ? data.map((r: any) => {
+    const staticMatch = rows.find(
+      (x) =>
+        x.item.toLowerCase().includes(r.commodity?.toLowerCase() || "") ||
+        (r.commodity && r.commodity.toLowerCase().includes(x.item.toLowerCase()))
+    );
+
+    const local = parseVal(r.local_price);
+    const surat = parseVal(r.surat_price);
+    const delhi = parseVal(r.delhi_price);
+    const jaipur = staticMatch ? staticMatch.prices[3] : Math.round(local * 1.05);
+    const mumbai = staticMatch ? staticMatch.prices[4] : Math.round(local * 1.08);
+
+    return {
+      item: r.commodity || "Unknown",
+      hindi: r.sub || "",
+      unit: parseUnit(r.local_price || ""),
+      prices: [local, surat, delhi, jaipur, mumbai],
+      delta: r.action === "Buy" ? -2.1 : r.action === "Wait" ? 1.5 : 0.8,
+      supply: staticMatch ? staticMatch.supply : "stable",
+    };
+  }) : rows;
+
   return (
     <AppShell title="Mandi · Live Material Prices" hindi="मंडी भाव" subtitle="Compare raw-material prices across India and surface the cheapest verified supplier for every craft.">
       {/* Filters bar */}
@@ -75,7 +126,7 @@ const Mandi = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((r, i) => {
+                  {displayRows.map((r, i) => {
                     const min = Math.min(...r.prices);
                     return (
                       <tr key={r.item} className={`border-b border-border/60 ${i % 2 ? "bg-background-deep/40" : ""}`}>

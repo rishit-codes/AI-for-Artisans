@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Link, NavLink } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { getDashboardSummary, getProducts, getMandiPrices } from "@/lib/api";
+import { getDashboardSummary, getProducts, getMandiPrices, advisorChatStream } from "@/lib/api";
 import {
   ArrowDown,
   ArrowUp,
@@ -162,20 +162,28 @@ const Topbar = () => (
   </div>
 );
 
-const Greeting = () => (
-  <div className="flex items-end justify-between flex-wrap gap-4">
-    <div>
-      <div className="text-xs uppercase tracking-[0.22em] text-primary font-data">· Tuesday · 6 May 2026 · 6:42 am ·</div>
-      <h1 className="mt-2 font-display text-4xl lg:text-5xl tracking-tight">
-        Namaste, Ramesh ji.
-      </h1>
-      <p className="font-hindi text-muted-foreground mt-1">— बहीखाता खुला है, चाय रखिए।</p>
+const Greeting = () => {
+  const now = new Date();
+  const weekday = now.toLocaleDateString("en-IN", { weekday: "long" });
+  const dateStr = now.toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
+  const timeStr = now.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
+  return (
+    <div className="flex items-end justify-between flex-wrap gap-4">
+      <div>
+        <div className="text-xs uppercase tracking-[0.22em] text-primary font-data">
+          · {weekday} · {dateStr} · {timeStr} ·
+        </div>
+        <h1 className="mt-2 font-display text-4xl lg:text-5xl tracking-tight">
+          Namaste, Ramesh ji.
+        </h1>
+        <p className="font-hindi text-muted-foreground mt-1">— बहीखाता खुला है, चाय रखिए।</p>
+      </div>
+      <button className="rounded-full bg-foreground text-background px-5 py-2.5 text-sm font-medium hover:bg-secondary transition-colors flex items-center gap-2">
+        <Sparkles size={14} /> Ask the ledger
+      </button>
     </div>
-    <button className="rounded-full bg-foreground text-background px-5 py-2.5 text-sm font-medium hover:bg-secondary transition-colors flex items-center gap-2">
-      <Sparkles size={14} /> Ask the ledger
-    </button>
-  </div>
-);
+  );
+};
 
 /* ---------------- widgets ---------------- */
 
@@ -186,10 +194,10 @@ const KPIRow = () => {
   });
 
   const items = [
-    { label: "Total products", hindi: "कुल माल", value: data?.total_products?.toString().padStart(2, '0') ?? "42", tone: "secondary" },
-    { label: "Listed online", hindi: "ऑनलाइन", value: data?.listed_count?.toString().padStart(2, '0') ?? "31", tone: "forest" },
-    { label: "Low stock", hindi: "कम स्टॉक", value: data?.low_stock_items?.length.toString().padStart(2, '0') ?? "04", tone: "danger" },
-    { label: "Total stock value", hindi: "कुल मूल्य", value: data?.total_stock_value ? `₹${data.total_stock_value.toLocaleString()}` : "₹48,210", tone: "primary" },
+    { label: "Total products", hindi: "कुल माल", value: String(data?.total_products ?? "42").padStart(2, '0'), tone: "secondary" },
+    { label: "Listed online", hindi: "ऑनलाइन", value: String(data?.listed_count ?? "31").padStart(2, '0'), tone: "forest" },
+    { label: "Low stock", hindi: "कम स्टॉक", value: String(Array.isArray(data?.low_stock_items) ? data.low_stock_items.length : "04").padStart(2, '0'), tone: "danger" },
+    { label: "Total stock value", hindi: "कुल मूल्य", value: data?.total_stock_value ? `₹${(data.total_stock_value as number).toLocaleString()}` : "₹48,210", tone: "primary" },
   ];
   const toneClass = (t: string) =>
     t === "forest" ? "text-forest" : t === "danger" ? "text-destructive" : t === "primary" ? "text-primary" : "text-secondary";
@@ -401,23 +409,54 @@ const ChatPanel = () => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, typing]);
 
-  const send = () => {
+  const send = async () => {
     const q = input.trim();
     if (!q) return;
+    
+    const history = messages.map((m) => ({
+      role: m.who === "ai" ? "assistant" : "user",
+      content: m.text
+    }));
+
     setMessages((m) => [...m, { who: "you", text: q }]);
     setInput("");
     setTyping(true);
-    setTimeout(() => {
+
+    try {
+      const res = await advisorChatStream({
+        message: q,
+        conversation_history: history,
+      });
+
+      if (!res.body) throw new Error("No response body");
       setTyping(false);
-      setMessages((m) => [
-        ...m,
-        {
-          who: "ai",
-          text:
-            "अच्छा सवाल। मंडी और त्योहारों के हिसाब से सलाह तैयार है — विस्तार से देखने के लिए नीचे स्क्रॉल कीजिए।",
-        },
-      ]);
-    }, 1100);
+      
+      setMessages((m) => [...m, { who: "ai", text: "" }]);
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+
+        setMessages((prev) => {
+          const newMessages = [...prev];
+          const lastIndex = newMessages.length - 1;
+          newMessages[lastIndex] = {
+            ...newMessages[lastIndex],
+            text: newMessages[lastIndex].text + chunk,
+          };
+          return newMessages;
+        });
+      }
+    } catch (err) {
+      console.error(err);
+      setTyping(false);
+      setMessages((m) => [...m, { who: "ai", text: "I am sorry, I am having trouble connecting to the AI service." }]);
+    }
   };
 
   const quick = ["कितने दीया बनाऊँ?", "कौन सा रंग सस्ता है?", "अगला त्योहार कब है?"];
