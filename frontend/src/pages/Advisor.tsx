@@ -6,12 +6,12 @@ import {
   IndianRupee, Package2, Plus, Settings2, Share2, Sparkles, TrendingUp, X,
 } from "lucide-react";
 import AppShell from "@/components/site/AppShell";
-import { Slider } from "@/components/ui/slider";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { useAdvisor } from "@/hooks/use-advisor";
 import { CLUSTERS, CLUSTER_BENCHMARKS, RECOMMENDATIONS } from "@/data/advisorRecommendations";
+import { useQuery } from "@tanstack/react-query";
+import { getAdvisorFeed } from "@/lib/api";
 import { toast } from "sonner";
+import { Loader2 } from "lucide-react";
 
 const inr = (n: number) => `₹${n.toLocaleString("en-IN")}`;
 
@@ -19,6 +19,12 @@ const Advisor = () => {
   const navigate = useNavigate();
   const { profile, capacity, setCapacityOverride, recommendations, plan, addToPlan, removeFromPlan, clearProfile } = useAdvisor();
   const [expanded, setExpanded] = useState<string | null>(null);
+
+  const { data: feedData, isLoading: isFeedLoading } = useQuery({
+    queryKey: ["advisorFeed", profile?.cluster],
+    queryFn: () => profile ? getAdvisorFeed(profile.cluster) : Promise.resolve([]),
+    enabled: !!profile,
+  });
 
   useEffect(() => {
     if (!profile) navigate("/advisor/onboarding", { replace: true });
@@ -102,6 +108,54 @@ const Advisor = () => {
             <p className="text-xs text-muted-foreground mt-3">
               Adjust to rescale every recommendation, materials list, and your monthly plan in real time.
             </p>
+          </section>
+
+          {/* AI Dynamic Feed */}
+          <section>
+            <SectionHeader title="Live AI Advisor Feed" hindi="सीधा सुझाव" subtitle="Dynamic timeline based on weather, market trends, and festival proximity." icon={<Sparkles size={14} className="text-primary" />} />
+            <div className="mt-4 space-y-4">
+              {isFeedLoading ? (
+                <div className="flex items-center justify-center py-10 bg-card/40 rounded-2xl border border-border">
+                  <Loader2 className="animate-spin text-primary" />
+                  <span className="ml-2 text-sm text-muted-foreground font-data">Generating live feed...</span>
+                </div>
+              ) : feedData && (feedData as any[]).length > 0 ? (
+                (feedData as any[]).map((node, i) => (
+                  <div key={i} className="relative pl-6 pb-6 last:pb-0 border-l border-border ml-2">
+                    <div className="absolute -left-[5px] top-1.5 w-2.5 h-2.5 rounded-full bg-primary" />
+                    <div className="rounded-2xl border border-border bg-card p-5">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-data">{node.timeLabel}</div>
+                        {node.badge && (
+                          <Badge variant="secondary" className="font-data text-[10px] uppercase">{node.badge.label}</Badge>
+                        )}
+                      </div>
+                      <h4 className="font-display text-lg">{node.title}</h4>
+                      <p className="text-sm text-foreground/80 mt-1">{node.description}</p>
+                      
+                      {node.aiAdvice && (
+                        <div className="mt-3 p-3 rounded-lg bg-primary/10 border border-primary/20 text-xs text-primary font-medium">
+                          {node.aiAdvice}
+                        </div>
+                      )}
+
+                      <div className="flex flex-wrap gap-2 mt-3">
+                        {node.pills?.map((p: any, idx: number) => (
+                          <Badge key={idx} variant="outline" className="font-data text-[10px] bg-background">
+                            {p.label}
+                          </Badge>
+                        ))}
+                        {node.estimatedTime && (
+                          <Badge variant="outline" className="font-data text-[10px] bg-background text-muted-foreground">⏱ {node.estimatedTime}</Badge>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-sm text-muted-foreground p-5 rounded-2xl border border-border bg-card/40">No feed available.</div>
+              )}
+            </div>
           </section>
 
           {/* Recommendations */}
