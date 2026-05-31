@@ -34,6 +34,7 @@ origins = [
     "http://localhost:5173",   # Vite dev server
     "http://127.0.0.1:5173",   # Vite dev server secondary
     "http://localhost:3000",
+    "https://ai-for-artisans.vercel.app"
 ]
 
 # Add production URL if configured
@@ -42,7 +43,7 @@ if settings.FRONTEND_URL:
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
