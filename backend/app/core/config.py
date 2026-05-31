@@ -7,10 +7,19 @@ class Settings(BaseSettings):
     @field_validator("DATABASE_URL", mode="after")
     @classmethod
     def assemble_db_connection(cls, v: str) -> str:
-        if v and v.startswith("postgres://"):
-            return v.replace("postgres://", "postgresql+asyncpg://", 1)
-        if v and v.startswith("postgresql://"):
-            return v.replace("postgresql://", "postgresql+asyncpg://", 1)
+        if not v:
+            return v
+        if v.startswith("postgres://"):
+            v = v.replace("postgres://", "postgresql+asyncpg://", 1)
+        elif v.startswith("postgresql://") and not v.startswith("postgresql+asyncpg://"):
+            v = v.replace("postgresql://", "postgresql+asyncpg://", 1)
+        
+        # asyncpg does not support sslmode or channel_binding
+        v = v.replace("sslmode=require", "ssl=require")
+        v = v.replace("&channel_binding=require", "")
+        v = v.replace("?channel_binding=require&", "?")
+        v = v.replace("?channel_binding=require", "")
+        
         return v
     JWT_SECRET_KEY: str
     JWT_EXPIRE_DAYS: int = 7
