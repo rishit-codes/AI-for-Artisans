@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { Menu, X } from "lucide-react";
 
 const links = [
@@ -51,15 +52,15 @@ const Navbar = () => {
         </nav>
 
         <div className="hidden md:flex items-center gap-3">
-          <a href="/dashboard" className="text-sm text-foreground/70 hover:text-foreground">
+          <Link to="/login" className="text-sm text-foreground/70 hover:text-foreground transition-colors">
             Sign in
-          </a>
-          <a
-            href="#cta"
+          </Link>
+          <Link
+            to="/login"
             className="text-sm font-medium px-4 py-2 rounded-full bg-secondary text-secondary-foreground hover:bg-foreground transition-colors"
           >
             Open the Ledger →
-          </a>
+          </Link>
         </div>
 
         <button
@@ -78,13 +79,13 @@ const Navbar = () => {
               {l.label}
             </a>
           ))}
-          <a
-            href="#cta"
+          <Link
+            to="/login"
             onClick={() => setOpen(false)}
             className="mt-2 text-center px-4 py-2.5 rounded-full bg-secondary text-secondary-foreground text-sm"
           >
             Open the Ledger
-          </a>
+          </Link>
         </div>
       )}
     </header>

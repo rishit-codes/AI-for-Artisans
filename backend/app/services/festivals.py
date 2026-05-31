@@ -54,7 +54,8 @@ def get_days_to_next_festival(craft_type: str) -> dict:
     upcoming = []
     
     for f in dynamic_festivals:
-        if craft_type.lower() in [c.lower() for c in f["crafts"]]:
+        # Check if the craft_type is a substring of any craft in the list or vice-versa
+        if any(craft_type.lower() in c.lower() or c.lower() in craft_type.lower() for c in f["crafts"]):
             f_date = datetime.strptime(f["date"], "%Y-%m-%d").date()
             if f_date >= today:
                 days_away = (f_date - today).days

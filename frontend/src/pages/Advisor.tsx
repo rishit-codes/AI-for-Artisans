@@ -12,6 +12,9 @@ import { useQuery } from "@tanstack/react-query";
 import { getAdvisorFeed } from "@/lib/api";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
+import { Slider } from "@/components/ui/slider";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 const inr = (n: number) => `₹${n.toLocaleString("en-IN")}`;
 
@@ -22,7 +25,11 @@ const Advisor = () => {
 
   const { data: feedData, isLoading: isFeedLoading } = useQuery({
     queryKey: ["advisorFeed", profile?.cluster],
-    queryFn: () => profile ? getAdvisorFeed(profile.cluster) : Promise.resolve([]),
+    queryFn: async () => {
+      if (!profile) return [];
+      const res = await getAdvisorFeed(profile.cluster);
+      return Array.isArray(res) ? res : (res as any).feed || res;
+    },
     enabled: !!profile,
   });
 
@@ -232,7 +239,7 @@ const Advisor = () => {
                         >
                           {inPlan ? <><Check size={14} className="mr-1" /> In plan</> : <><Plus size={14} className="mr-1" /> Add to plan</>}
                         </Button>
-                        <Button size="sm" variant="ghost" onClick={() => toast("Shared with cluster")}>
+                        <Button size="sm" variant="ghost" onClick={() => toast("Cluster sharing coming soon!")}>
                           <Share2 size={14} />
                         </Button>
                       </div>

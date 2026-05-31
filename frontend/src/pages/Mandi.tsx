@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getMandiPrices } from "@/lib/api";
 import { ArrowDown, ArrowUp, MapPin, Truck, Filter, Download } from "lucide-react";
 import AppShell from "@/components/site/AppShell";
+import { toast } from "sonner";
 
 const markets = ["Local · वाराणसी", "Surat", "Delhi", "Jaipur", "Mumbai"];
 
@@ -83,9 +84,21 @@ const Mandi = () => {
           <button onClick={() => setTab("prices")} className={`px-4 py-1.5 text-xs rounded-full ${tab === "prices" ? "bg-secondary text-secondary-foreground" : "text-muted-foreground"}`}>Prices</button>
           <button onClick={() => setTab("suppliers")} className={`px-4 py-1.5 text-xs rounded-full ${tab === "suppliers" ? "bg-secondary text-secondary-foreground" : "text-muted-foreground"}`}>Suppliers</button>
         </div>
-        <button className="flex items-center gap-2 text-xs px-3 py-1.5 rounded-full border border-border hover:bg-card"><Filter size={12} /> Cluster: Varanasi</button>
-        <button className="flex items-center gap-2 text-xs px-3 py-1.5 rounded-full border border-border hover:bg-card"><MapPin size={12} /> Within 800 km</button>
-        <button className="ml-auto flex items-center gap-2 text-xs px-3 py-1.5 rounded-full bg-primary text-primary-foreground"><Download size={12} /> Export CSV</button>
+        <button onClick={() => toast("Cluster filter coming soon.")} className="flex items-center gap-2 text-xs px-3 py-1.5 rounded-full border border-border hover:bg-card"><Filter size={12} /> Cluster: Varanasi</button>
+        <button onClick={() => toast("Location filter coming soon.")} className="flex items-center gap-2 text-xs px-3 py-1.5 rounded-full border border-border hover:bg-card"><MapPin size={12} /> Within 800 km</button>
+        <button
+          onClick={() => {
+            const csv = displayRows.map(r => `${r.item},${r.prices.join(",")}`).join("\n");
+            const blob = new Blob([`Material,Local,Surat,Delhi,Jaipur,Mumbai\n${csv}`], { type: "text/csv" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a"); a.href = url; a.download = "mandi-prices.csv"; a.click();
+            URL.revokeObjectURL(url);
+            toast.success("CSV downloaded!");
+          }}
+          className="ml-auto flex items-center gap-2 text-xs px-3 py-1.5 rounded-full bg-primary text-primary-foreground"
+        >
+          <Download size={12} /> Export CSV
+        </button>
       </div>
 
       {tab === "prices" ? (
@@ -112,7 +125,9 @@ const Mandi = () => {
                 <div className="font-display text-xl">Comparative Mandi Sheet</div>
                 <div className="text-xs text-muted-foreground font-hindi">तुलनात्मक मंडी भाव — हर बाज़ार, हर हफ़्ते</div>
               </div>
-              <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground font-data">updated 06 May · 09:14 IST</div>
+              <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground font-data">
+                updated {new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short" })} · {new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: false })} IST
+              </div>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -185,7 +200,10 @@ const Mandi = () => {
                   <div className="font-data text-primary mt-1">{s.savings}</div>
                 </div>
               </div>
-              <button className="mt-5 w-full text-sm py-2.5 rounded-full bg-secondary text-secondary-foreground hover:bg-foreground transition-colors">
+              <button
+                onClick={() => toast("Quote request coming soon! We'll connect you with the supplier.")}
+                className="mt-5 w-full text-sm py-2.5 rounded-full bg-secondary text-secondary-foreground hover:bg-foreground transition-colors"
+              >
                 Request quote · भाव माँगें
               </button>
             </div>

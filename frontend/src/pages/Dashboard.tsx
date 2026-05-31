@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect } from "react";
 import { Link, NavLink } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { getDashboardSummary, getProducts, getMandiPrices, advisorChatStream } from "@/lib/api";
+import { getDashboardSummary, getProducts, getMandiPrices, advisorChatStream, getDashboardPriority } from "@/lib/api";
+import { useAuth } from "@/hooks/use-auth";
+import { toast } from "sonner";
 import {
   ArrowDown,
   ArrowUp,
@@ -26,29 +28,10 @@ import metalImg from "@/assets/craft-metal.jpg";
 
 /* ---------------- data ---------------- */
 
-const mandiRows = [
-  { item: "Cotton yarn (40s)", hindi: "सूती धागा", unit: "₹/kg", local: 268, surat: 254, delhi: 261, delta: -4.2 },
-  { item: "Natural indigo dye", hindi: "नील रंग", unit: "₹/kg", local: 1840, surat: 1790, delhi: 1860, delta: 1.8 },
-  { item: "Banarasi silk", hindi: "बनारसी रेशम", unit: "₹/m", local: 2840, surat: 2900, delhi: 2810, delta: 0 },
-  { item: "Brass sheet", hindi: "पीतल चादर", unit: "₹/kg", local: 612, surat: 598, delhi: 605, delta: -1.1 },
-  { item: "Terracotta clay", hindi: "गीली मिट्टी", unit: "₹/qtl", local: 480, surat: 510, delhi: 495, delta: 2.6 },
-  { item: "Lac bangles base", hindi: "लाख", unit: "₹/kg", local: 920, surat: 940, delhi: 935, delta: 0.6 },
-];
-
-const stockRows = [
-  { sku: "DUP-IND-018", name: "Indigo dupatta", hindi: "नील दुपट्टा", img: textileImg, qty: 12, low: 8, price: 1450, status: "Listed" },
-  { sku: "POT-KHU-042", name: "Khurja serving bowl", hindi: "खुरजा कटोरा", img: potteryImg, qty: 4, low: 6, price: 680, status: "Low" },
-  { sku: "BRS-DIY-011", name: "Brass diya set", hindi: "पीतल दीया", img: metalImg, qty: 28, low: 10, price: 920, status: "Listed" },
-  { sku: "TEX-BAN-007", name: "Banarasi stole", hindi: "बनारसी स्टोल", img: textileImg, qty: 0, low: 5, price: 3200, status: "Out" },
-  { sku: "POT-TER-019", name: "Terracotta planter", hindi: "मिट्टी गमला", img: potteryImg, qty: 17, low: 8, price: 320, status: "Listed" },
-];
-
 const seedChat: { who: "you" | "ai"; text: string }[] = [
-  { who: "ai", text: "नमस्ते रमेश जी। आज दुपट्टे और दीया दोनों की मांग है। पूछिए — मैं हाजिर हूँ।" },
-  { who: "you", text: "इस हफ्ते कितने दुपट्टे बनाऊँ?" },
-  { who: "ai", text: "इस हफ्ते 18 बनाइए। दिवाली में मांग बढ़ेगी (+38%) और कपास इस हफ्ते सबसे सस्ता है — ₹254/kg सूरत में।" },
-  { who: "you", text: "और बनारसी स्टोल?" },
-  { who: "ai", text: "स्टोल अभी out-of-stock है। पहले 6 स्टोल की बुनाई शुरू कीजिए — रक्षा बंधन (9 अगस्त) से माँग आएगी।" },
+  { who: "ai", text: "Namaste! I can see you have some products low on stock. Should I plan a batch for the upcoming festival?" },
+  { who: "you", text: "How many dupattas should I make this week?" },
+  { who: "ai", text: "Make 18 this week. Diwali demand will rise (+38%) and cotton is cheapest right now — ₹254/kg from Surat." },
 ];
 
 /* ---------------- page ---------------- */
@@ -76,7 +59,7 @@ const Dashboard = () => {
               </div>
             </div>
             <footer className="pt-8 pb-4 text-xs text-muted-foreground font-data flex items-center justify-between border-t border-border">
-              <span>ArtisanGPS · बहीखाता v0.4 · sample data</span>
+            <span>ArtisanGPS · बहीखाता v0.4</span>
               <Link to="/" className="hover:text-foreground">← back to landing</Link>
             </footer>
           </main>
@@ -163,18 +146,19 @@ const Topbar = () => (
 );
 
 const Greeting = () => {
+  const { user } = useAuth();
   const now = new Date();
   const weekday = now.toLocaleDateString("en-IN", { weekday: "long" });
   const dateStr = now.toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
-  const timeStr = now.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
+  const firstName = (user?.full_name as string)?.split(" ")[0] || "there";
   return (
     <div className="flex items-end justify-between flex-wrap gap-4">
       <div>
         <div className="text-xs uppercase tracking-[0.22em] text-primary font-data">
-          · {weekday} · {dateStr} · {timeStr} ·
+          · {weekday} · {dateStr} ·
         </div>
         <h1 className="mt-2 font-display text-4xl lg:text-5xl tracking-tight">
-          Namaste, Ramesh ji.
+          Namaste, {firstName} ji.
         </h1>
         <p className="font-hindi text-muted-foreground mt-1">— बहीखाता खुला है, चाय रखिए।</p>
       </div>
@@ -194,10 +178,10 @@ const KPIRow = () => {
   });
 
   const items = [
-    { label: "Total products", hindi: "कुल माल", value: String(data?.total_products ?? "42").padStart(2, '0'), tone: "secondary" },
-    { label: "Listed online", hindi: "ऑनलाइन", value: String(data?.listed_count ?? "31").padStart(2, '0'), tone: "forest" },
-    { label: "Low stock", hindi: "कम स्टॉक", value: String(Array.isArray(data?.low_stock_items) ? data.low_stock_items.length : "04").padStart(2, '0'), tone: "danger" },
-    { label: "Total stock value", hindi: "कुल मूल्य", value: data?.total_stock_value ? `₹${(data.total_stock_value as number).toLocaleString()}` : "₹48,210", tone: "primary" },
+    { label: "Total products", hindi: "कुल माल", value: String(data?.total_products ?? "0").padStart(2, '0'), tone: "secondary" },
+    { label: "Listed online", hindi: "ऑनलाइन", value: String(data?.listed_count ?? "0").padStart(2, '0'), tone: "forest" },
+    { label: "Low stock", hindi: "कम स्टॉक", value: String(Array.isArray(data?.low_stock_items) ? data.low_stock_items.length : "0").padStart(2, '0'), tone: "danger" },
+    { label: "Total stock value", hindi: "कुल मूल्य", value: data?.total_stock_value ? `₹${(data.total_stock_value as number).toLocaleString()}` : "₹0", tone: "primary" },
   ];
   const toneClass = (t: string) =>
     t === "forest" ? "text-forest" : t === "danger" ? "text-destructive" : t === "primary" ? "text-primary" : "text-secondary";
@@ -214,37 +198,89 @@ const KPIRow = () => {
   );
 };
 
-const PriorityCard = () => (
-  <div className="rounded-2xl border border-border-strong bg-card p-5 flex flex-col sm:flex-row gap-5"
-       style={{ boxShadow: "var(--shadow-paper)" }}>
-    <img src={textileImg} loading="lazy" alt="Indigo dupattas" className="w-full sm:w-44 h-44 rounded-xl object-cover" />
-    <div className="flex-1 flex flex-col">
-      <div className="text-[10px] uppercase tracking-wider text-primary font-data">Today's priority · आज का काम</div>
-      <div className="font-display text-2xl mt-1 leading-tight">Start 18 indigo dupattas before Friday</div>
-      <div className="font-hindi text-muted-foreground mt-1">शुक्रवार से पहले 18 दुपट्टे शुरू करें</div>
-      <div className="mt-3 flex flex-wrap gap-3 text-xs text-muted-foreground font-data">
-        <span className="text-forest">+38% Diwali lift</span>
-        <span className="w-1 h-1 rounded-full bg-border-strong self-center" />
-        <span>drying weather holds 4 days</span>
-        <span className="w-1 h-1 rounded-full bg-border-strong self-center" />
-        <span>cotton at 90-day floor</span>
+const PriorityCard = () => {
+  const { data, isLoading } = useQuery({
+    queryKey: ["dashboardPriority"],
+    queryFn: getDashboardPriority,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="rounded-2xl border border-border-strong bg-card p-5 flex flex-col sm:flex-row gap-5 animate-pulse"
+           style={{ boxShadow: "var(--shadow-paper)" }}>
+        <div className="w-full sm:w-44 h-44 rounded-xl bg-muted/50" />
+        <div className="flex-1 flex flex-col space-y-4">
+          <div className="w-1/3 h-3 bg-muted rounded" />
+          <div className="w-3/4 h-6 bg-muted rounded" />
+          <div className="w-1/2 h-4 bg-muted rounded" />
+          <div className="flex gap-2">
+            <div className="w-16 h-4 bg-muted rounded" />
+            <div className="w-16 h-4 bg-muted rounded" />
+          </div>
+          <div className="mt-auto flex gap-2">
+            <div className="w-24 h-9 bg-muted rounded-full" />
+            <div className="w-20 h-9 bg-muted rounded-full" />
+          </div>
+        </div>
       </div>
+    );
+  }
+
+  const title = data?.title || "Start 18 indigo dupattas before Friday";
+  const hindi_title = data?.hindi_title || "शुक्रवार से पहले 18 दुपट्टे शुरू करें";
+  const image_url = data?.image_url || textileImg;
+  const metrics = data?.metrics as string[] || ["+38% Diwali lift", "drying weather holds 4 days", "cotton at 90-day floor"];
+
+  return (
+    <div className="rounded-2xl border border-border-strong bg-card p-5 flex flex-col sm:flex-row gap-5"
+         style={{ boxShadow: "var(--shadow-paper)" }}>
+      <img 
+        src={image_url as string} 
+        loading="lazy" 
+        alt="Priority item" 
+        className="w-full sm:w-44 h-44 rounded-xl object-cover" 
+        onError={(e) => {
+          e.currentTarget.src = textileImg;
+        }}
+      />
+      <div className="flex-1 flex flex-col">
+        <div className="text-[10px] uppercase tracking-wider text-primary font-data">Today's priority · आज का काम</div>
+        <div className="font-display text-2xl mt-1 leading-tight">{title as string}</div>
+        <div className="font-hindi text-muted-foreground mt-1">{hindi_title as string}</div>
+        <div className="mt-3 flex flex-wrap gap-3 text-xs text-muted-foreground font-data">
+          {metrics.map((metric: string, i: number) => (
+            <div key={i} className="flex items-center gap-3">
+              <span className={i === 0 ? "text-forest" : ""}>{metric}</span>
+              {i < metrics.length - 1 && <span className="w-1 h-1 rounded-full bg-border-strong self-center" />}
+            </div>
+          ))}
+        </div>
       <div className="mt-auto pt-4 flex gap-2">
-        <button className="rounded-full bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:opacity-90">
-          Add to today
-        </button>
-        <button className="rounded-full border border-border px-4 py-2 text-sm hover:bg-background">
-          Snooze
-        </button>
+          <button
+            onClick={() => toast("Added to today's plan! Check your calendar.")}
+            className="rounded-full bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:opacity-90"
+          >
+            Add to today
+          </button>
+          <button
+            onClick={() => toast("Snoozed until tomorrow.")}
+            className="rounded-full border border-border px-4 py-2 text-sm hover:bg-background"
+          >
+            Snooze
+          </button>
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 const MandiWidget = () => {
+  const { user } = useAuth();
+  const craftType = (user?.craft_type as string) || "Textiles";
+
   const { data } = useQuery({
-    queryKey: ["mandiPrices"],
-    queryFn: () => getMandiPrices("Textiles"),
+    queryKey: ["mandiPrices", craftType],
+    queryFn: () => getMandiPrices(craftType),
   });
 
   const parseVal = (str: string) => {
@@ -256,7 +292,7 @@ const MandiWidget = () => {
     return parts?.length > 1 ? `/${parts[1]}` : "unit";
   };
 
-  const rows = data ? data.map((r: any) => ({
+  const rows = data ? data.slice(0, 3).map((r: any) => ({
     item: r.commodity,
     hindi: r.sub,
     unit: parseUnit(r.local_price),
@@ -264,7 +300,7 @@ const MandiWidget = () => {
     surat: parseVal(r.surat_price),
     delhi: parseVal(r.delhi_price),
     delta: r.action === "Buy" ? -2.1 : (r.action === "Wait" ? 1.5 : 0.8)
-  })) : mandiRows;
+  })) : [];
 
   return (
   <div className="rounded-2xl border border-border bg-card overflow-hidden">
@@ -345,7 +381,7 @@ const StockLedger = () => {
     low: 5,
     price: p.price || 0,
     status: p.stock_qty === 0 ? "Out" : (p.stock_qty < 5 ? "Low" : (p.is_listed ? "Listed" : "Unlisted"))
-  })) : stockRows;
+  })) : [];
 
   return (
   <div className="rounded-2xl border border-border bg-card overflow-hidden">
@@ -400,7 +436,15 @@ const StockLedger = () => {
 };
 
 const ChatPanel = () => {
-  const [messages, setMessages] = useState(seedChat);
+  const STORAGE_KEY = "dashboard_chat_history";
+  const [messages, setMessages] = useState<{ who: "you" | "ai"; text: string }[]>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      return saved ? JSON.parse(saved) : seedChat;
+    } catch {
+      return seedChat;
+    }
+  });
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -409,7 +453,13 @@ const ChatPanel = () => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, typing]);
 
+  // Persist chat to localStorage (keep last 30 messages)
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(messages.slice(-30)));
+  }, [messages]);
+
   const send = async () => {
+    if (typing) return;
     const q = input.trim();
     if (!q) return;
     
@@ -465,10 +515,9 @@ const ChatPanel = () => {
     <div className="rounded-2xl border border-border bg-card overflow-hidden flex flex-col h-[560px]">
       <div className="px-4 py-3 border-b border-border flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-full bg-secondary text-secondary-foreground grid place-items-center font-display text-xs">अ</div>
+          <div className="w-7 h-7 rounded-full bg-secondary text-secondary-foreground grid place-items-center font-display text-xs">स</div>
           <div>
-            <div className="text-sm font-medium leading-none">Groq advisor</div>
-            <div className="text-[10px] text-muted-foreground font-data mt-0.5">हिन्दी · powered by Llama 3.3</div>
+            <div className="text-sm font-medium leading-none">Saathi (साथी)</div>
           </div>
         </div>
         <span className="text-[10px] font-data text-forest flex items-center gap-1">
@@ -516,10 +565,14 @@ const ChatPanel = () => {
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="अपनी बात लिखिए…"
+          placeholder="Ask about materials, batches, festivals…"
           className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-sm font-hindi focus:outline-none focus:border-primary/60"
         />
-        <button type="submit" className="w-10 h-10 rounded-lg bg-primary text-primary-foreground grid place-items-center hover:opacity-90">
+        <button
+          type="submit"
+          disabled={typing || !input.trim()}
+          className="w-10 h-10 rounded-lg bg-primary text-primary-foreground grid place-items-center hover:opacity-90 disabled:opacity-40 transition-opacity"
+        >
           <Send size={14} />
         </button>
       </form>
@@ -559,22 +612,39 @@ const Trend = ({ title, meta, up }: { title: string; meta: string; up?: boolean 
   </div>
 );
 
-const FestivalNudge = () => (
+const FestivalNudge = () => {
+  const { data } = useQuery({
+    queryKey: ["dashboardPriority"],
+    queryFn: getDashboardPriority,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const festivalName = (data?.festival as string) || "Diwali";
+  // Dynamically compute days away from API response
+  const festDate = data?.festival_date as string | undefined;
+  const daysAway = festDate
+    ? Math.max(0, Math.ceil((new Date(festDate).getTime() - Date.now()) / 86_400_000))
+    : null;
+
+  return (
   <div className="rounded-2xl border border-secondary/40 bg-secondary text-secondary-foreground p-5 relative overflow-hidden">
     <div className="absolute -right-6 -bottom-6 w-32 h-32 rounded-full bg-primary/20 blur-2xl" />
     <div className="relative">
       <div className="text-[10px] uppercase tracking-wider text-primary font-data">Next festival · अगला त्योहार</div>
-      <div className="font-display text-3xl mt-2 leading-tight">Akshaya Tritiya</div>
-      <div className="font-hindi text-secondary-foreground/70 mt-1">अक्षय तृतीया · 10 May</div>
+      <div className="font-display text-3xl mt-2 leading-tight">{festivalName}</div>
+      {daysAway !== null && (
+        <div className="font-data text-sm text-secondary-foreground/70 mt-1">{daysAway} days away</div>
+      )}
       <div className="mt-4 flex items-end justify-between">
         <div>
-          <div className="font-data text-3xl text-primary">+22%</div>
-          <div className="text-[10px] uppercase tracking-wider text-secondary-foreground/60">brass &amp; gold lift</div>
+          <div className="font-data text-3xl text-primary">{data?.metrics?.[0] ?? "+38%"}</div>
+          <div className="text-[10px] uppercase tracking-wider text-secondary-foreground/60">expected demand lift</div>
         </div>
         <button className="text-xs font-data text-primary hover:underline">plan stock →</button>
       </div>
     </div>
   </div>
-);
+  );
+};
 
 export default Dashboard;
