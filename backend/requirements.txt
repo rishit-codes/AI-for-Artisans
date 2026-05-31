@@ -54,7 +54,6 @@ passlib==1.7.4
 patsy==1.0.2
 pluggy==1.6.0
 propcache==0.4.1
-psycopg2-binary==2.9.11
 pyasn1==0.6.2
 pycparser==3.0
 pydantic==2.12.5
