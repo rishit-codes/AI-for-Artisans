@@ -4,10 +4,10 @@ class Settings(BaseSettings):
     DATABASE_URL: str
     JWT_SECRET_KEY: str
     JWT_EXPIRE_DAYS: int = 7
-    ANTHROPIC_API_KEY: str
+    ANTHROPIC_API_KEY: str = ""   # Not used — app uses Groq
     ALPHA_VANTAGE_API_KEY: str = "demo"
     GROQ_API_KEY: str = ""
-    FRONTEND_URL: str
+    FRONTEND_URL: str = "http://localhost:5173"
     UNSPLASH_API_KEY: str = ""
     ENVIRONMENT: str = "development"
     

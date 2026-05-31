@@ -26,15 +26,22 @@ class ChatRequest(BaseModel):
     message: str
     conversation_history: Optional[List[ChatMessage]] = []
 
-async def stream_groq_response(messages: List[Dict[str, Any]]):
-    current_date = "March 16, 2026"  # Static for demo, could be datetime.now()
+async def stream_groq_response(messages: List[Dict[str, Any]], current_user: User):
+    import datetime
+    current_date = datetime.datetime.now().strftime("%B %d, %Y")
+    
+    craft_type = current_user.craft_type if current_user and current_user.craft_type else "textile"
+    fest_info = get_days_to_next_festival(craft_type)
+    festival_context = f"The upcoming major festival for your craft is '{fest_info['name']}' which is {fest_info['days_away']} days away. " if fest_info else ""
+
+    user_name = current_user.full_name if current_user else "the user"
     system_prompt = (
         f"Today is {current_date}. "
-        "You are a production advisor for Indian artisans. You help with "
-        "craft techniques, material selection, production planning, and quality guidance. "
+        f"You are a production advisor speaking to {user_name}, an Indian {craft_type} artisan. "
+        f"{festival_context}"
+        "You help with craft techniques, material selection, production planning, and quality guidance. "
         "Keep answers practical, concise, and relevant to traditional Indian crafts. "
-        "Respond exclusively in English. "
-        "Use Groq's fast response to give helpful advice."
+        "CRITICAL: ALWAYS reply in the EXACT SAME LANGUAGE the user used in their most recent message. If they write in English, you MUST reply in English. If they write in Hindi, you MUST reply in Hindi. Do not mix languages."
     )
 
     client = AsyncGroq(api_key=settings.GROQ_API_KEY)
@@ -70,7 +77,7 @@ async def chat_with_advisor(
     messages.append({"role": "user", "content": request.message})
     
     return StreamingResponse(
-        stream_groq_response(messages),
+        stream_groq_response(messages, current_user),
         media_type="text/event-stream"
     )
 
@@ -114,10 +121,12 @@ async def get_advisor_feed(
             logger.warning(f"Open-Meteo fetch failed: {e}")
 
         import datetime
+        current_date = datetime.datetime.now().strftime("%B %d, %Y")
         current_month = datetime.datetime.now().strftime("%B")
 
         # 2. Build Intelligent Prompt
         prompt = f"""You are an expert AI logistics and production advisor for a rural Indian {craft_type} artisan.
+Today is {current_date}. Respond in the same language the user writes in (Hindi or English).
 Current Context:
 - Current Month: {current_month}
 - Live Local Weather: {weather_str}

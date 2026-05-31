@@ -61,10 +61,27 @@ export async function registerApi(userData: Record<string, unknown>): Promise<Lo
   return apiPost<LoginResponse>("/auth/register", userData);
 }
 
+export async function updateProfile(userData: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const res = await fetch(`${BASE_URL}/auth/me`, {
+    method: "PUT",
+    headers: authHeaders(),
+    body: JSON.stringify(userData),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(body.detail || `HTTP ${res.status}`);
+  }
+  return res.json() as Promise<Record<string, unknown>>;
+}
+
 /* ---------- dashboard ---------- */
 
 export async function getDashboardSummary() {
   return apiGet<Record<string, unknown>>("/dashboard/summary");
+}
+
+export async function getDashboardPriority() {
+  return apiGet<Record<string, unknown>>("/dashboard/priority");
 }
 
 /* ---------- products ---------- */

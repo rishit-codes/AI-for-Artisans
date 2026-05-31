@@ -29,7 +29,7 @@ _commodity_cache_v2 = {
     "mat_str": ""
 }
 
-_trends_cache = {
+_trends_cache_v2 = {
     "timestamp": None,
     "data": []
 }
@@ -65,7 +65,7 @@ async def fetch_live_commodities():
             curr_val, prev_val = None, None
             try:
                 url = f"https://www.alphavantage.co/query?function={commodity}&interval=monthly&apikey={api_key}"
-                resp = await client.get(url, timeout=4.0)
+                resp = await client.get(url, timeout=2.0)
                 if resp.status_code == 200:
                     data = resp.json()
                     if "data" in data and len(data["data"]) >= 2:
@@ -101,11 +101,11 @@ async def fetch_live_commodities():
 
     return mat_str, material_forecast
 
-def get_indian_breakout_trends(tab: str) -> str:
+def _sync_get_indian_breakout_trends(tab: str) -> str:
     """Fetch real-time breakout trends for the Indian market using pytrends."""
     try:
         from pytrends.request import TrendReq
-        pytrends = TrendReq(hl='en-US', tz=330, timeout=(5,10))
+        pytrends = TrendReq(hl='en-US', tz=330, timeout=(3, 5))
         kw = tab if tab != "All Trends" else "Handicrafts"
         
         # Pytrends can be fickle, adding a safety layer
@@ -121,6 +121,11 @@ def get_indian_breakout_trends(tab: str) -> str:
     except Exception as e:
         logger.error(f"Pytrends failed to fetch breakout trends: {e}")
         return ""
+
+import asyncio
+
+async def get_indian_breakout_trends(tab: str) -> str:
+    return await asyncio.to_thread(_sync_get_indian_breakout_trends, tab)
 
 async def fetch_unsplash_image(query: str) -> str:
     """Fetch a high-res image URL from Unsplash using the search query."""
@@ -149,23 +154,23 @@ async def get_trends(
     """
     Dynamically generates social media feed trends using Groq LLM based on live market conditions and Pytrends.
     """
-    global _trends_cache
+    global _trends_cache_v2
     
     # 1. Check if we have valid cached data under 10 minutes old
-    if tab == "All Trends" and _trends_cache["data"] and _trends_cache["timestamp"]:
-        if datetime.now() - _trends_cache["timestamp"] < timedelta(minutes=10):
-            return _trends_cache["data"]
+    if tab.lower() == "all trends" and _trends_cache_v2["data"] and _trends_cache_v2["timestamp"]:
+        if datetime.now() - _trends_cache_v2["timestamp"] < timedelta(minutes=10):
+            return _trends_cache_v2["data"]
 
     try:
         mat_str, _ = await fetch_live_commodities()
-        breakout_trends = get_indian_breakout_trends(tab)
+        breakout_trends = await get_indian_breakout_trends(tab)
         
         breakout_context = ""
         if breakout_trends:
             breakout_context = f"\nCRITICAL: Google Trends reports these exact queries are breaking out in India RIGHT NOW: {breakout_trends}. You MUST write posts about these specific items."
 
         # Ask LLM to generate trend data injected with live pricing
-        if tab == "All Trends":
+        if tab.lower() == "all trends":
             quantity_instruction = "Generate exactly 9 realistic social media-style trend posts: 3 focused on Home Decor, 3 on Textiles, and 3 on Pottery."
         else:
             quantity_instruction = f"Generate exactly 3 realistic social media-style trend posts globally relevant to: {tab}."
@@ -213,28 +218,15 @@ Each object must follow this strict schema exactly:
         await asyncio.gather(*(attach_image(t) for t in trends))
             
         # Optional validation to ensure we only cache if the LLM successfully generated array data
-        if trends and len(trends) > 0 and tab == "All Trends":
-            _trends_cache["data"] = trends
-            _trends_cache["timestamp"] = datetime.now()
+        if trends and len(trends) > 0 and tab.lower() == "all trends":
+            _trends_cache_v2["data"] = trends
+            _trends_cache_v2["timestamp"] = datetime.now()
             
         return trends
         
     except Exception as e:
         logger.error(f"Error generating dynamic trends via Groq: {e}")
-        return [
-            {
-                "id": 1,
-                "author": "Meera Textile Insights",
-                "title": " Peak Demand in Weddings",
-                "content": "Traditional Banarasi handlooms with festive reds are seeing peak demand this wedding season, especially as Cotton stabilizes.",
-                "timestamp": "2 hours ago",
-                "image_url": "/images/loom_weaving.png",
-                "tags": ["WeddingSilk", "FloralMotif"],
-                "performance_badge": "Trending Up",
-                "likes": "1,245",
-                "comments": 89,
-            }
-        ]
+        return []
 
 @router.get("/intelligence")
 async def get_intelligence(db: AsyncSession = Depends(get_db)):

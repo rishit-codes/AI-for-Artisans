@@ -41,11 +41,10 @@ export const AppShell = ({
                 <Link
                   key={it.to}
                   to={it.to}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
-                    active
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${active
                       ? "bg-primary/15 text-foreground font-medium border-l-2 border-primary"
                       : "text-muted-foreground hover:bg-card hover:text-foreground"
-                  }`}
+                    }`}
                 >
                   <it.icon size={16} />
                   <span>{it.label}</span>

@@ -5,10 +5,11 @@ from typing import Any
 
 from app.db.session import get_db
 from app.schemas.auth import RegisterRequest, TokenResponse, LoginRequest
-from app.schemas.user import UserRead
+from app.schemas.user import UserRead, UserUpdate
 from app.crud.user import get_by_email, create
 from app.core.security import verify_password, create_access_token
 from app.core.exceptions import InvalidCredentialsError, ArtisanConflictError
+from app.api.dependencies import get_current_user
 
 router = APIRouter()
 
@@ -49,3 +50,14 @@ async def login_json(
     access_token = create_access_token(subject=user.id)
     user_dict = UserRead.model_validate(user).model_dump()
     return {"access_token": access_token, "token_type": "bearer", "user": user_dict}
+
+@router.put("/me", response_model=UserRead)
+async def update_current_user(
+    data: UserUpdate,
+    current_user: Any = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+) -> Any:
+    # Need to import update function from crud.user
+    from app.crud.user import update as update_user
+    updated_user = await update_user(db, db_obj=current_user, obj_in=data)
+    return updated_user

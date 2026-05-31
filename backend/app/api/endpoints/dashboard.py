@@ -60,3 +60,56 @@ async def get_dashboard_summary(
         "low_stock_items": low_stock_items,
         "recent_products": recent_products
     }
+
+# Lightweight in-memory festival data
+from app.services.festivals import get_days_to_next_festival
+from datetime import date
+
+@router.get("/priority")
+async def get_dashboard_priority(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+) -> Any:
+    # 1. Pick the next festival dynamically using common service
+    craft_type = current_user.craft_type if current_user and current_user.craft_type else "textile"
+    fest_info = get_days_to_next_festival(craft_type)
+    
+    if fest_info:
+        festival_name = fest_info["name"]
+        festival_date = fest_info["date"]
+    else:
+        festival_name = "Diwali"
+        festival_date = f"{date.today().year}-11-08"
+
+    metrics = [f"+20% {festival_name} lift", "Start planning stock"]
+    
+    # 2. Check their low stock items
+    low_stock_stmt = (
+        select(Product)
+        .where(Product.artisan_id == current_user.id, Product.stock_qty <= 5)
+        .order_by(Product.stock_qty.asc())
+        .limit(1)
+    )
+    res = await db.execute(low_stock_stmt)
+    low_stock_item = res.scalar_one_or_none()
+    
+    if low_stock_item:
+        # Step A: Recommend restocking their low stock item
+        return {
+            "title": f"Restock {low_stock_item.name} before Friday",
+            "hindi_title": f"शुक्रवार से पहले {low_stock_item.name} का स्टॉक भरें",
+            "image_url": low_stock_item.image_url,
+            "metrics": metrics,
+            "festival": festival_name,
+            "festival_date": festival_date
+        }
+    else:
+        # Step B: Recommend a new item
+        return {
+            "title": f"Start 18 new items for {festival_name}",
+            "hindi_title": f"{festival_name} के लिए नया काम शुरू करें",
+            "image_url": None,
+            "metrics": metrics,
+            "festival": festival_name,
+            "festival_date": festival_date
+        }

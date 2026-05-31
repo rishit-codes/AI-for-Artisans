@@ -9,6 +9,7 @@ from app.core.config import settings
 from app.core.exceptions import ArtisanNotFoundError, ArtisanForbiddenError, ArtisanConflictError, InvalidCredentialsError
 from app.api.endpoints import api_router
 from app.db.base import init_db
+from app.db.seed import seed_database
 from app.services.scheduler import setup_scheduler, shutdown_scheduler
 
 # Setup logging
@@ -22,6 +23,7 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     # Ensure core tables exist for local/dev startup before first request.
     await init_db()
+    await seed_database()
     setup_scheduler()
     yield
     shutdown_scheduler()
@@ -30,7 +32,7 @@ app = FastAPI(title="ArtisanGPS API", lifespan=lifespan)
 
 origins = [
     "http://localhost:5173",   # Vite dev server
-    "http://localhost:5174",   # Vite dev server secondary
+    "http://127.0.0.1:5173",   # Vite dev server secondary
     "http://localhost:3000",
 ]
 
@@ -40,19 +42,20 @@ if settings.FRONTEND_URL:
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-@app.middleware("http")
-async def add_security_headers(request: Request, call_next):
-    response = await call_next(request)
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"] = "DENY"
-    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-    return response
+# Temporarily disabled security headers to fix CORS options issue
+# @app.middleware("http")
+# async def add_security_headers(request: Request, call_next):
+#     response = await call_next(request)
+#     response.headers["X-Content-Type-Options"] = "nosniff"
+#     response.headers["X-Frame-Options"] = "DENY"
+#     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+#     return response
 
 # Exception Handlers
 @app.exception_handler(ArtisanNotFoundError)

@@ -17,6 +17,7 @@ interface AuthContextValue {
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   register: (userData: Record<string, unknown>) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
+  updateUser: (data: Partial<AuthUser>) => void;
 }
 
 /* ---------- context ---------- */
@@ -79,8 +80,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     localStorage.removeItem("user");
   }, []);
 
+  const updateUser = useCallback((data: Partial<AuthUser>) => {
+    setUser((prev) => {
+      if (!prev) return null;
+      const updated = { ...prev, ...data };
+      localStorage.setItem("user", JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, token, loading, login, register, logout, updateUser }}>
       {!loading && children}
     </AuthContext.Provider>
   );
