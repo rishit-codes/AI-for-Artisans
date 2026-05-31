@@ -1,7 +1,17 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import field_validator
 
 class Settings(BaseSettings):
     DATABASE_URL: str
+
+    @field_validator("DATABASE_URL", mode="after")
+    @classmethod
+    def assemble_db_connection(cls, v: str) -> str:
+        if v and v.startswith("postgres://"):
+            return v.replace("postgres://", "postgresql+asyncpg://", 1)
+        if v and v.startswith("postgresql://"):
+            return v.replace("postgresql://", "postgresql+asyncpg://", 1)
+        return v
     JWT_SECRET_KEY: str
     JWT_EXPIRE_DAYS: int = 7
     ANTHROPIC_API_KEY: str = ""   # Not used — app uses Groq
