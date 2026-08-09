@@ -241,16 +241,11 @@ export async function exportCSVApi() {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export async function downloadSourcingSheetApi(payload: { commodity_name: string; quantity: number; destination_city?: string }) {
-  const res = await fetch(`${BASE_URL}/materials/download-sourcing-sheet`, {
-    method: "POST",
-    headers: authHeaders(),
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) throw new Error("Failed to generate sourcing sheet download.");
+async function downloadFileResponse(res: Response, defaultFilename: string, errorMessage: string) {
+  if (!res.ok) throw new Error(errorMessage);
   const blob = await res.blob();
   const contentDisposition = res.headers.get("Content-Disposition");
-  let filename = "Sourcing-Order-Sheet.txt";
+  let filename = defaultFilename;
   if (contentDisposition && contentDisposition.includes("filename=")) {
     filename = contentDisposition.split("filename=")[1].replace(/"/g, "");
   }
@@ -262,6 +257,24 @@ export async function downloadSourcingSheetApi(payload: { commodity_name: string
   a.click();
   document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+export async function downloadSourcingSheetCsvApi(payload: { commodity_name: string; quantity: number; destination_city?: string }) {
+  const res = await fetch(`${BASE_URL}/materials/download-sourcing-sheet-csv`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  await downloadFileResponse(res, "Sourcing-Order-Sheet.csv", "Failed to generate sourcing sheet CSV.");
+}
+
+export async function downloadSourcingSheetPdfApi(payload: { commodity_name: string; quantity: number; destination_city?: string }) {
+  const res = await fetch(`${BASE_URL}/materials/download-sourcing-sheet-pdf`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  await downloadFileResponse(res, "Sourcing-Order-Sheet.pdf", "Failed to generate sourcing sheet PDF.");
 }
 
 
@@ -301,6 +314,135 @@ export async function advisorChatStream(body: Record<string, unknown>): Promise<
   });
   if (!res.ok) throw new Error(`Advisor chat failed: ${res.status}`);
   return res;
+}
+
+/* ---------- public karigar card ---------- */
+
+export interface PublicKarigarProduct {
+  id: string;
+  name: string;
+  material?: string;
+  description?: string;
+  category?: string;
+  image_url?: string;
+  price: number;
+  stock_qty: number;
+  is_listed: boolean;
+}
+
+export interface PublicKarigarProfile {
+  id: string;
+  full_name: string;
+  craft_type?: string;
+  location?: string;
+  craft_story?: string;
+  gi_certified: boolean;
+  gi_year?: string;
+  languages?: string;
+  member_since: number;
+  products: PublicKarigarProduct[];
+}
+
+export async function getPublicKarigarProfile(userId: string): Promise<PublicKarigarProfile> {
+  const res = await fetch(`${BASE_URL}/users/${userId}/public`);
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(body.detail || `HTTP ${res.status}`);
+  }
+  return res.json() as Promise<PublicKarigarProfile>;
+}
+
+/* ---------- purchases (raw materials, for GST input tax credit) ---------- */
+
+export interface Purchase {
+  id: string;
+  artisan_id: string;
+  material_name: string;
+  amount: number;
+  gst_rate: number;
+  purchase_date: string;
+  notes?: string;
+  created_at: string;
+}
+
+export interface PurchaseCreatePayload {
+  material_name: string;
+  amount: number;
+  gst_rate: number;
+  purchase_date: string;
+  notes?: string;
+}
+
+export async function getPurchaseHistory(fromDate?: string, toDate?: string): Promise<Purchase[]> {
+  const params = new URLSearchParams();
+  if (fromDate) params.set("from_date", fromDate);
+  if (toDate) params.set("to_date", toDate);
+  return apiGet<Purchase[]>(`/purchases/history${params.toString() ? `?${params}` : ""}`);
+}
+
+export async function recordPurchase(payload: PurchaseCreatePayload): Promise<Purchase> {
+  return apiPost<Purchase>("/purchases/record", payload);
+}
+
+/* ---------- GST filing helper ---------- */
+
+export interface GstCategoryBreakdown {
+  category: string;
+  taxable_value: number;
+  gst_rate: number;
+  output_gst: number;
+}
+
+export interface GstSummary {
+  period_start: string;
+  period_end: string;
+  total_sales: number;
+  taxable_value: number;
+  output_gst: number;
+  input_gst: number;
+  net_payable: number;
+  category_breakdown: GstCategoryBreakdown[];
+  sale_count: number;
+  purchase_count: number;
+}
+
+export async function getGstSummary(fromDate?: string, toDate?: string): Promise<GstSummary> {
+  const params = new URLSearchParams();
+  if (fromDate) params.set("from_date", fromDate);
+  if (toDate) params.set("to_date", toDate);
+  return apiGet<GstSummary>(`/gst/summary${params.toString() ? `?${params}` : ""}`);
+}
+
+async function downloadGstFile(path: string, fromDate: string | undefined, toDate: string | undefined, defaultFilename: string, errorMessage: string) {
+  const params = new URLSearchParams();
+  if (fromDate) params.set("from_date", fromDate);
+  if (toDate) params.set("to_date", toDate);
+  const res = await fetch(`${BASE_URL}${path}${params.toString() ? `?${params}` : ""}`, {
+    headers: authHeaders(),
+  });
+  if (!res.ok) throw new Error(errorMessage);
+  const blob = await res.blob();
+  const contentDisposition = res.headers.get("Content-Disposition");
+  let filename = defaultFilename;
+  if (contentDisposition && contentDisposition.includes("filename=")) {
+    filename = contentDisposition.split("filename=")[1].replace(/"/g, "");
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+export async function downloadGstSummaryCsv(fromDate?: string, toDate?: string) {
+  await downloadGstFile("/gst/export-csv", fromDate, toDate, "GST-Summary.csv", "Failed to download the GST summary CSV.");
+}
+
+export async function downloadGstSummaryPdf(fromDate?: string, toDate?: string) {
+  await downloadGstFile("/gst/export-pdf", fromDate, toDate, "GST-Summary.pdf", "Failed to download the GST summary PDF.");
 }
 
 export { BASE_URL };

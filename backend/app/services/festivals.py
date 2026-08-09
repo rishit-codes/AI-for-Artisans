@@ -2,11 +2,21 @@ import pandas as pd
 from datetime import datetime
 import holidays
 
+# Raksha Bandhan falls on Shravana Purnima (a lunar-calendar date) and is not
+# part of the `holidays` package's India dataset. There is no lunar-calendar
+# library in this project to compute it, so known dates are tracked manually
+# here and must be extended when adding support for further years.
+RAKSHA_BANDHAN_DATES = {
+    2025: "2025-08-09",
+    2026: "2026-08-28",
+    2027: "2027-08-17",
+}
+
 def get_indian_festivals_upcoming():
     # Fetch holidays for the current year and next year
     current_year = datetime.now().year
     in_holidays = holidays.India(years=[current_year, current_year + 1])
-    
+
     # We map specific known holidays to roughly matched weights (multiplier)
     holiday_multipliers = {
         "Diwali": 4.0,
@@ -15,14 +25,16 @@ def get_indian_festivals_upcoming():
         "Dussehra": 2.0,
         "Id-ul-Fitr": 3.0,
         "Christmas": 2.0,
-        "Makar Sankranti": 2.0 # Pongal equivalent roughly
+        "Makar Sankranti": 2.0, # Pongal equivalent roughly
+        "Independence Day": 2.5, # tricolour decor, flags, patriotic merchandise
+        "Raksha Bandhan": 3.0, # rakhi and gifting season
     }
-    
+
     festivals_list = []
-    
+
     for date, name in sorted(in_holidays.items()):
-        # Explicitly skip non-shopping national holidays
-        if any(skip_word in name for skip_word in ["Independence Day", "Republic Day", "Gandhi Jayanti"]):
+        # Skip purely civic/observance holidays with no craft-shopping demand
+        if any(skip_word in name for skip_word in ["Republic Day", "Gandhi Jayanti"]):
             continue
 
         multiplier = 2.0 # Default multiplier for typical festivals
@@ -30,7 +42,7 @@ def get_indian_festivals_upcoming():
             if key_holiday.lower() in name.lower():
                 multiplier = mult
                 break
-                
+
         festivals_list.append({
             "name": name,
             "date": date.strftime("%Y-%m-%d"),
@@ -38,6 +50,19 @@ def get_indian_festivals_upcoming():
             # Dynamic crafts list; generalizing to standard crafts
             "crafts": ["textile", "home_decor_brassware", "pottery"]
         })
+
+    # Add Raksha Bandhan manually since the `holidays` package doesn't cover it
+    for year in (current_year, current_year + 1):
+        rb_date = RAKSHA_BANDHAN_DATES.get(year)
+        if rb_date:
+            festivals_list.append({
+                "name": "Raksha Bandhan",
+                "date": rb_date,
+                "multiplier": holiday_multipliers["Raksha Bandhan"],
+                "crafts": ["textile", "home_decor_brassware", "pottery"]
+            })
+
+    festivals_list.sort(key=lambda f: f["date"])
     return festivals_list
 
 # Fallback cache variable

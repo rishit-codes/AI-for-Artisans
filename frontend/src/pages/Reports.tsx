@@ -1,10 +1,13 @@
 import { useState } from "react";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
+import { toast } from "sonner";
 import {
   Download, FileText, TrendingUp, IndianRupee, Calendar,
   Package2, ShoppingBag, AlertCircle, CheckCircle2, Clock,
-  BarChart2, ArrowUpRight, ArrowDownRight,
+  BarChart2, ArrowUpRight, ArrowDownRight, Loader2, Plus, FileSpreadsheet,
 } from "lucide-react";
 import AppShell from "@/components/site/AppShell";
+import { getGstSummary, downloadGstSummaryCsv, downloadGstSummaryPdf, getPurchaseHistory, recordPurchase, PurchaseCreatePayload } from "@/lib/api";
 
 /* ─── data ─── */
 
@@ -46,14 +49,91 @@ const inr = (n: number) => `₹${n.toLocaleString("en-IN")}`;
 
 /* ─── page ─── */
 
+const getPeriodRange = (period: "this_month" | "last_month"): { from?: string; to?: string; label: string } => {
+  const now = new Date();
+  if (period === "this_month") {
+    return { label: now.toLocaleDateString("en-IN", { month: "long", year: "numeric" }) };
+  }
+  const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+  const fmt = (d: Date) => d.toISOString().slice(0, 10);
+  return {
+    from: fmt(lastMonthStart),
+    to: fmt(lastMonthEnd),
+    label: lastMonthStart.toLocaleDateString("en-IN", { month: "long", year: "numeric" }),
+  };
+};
+
 const Reports = () => {
   const [activeTab, setActiveTab] = useState<"overview" | "categories" | "gst">("overview");
+  const [gstPeriod, setGstPeriod] = useState<"this_month" | "last_month">("this_month");
+  const [purchaseForm, setPurchaseForm] = useState({ material_name: "", amount: "", gst_rate: "5", purchase_date: new Date().toISOString().slice(0, 10), notes: "" });
   const max = Math.max(...months.map((m) => m.rev));
   const totalRev = months.reduce((s, m) => s + m.rev, 0) * 1000;
   const totalCost = months.reduce((s, m) => s + m.cost, 0) * 1000;
   const totalProfit = totalRev - totalCost;
   const totalOrders = months.reduce((s, m) => s + m.orders, 0);
   const avgMargin = Math.round(((totalRev - totalCost) / totalRev) * 100);
+
+  const queryClient = useQueryClient();
+  const { from: periodFrom, to: periodTo, label: periodLabel } = getPeriodRange(gstPeriod);
+
+  const { data: gstSummary, isLoading: isGstLoading } = useQuery({
+    queryKey: ["gstSummary", periodFrom, periodTo],
+    queryFn: () => getGstSummary(periodFrom, periodTo),
+  });
+
+  const { data: purchases } = useQuery({
+    queryKey: ["purchaseHistory", periodFrom, periodTo],
+    queryFn: () => getPurchaseHistory(periodFrom, periodTo),
+  });
+
+  const purchaseMutation = useMutation({
+    mutationFn: (payload: PurchaseCreatePayload) => recordPurchase(payload),
+    onSuccess: () => {
+      toast.success("Purchase logged — input GST credit updated.");
+      queryClient.invalidateQueries({ queryKey: ["gstSummary"] });
+      queryClient.invalidateQueries({ queryKey: ["purchaseHistory"] });
+      setPurchaseForm({ material_name: "", amount: "", gst_rate: "5", purchase_date: new Date().toISOString().slice(0, 10), notes: "" });
+    },
+    onError: (e: any) => toast.error(e?.message || "Failed to log purchase."),
+  });
+
+  const handleLogPurchase = (e: React.FormEvent) => {
+    e.preventDefault();
+    const amount = parseFloat(purchaseForm.amount);
+    if (!purchaseForm.material_name.trim() || !amount || amount <= 0) {
+      toast.error("Enter a material name and a valid amount.");
+      return;
+    }
+    purchaseMutation.mutate({
+      material_name: purchaseForm.material_name.trim(),
+      amount,
+      gst_rate: parseFloat(purchaseForm.gst_rate),
+      purchase_date: purchaseForm.purchase_date,
+      notes: purchaseForm.notes.trim() || undefined,
+    });
+  };
+
+  const handleDownloadGstCsv = async () => {
+    try {
+      toast.info("Generating GST summary CSV...");
+      await downloadGstSummaryCsv(periodFrom, periodTo);
+      toast.success("GST summary (.csv) downloaded!");
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to download the GST summary CSV.");
+    }
+  };
+
+  const handleDownloadGstPdf = async () => {
+    try {
+      toast.info("Generating GST summary PDF...");
+      await downloadGstSummaryPdf(periodFrom, periodTo);
+      toast.success("GST summary (.pdf) downloaded!");
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to download the GST summary PDF.");
+    }
+  };
 
   return (
     <AppShell
@@ -329,41 +409,151 @@ const Reports = () => {
 
           <div className="space-y-4">
             <div className="rounded-2xl border border-border bg-card p-6">
-              <div className="font-display text-xl mb-1">GST summary · Q1 2026</div>
-              <div className="text-xs font-hindi text-muted-foreground mb-5">जनवरी–मार्च आउटपुट टैक्स</div>
-              <div className="space-y-3">
-                {[
-                  { l: "Output GST (collected)", v: "₹8,640", sub: "18% on taxable sales" },
-                  { l: "Input GST (paid on materials)", v: "₹3,960", sub: "Eligible for credit" },
-                  { l: "Net GST payable", v: "₹4,680", sub: "After ITC offset", accent: true },
-                  { l: "GST paid on time", v: "100%", sub: "No late fees", green: true },
-                ].map((r) => (
-                  <div key={r.l} className="flex items-center justify-between py-3 border-b border-border last:border-0">
-                    <div>
-                      <div className="text-sm">{r.l}</div>
-                      <div className="text-[10px] text-muted-foreground font-data mt-0.5">{r.sub}</div>
-                    </div>
-                    <div className={`font-data text-lg font-semibold ${
-                      (r as any).accent ? "text-primary" : (r as any).green ? "text-forest" : ""
-                    }`}>
-                      {r.v}
-                    </div>
+              <div className="flex items-baseline justify-between mb-1 gap-3 flex-wrap">
+                <div className="font-display text-xl">GST summary · {periodLabel}</div>
+                <div className="flex bg-muted rounded-full p-0.5">
+                  {(["this_month", "last_month"] as const).map((p) => (
+                    <button
+                      key={p}
+                      onClick={() => setGstPeriod(p)}
+                      className={`px-3 py-1 rounded-full text-[10px] font-data uppercase tracking-wider transition-colors ${
+                        gstPeriod === p ? "bg-card shadow-sm text-foreground" : "text-muted-foreground"
+                      }`}
+                    >
+                      {p === "this_month" ? "This month" : "Last month"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="text-xs font-hindi text-muted-foreground mb-5">कर योग्य बिक्री और जीएसटी सारांश</div>
+
+              {isGstLoading ? (
+                <div className="py-8 flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 size={14} className="animate-spin" /> Calculating from your sales ledger...
+                </div>
+              ) : (
+                <>
+                  <div className="space-y-3">
+                    {[
+                      { l: "Taxable sales", v: inr(gstSummary?.taxable_value || 0), sub: `${gstSummary?.sale_count || 0} sale(s) this period` },
+                      { l: "Output GST (collected)", v: inr(gstSummary?.output_gst || 0), sub: "Per-category GST rate on sales" },
+                      { l: "Input GST (paid on materials)", v: inr(gstSummary?.input_gst || 0), sub: `${gstSummary?.purchase_count || 0} purchase(s) logged — eligible for credit` },
+                      { l: "Net GST payable", v: inr(gstSummary?.net_payable || 0), sub: "After input tax credit offset", accent: true },
+                    ].map((r) => (
+                      <div key={r.l} className="flex items-center justify-between py-3 border-b border-border last:border-0">
+                        <div>
+                          <div className="text-sm">{r.l}</div>
+                          <div className="text-[10px] text-muted-foreground font-data mt-0.5">{r.sub}</div>
+                        </div>
+                        <div className={`font-data text-lg font-semibold ${(r as any).accent ? "text-primary" : ""}`}>
+                          {r.v}
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
+
+                  {gstSummary && gstSummary.category_breakdown.length > 0 && (
+                    <div className="mt-4 pt-4 border-t border-border">
+                      <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-data mb-2">Category-wise output GST</div>
+                      <div className="space-y-1.5">
+                        {gstSummary.category_breakdown.map((c) => (
+                          <div key={c.category} className="flex items-center justify-between text-xs font-data">
+                            <span className="text-muted-foreground">{c.category} · {c.gst_rate}%</span>
+                            <span>{inr(c.output_gst)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5">
+              <div className="flex items-start gap-3">
+                <AlertCircle size={16} className="text-primary mt-0.5 shrink-0" />
+                <div>
+                  <div className="text-sm font-medium">Download your GST summary</div>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    A single-page summary for {periodLabel} — net payable <strong>{inr(gstSummary?.net_payable || 0)}</strong>. Use it as a
+                    reference alongside your CA or the GST portal; it's not a substitute for an official filing.
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 mt-3">
+                <button
+                  onClick={handleDownloadGstCsv}
+                  className="text-xs px-4 py-1.5 rounded-full bg-primary text-primary-foreground hover:opacity-90 flex items-center gap-1.5"
+                >
+                  <FileSpreadsheet size={12} /> Download CSV
+                </button>
+                <button
+                  onClick={handleDownloadGstPdf}
+                  className="text-xs px-4 py-1.5 rounded-full border border-primary/40 bg-background hover:bg-muted flex items-center gap-1.5"
+                >
+                  <FileText size={12} /> Download PDF
+                </button>
               </div>
             </div>
 
-            <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5 flex items-start gap-3">
-              <AlertCircle size={16} className="text-primary mt-0.5 shrink-0" />
-              <div>
-                <div className="text-sm font-medium">GSTR-3B due in 7 days</div>
-                <div className="text-xs text-muted-foreground mt-1">
-                  File by <strong>20 May 2026</strong> to avoid a ₹50/day late fee. Your estimated payment this cycle is <strong>₹4,920</strong>.
-                </div>
-                <button className="mt-3 text-xs px-4 py-1.5 rounded-full bg-primary text-primary-foreground hover:opacity-90">
-                  Download GSTR-3B draft
+            <div className="rounded-2xl border border-border bg-card p-6">
+              <div className="font-display text-lg mb-1">Log a material purchase</div>
+              <div className="text-xs text-muted-foreground mb-4">Raw material purchases feed your input GST tax credit above.</div>
+              <form onSubmit={handleLogPurchase} className="grid grid-cols-2 gap-3">
+                <input
+                  value={purchaseForm.material_name}
+                  onChange={(e) => setPurchaseForm((f) => ({ ...f, material_name: e.target.value }))}
+                  placeholder="Material (e.g. Raw silk yarn)"
+                  className="col-span-2 bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary/60"
+                />
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={purchaseForm.amount}
+                  onChange={(e) => setPurchaseForm((f) => ({ ...f, amount: e.target.value }))}
+                  placeholder="Amount (₹)"
+                  className="bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary/60"
+                />
+                <select
+                  value={purchaseForm.gst_rate}
+                  onChange={(e) => setPurchaseForm((f) => ({ ...f, gst_rate: e.target.value }))}
+                  className="bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary/60"
+                >
+                  <option value="5">5% GST</option>
+                  <option value="12">12% GST</option>
+                  <option value="18">18% GST</option>
+                  <option value="28">28% GST</option>
+                </select>
+                <input
+                  type="date"
+                  value={purchaseForm.purchase_date}
+                  onChange={(e) => setPurchaseForm((f) => ({ ...f, purchase_date: e.target.value }))}
+                  className="col-span-2 bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary/60"
+                />
+                <button
+                  type="submit"
+                  disabled={purchaseMutation.isPending}
+                  className="col-span-2 text-xs px-4 py-2 rounded-lg bg-secondary text-secondary-foreground hover:opacity-90 flex items-center justify-center gap-1.5 disabled:opacity-50"
+                >
+                  {purchaseMutation.isPending ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}
+                  Log purchase
                 </button>
-              </div>
+              </form>
+
+              {purchases && purchases.length > 0 && (
+                <ul className="mt-4 divide-y divide-border text-xs max-h-40 overflow-y-auto">
+                  {purchases.map((p) => (
+                    <li key={p.id} className="flex items-center justify-between py-2">
+                      <div>
+                        <div>{p.material_name}</div>
+                        <div className="text-[10px] text-muted-foreground font-data">{p.purchase_date}</div>
+                      </div>
+                      <span className="font-data text-muted-foreground">{inr(p.amount)} · {p.gst_rate}%</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
         </div>

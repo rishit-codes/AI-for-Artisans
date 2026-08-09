@@ -1,7 +1,23 @@
 import uuid
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 from pydantic import BaseModel, ConfigDict
+
+from app.schemas.product import ProductRead
+
+class PublicKarigarProfile(BaseModel):
+    id: uuid.UUID
+    full_name: str
+    craft_type: Optional[str] = None
+    location: Optional[str] = None
+    craft_story: Optional[str] = None
+    gi_certified: bool = False
+    gi_year: Optional[str] = None
+    languages: Optional[str] = None
+    member_since: int
+    products: List[ProductRead] = []
+
+    model_config = ConfigDict(from_attributes=True)
 
 class UserRead(BaseModel):
     id: uuid.UUID
