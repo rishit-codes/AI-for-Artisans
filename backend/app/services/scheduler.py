@@ -71,6 +71,19 @@ async def fetch_live_commodities():
     except Exception as e:
         logger.error(f"Failed to fetch live commodities: {e}")
 
+async def run_mandi_scraping_job():
+    """Job 5: Fetch Agmarknet 5-city mandi rates & update audit logs"""
+    logger.info("Scheduler: Executing 5-city mandi commodity scraper...")
+    from app.db.session import AsyncSessionLocal
+    from app.services.mandi_scraper import fetch_mandi_prices_async
+    
+    try:
+        async with AsyncSessionLocal() as db:
+            result = await fetch_mandi_prices_async(db)
+            logger.info(f"5-City mandi scraping job completed: {result['log_count']} audit entries created.")
+    except Exception as e:
+        logger.error(f"Failed to execute mandi scraper job: {e}")
+
 def setup_scheduler():
     # Schedule Job 2 (1am daily IST)
     scheduler.add_job(fetch_market_signals, 'cron', hour=1, minute=0, timezone='Asia/Kolkata')
@@ -84,6 +97,10 @@ def setup_scheduler():
     # Schedule Job 4 (3:00am daily IST)
     scheduler.add_job(fetch_live_commodities, 'cron', hour=3, minute=0, timezone='Asia/Kolkata')
     
+    # Schedule Job 5 (Every 6 hours)
+    scheduler.add_job(run_mandi_scraping_job, 'interval', hours=6)
+
+    
     # Start the scheduler
     scheduler.start()
     logger.info("Scheduler started successfully.")
@@ -91,3 +108,4 @@ def setup_scheduler():
 def shutdown_scheduler():
     scheduler.shutdown()
     logger.info("Scheduler shut down successfully.")
+

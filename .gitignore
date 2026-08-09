@@ -96,3 +96,10 @@ backend/checkpoints/*
 !backend/checkpoints/.gitkeep
 backend/data/models/*
 !backend/data/models/.gitkeep
+
+# ── IEEE Research Paper & Diagrams ────────────────────────────────────
+*IEEE_Research_Paper*.pdf
+*ieee_research_paper.md
+assets/
+scripts/
+
