@@ -8,3 +8,5 @@ from .sale import Sale
 from .market_signal import MarketSignal
 from .prediction import Prediction
 from .model_version import ModelVersion
+from .mandi_log import MandiScrapingLog, MandiPrice
+
