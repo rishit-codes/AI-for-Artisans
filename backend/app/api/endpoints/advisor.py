@@ -26,20 +26,51 @@ class ChatRequest(BaseModel):
     message: str
     conversation_history: Optional[List[ChatMessage]] = []
 
-async def stream_groq_response(messages: List[Dict[str, Any]], current_user: User):
+async def get_live_market_context(db: AsyncSession) -> Dict[str, str]:
+    """
+    Shared live-context fetch (weather + raw-material trends) used to ground
+    both the /chat and /feed Groq prompts in real-world conditions.
+    """
+    m_result = await db.execute(select(Material))
+    materials = m_result.scalars().all()
+    mat_context = [f"{m.commodity_full_name or m.name}: {m.price} (Trend: {m.trend.upper()})" for m in materials]
+    mat_str = ", ".join(mat_context) if mat_context else "No active tracking data."
+
+    weather_str = "Clear, 30°C, 45% Humidity"
+    import httpx
+    try:
+        async with httpx.AsyncClient() as client:
+            w_url = "https://api.open-meteo.com/v1/forecast?latitude=26.9124&longitude=75.7873&current=temperature_2m,relative_humidity_2m,precipitation"
+            w_res = await client.get(w_url, timeout=3.0)
+            if w_res.status_code == 200:
+                w_data = w_res.json()
+                curr = w_data.get("current", {})
+                weather_str = f"Temp: {curr.get('temperature_2m', 30)}°C, Humidity: {curr.get('relative_humidity_2m', 45)}%, Precip: {curr.get('precipitation', 0)}mm"
+    except Exception as e:
+        logger.warning(f"Open-Meteo fetch failed: {e}")
+
+    return {"weather": weather_str, "materials": mat_str}
+
+async def stream_groq_response(messages: List[Dict[str, Any]], current_user: User, db: AsyncSession):
     import datetime
     current_date = datetime.datetime.now().strftime("%B %d, %Y")
-    
+
     craft_type = current_user.craft_type if current_user and current_user.craft_type else "textile"
     fest_info = get_days_to_next_festival(craft_type)
     festival_context = f"The upcoming major festival for your craft is '{fest_info['name']}' which is {fest_info['days_away']} days away. " if fest_info else ""
+
+    context = await get_live_market_context(db)
 
     user_name = current_user.full_name if current_user else "the user"
     system_prompt = (
         f"Today is {current_date}. "
         f"You are a production advisor speaking to {user_name}, an Indian {craft_type} artisan. "
         f"{festival_context}"
+        f"Live local weather right now: {context['weather']}. "
+        f"Live raw-material price trends: {context['materials']}. "
         "You help with craft techniques, material selection, production planning, and quality guidance. "
+        "Factor the live weather into any advice about dyeing, drying, or clay curing, and factor the material "
+        "trends into any advice about sourcing or stockpiling. "
         "Keep answers practical, concise, and relevant to traditional Indian crafts. "
         "CRITICAL: ALWAYS reply in the EXACT SAME LANGUAGE the user used in their most recent message. If they write in English, you MUST reply in English. If they write in Hindi, you MUST reply in Hindi. Do not mix languages."
     )
@@ -68,16 +99,17 @@ async def stream_groq_response(messages: List[Dict[str, Any]], current_user: Use
 @router.post("/chat", response_class=StreamingResponse)
 async def chat_with_advisor(
     request: ChatRequest,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ) -> Any:
     # Build messages log
     messages = []
     for msg in request.conversation_history:
         messages.append({"role": msg.role, "content": msg.content})
     messages.append({"role": "user", "content": request.message})
-    
+
     return StreamingResponse(
-        stream_groq_response(messages, current_user),
+        stream_groq_response(messages, current_user, db),
         media_type="text/event-stream"
     )
 
@@ -92,33 +124,15 @@ async def get_advisor_feed(
     """
     try:
         # 1. Gather Context
-        m_result = await db.execute(select(Material))
-        materials = m_result.scalars().all()
-        
-        mat_context = []
-        for m in materials:
-            mat_context.append(f"{m.commodity_full_name or m.name}: {m.price} (Trend: {m.trend.upper()})")
-        mat_str = ", ".join(mat_context) if mat_context else "No active tracking data."
-        
+        context = await get_live_market_context(db)
+        mat_str = context["materials"]
+        weather_str = context["weather"]
+
         # We can dynamically guess their craft via Artisan mapping, but we default to Textile/Weaver
         craft_type = "textile"
         fest_info = get_days_to_next_festival(craft_type)
         days_to_festival = fest_info["days_away"] if fest_info else 30
         festival_name = fest_info["name"] if fest_info else "Upcoming Festival"
-        
-        # 1.5. Gather Live Weather (Open-Meteo for Jaipar example)
-        weather_str = "Clear, 30°C, 45% Humidity"
-        import httpx
-        try:
-            async with httpx.AsyncClient() as client:
-                w_url = "https://api.open-meteo.com/v1/forecast?latitude=26.9124&longitude=75.7873&current=temperature_2m,relative_humidity_2m,precipitation"
-                w_res = await client.get(w_url, timeout=3.0)
-                if w_res.status_code == 200:
-                    w_data = w_res.json()
-                    curr = w_data.get("current", {})
-                    weather_str = f"Temp: {curr.get('temperature_2m', 30)}°C, Humidity: {curr.get('relative_humidity_2m', 45)}%, Precip: {curr.get('precipitation', 0)}mm"
-        except Exception as e:
-            logger.warning(f"Open-Meteo fetch failed: {e}")
 
         import datetime
         current_date = datetime.datetime.now().strftime("%B %d, %Y")
