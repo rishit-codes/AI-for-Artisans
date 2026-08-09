@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { Award, MapPin, Phone, Mail, Globe, Languages, Edit3, Star, Package2, ShoppingBag, TrendingUp, ExternalLink } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Award, MapPin, Phone, Mail, Globe, Languages, Edit3, Star, Package2, ShoppingBag, TrendingUp, ExternalLink, BadgeCheck } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { updateProfile } from "@/lib/api";
 import AppShell from "@/components/site/AppShell";
@@ -64,6 +65,9 @@ const Profile = () => {
   const [editPhone, setEditPhone] = useState("");
   const [editPincode, setEditPincode] = useState("");
   const [editLanguages, setEditLanguages] = useState("");
+  const [editCraftStory, setEditCraftStory] = useState("");
+  const [editGiCertified, setEditGiCertified] = useState(false);
+  const [editGiYear, setEditGiYear] = useState("");
 
   const isRamesh = user?.email === "ramesh@example.com";
   let parsedBio: any = {};
@@ -78,6 +82,11 @@ const Profile = () => {
   const productsList = isRamesh ? rameshProducts : []; // Mapped backend products omitted for MVP simplicity
   const revMay = isRamesh ? "₹64k" : "₹0";
   const rating = isRamesh ? "4.9 ★" : "New ★";
+  const craftStory = parsedBio.craftStory || (isRamesh && !user?.bio
+    ? "I am a third-generation master weaver based in the heart of Jaipur, Rajasthan. My family has been dedicated to the intricate art of Banarasi silk weaving for over seven decades."
+    : "");
+  const giCertified: boolean = parsedBio.giCertified ?? (isRamesh && !user?.bio);
+  const giYear = parsedBio.giYear || (isRamesh && !user?.bio ? "2014" : "");
 
   const statusTone = (s: string) =>
     s === "Delivered" ? "text-forest bg-forest/10" : s === "Shipped" ? "text-secondary bg-secondary/10" : "text-primary bg-primary/10";
@@ -88,6 +97,9 @@ const Profile = () => {
     setEditPhone(parsedBio.phone || (isRamesh && !user?.bio ? "+91 98765 43210" : ""));
     setEditPincode(parsedBio.pincode || (isRamesh && !user?.bio ? "UP 221002" : ""));
     setEditLanguages(parsedBio.languages || (isRamesh && !user?.bio ? "Hindi · Bhojpuri · little English" : ""));
+    setEditCraftStory(craftStory);
+    setEditGiCertified(giCertified);
+    setEditGiYear(giYear);
     setIsEditModalOpen(true);
   };
 
@@ -108,6 +120,9 @@ const Profile = () => {
       phone: editPhone.trim(),
       pincode: editPincode.trim(),
       languages: editLanguages.trim(),
+      craftStory: editCraftStory.trim(),
+      giCertified: editGiCertified,
+      giYear: editGiYear.trim(),
     });
 
     try {
@@ -140,7 +155,12 @@ const Profile = () => {
             <h2 className="font-display text-4xl lg:text-5xl mt-1 capitalize">{user?.full_name || "Ramesh Prajapati"}</h2>
             <div className="font-hindi text-xl text-muted-foreground mt-1 capitalize">{user?.full_name || "रमेश प्रजापति"} · {user?.location || "वाराणसी"}</div>
             <div className="flex flex-wrap gap-2 mt-4">
-              {[user?.craft_type || "Banarasi silk", "Natural dye", "GI certified", "27 yrs"].map((t) => (
+              {giCertified && (
+                <span className="text-[11px] uppercase tracking-wider font-data px-3 py-1 rounded-full bg-forest/10 text-forest border border-forest/30 inline-flex items-center gap-1.5">
+                  <BadgeCheck size={12} /> GI Certified{giYear ? ` · ${giYear}` : ""}
+                </span>
+              )}
+              {[user?.craft_type || "Banarasi silk", "Natural dye", "27 yrs"].map((t) => (
                 <span key={t} className="text-[11px] uppercase tracking-wider font-data px-3 py-1 rounded-full bg-background border border-border">{t}</span>
               ))}
             </div>
@@ -149,9 +169,16 @@ const Profile = () => {
             <button onClick={handleEditOpen} className="text-sm px-5 py-2.5 rounded-full bg-primary text-primary-foreground inline-flex items-center gap-2 hover:opacity-90">
               <Edit3 size={14} /> Edit card
             </button>
-            <button className="text-sm px-5 py-2.5 rounded-full border border-border bg-background inline-flex items-center gap-2 hover:bg-muted">
-              <ExternalLink size={14} /> Share public link
-            </button>
+            {user?.id && (
+              <Link
+                to={`/karigar/${user.id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm px-5 py-2.5 rounded-full border border-border bg-background inline-flex items-center gap-2 hover:bg-muted"
+              >
+                <ExternalLink size={14} /> Share public link
+              </Link>
+            )}
           </div>
         </div>
       </div>
@@ -231,6 +258,17 @@ const Profile = () => {
 
           {/* Timeline + ratings */}
           <div className="lg:col-span-2 space-y-6">
+            <div className="rounded-2xl border border-border bg-card p-6">
+              <div className="font-display text-lg mb-3">Craft story</div>
+              {craftStory ? (
+                <p className="text-sm text-foreground/85 leading-relaxed">{craftStory}</p>
+              ) : (
+                <div className="text-sm text-muted-foreground italic">
+                  Add your craft story from "Edit card" — it appears on your public Karigar card.
+                </div>
+              )}
+            </div>
+
             <div className="rounded-2xl border border-border bg-card p-6">
               <div className="flex items-baseline justify-between mb-6">
                 <div className="font-display text-lg">Karigar journey</div>
@@ -465,6 +503,36 @@ const Profile = () => {
                   value={editLanguages}
                   onChange={e => setEditLanguages(e.target.value)}
                   placeholder="Hindi, English"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Craft Story (shown on your public Karigar card)</Label>
+              <Textarea
+                value={editCraftStory}
+                onChange={e => setEditCraftStory(e.target.value)}
+                placeholder="Tell buyers about your craft, your training, and what makes your work unique."
+                rows={4}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4 items-end">
+              <div className="flex items-center gap-2 pb-2">
+                <input
+                  id="gi-certified"
+                  type="checkbox"
+                  checked={editGiCertified}
+                  onChange={e => setEditGiCertified(e.target.checked)}
+                  className="h-4 w-4 rounded border-border"
+                />
+                <Label htmlFor="gi-certified" className="cursor-pointer">GI certified</Label>
+              </div>
+              <div className="space-y-2">
+                <Label>GI Certification Year</Label>
+                <Input
+                  value={editGiYear}
+                  onChange={e => setEditGiYear(e.target.value)}
+                  placeholder="2014"
+                  disabled={!editGiCertified}
                 />
               </div>
             </div>
