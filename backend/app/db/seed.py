@@ -1,11 +1,14 @@
 """Seeds the database with data currently hardcoded in the frontend JSX files."""
 import uuid
+from datetime import date
 from sqlalchemy import select
 
 from app.db.session import AsyncSessionLocal
 from app.models.user import User
 from app.models.product import Product
 from app.models.material import Material
+from app.models.sale import Sale
+from app.models.purchase import Purchase
 from app.core.security import get_password_hash
 
 
@@ -44,8 +47,60 @@ async def seed_database():
             {"name": "Channapatna Toys", "material": "Lacquered wood craft", "stock_qty": 32, "price": 1250.0, "image_url": "/images/channapatna_toy.jpg", "category": "Woodwork"},
             {"name": "Jaipur Blue Pottery", "material": "Quartz-based ceramic vase", "stock_qty": 18, "price": 3400.0, "image_url": "/images/ceramic_vase.jpg", "category": "Pottery"},
         ]
+        products_by_name = {}
         for p in products_data:
-            db.add(Product(artisan_id=user.id, **p))
+            product = Product(artisan_id=user.id, **p)
+            db.add(product)
+            products_by_name[p["name"]] = product
+        await db.flush()
+
+        # ── Sales (this month, for Reports > GST Filing Helper) ────────────
+        today = date.today()
+        sales_data = [
+            ("Banarasi Silk Saree", 1, 18500.0, "Etsy", today.replace(day=3)),
+            ("Banarasi Silk Saree", 1, 18500.0, "WhatsApp Business", today.replace(day=8)),
+            ("Hand-painted Pot", 3, 850.0, "Amazon Karigar", today.replace(day=2)),
+            ("Hand-painted Pot", 2, 850.0, "Instagram", today.replace(day=6)),
+            ("Hand-painted Pot", 2, 850.0, "Etsy", today.replace(day=9)),
+            ("Brass Dhokra Art", 1, 4200.0, "Amazon Karigar", today.replace(day=4)),
+            ("Brass Dhokra Art", 2, 4200.0, "Etsy", today.replace(day=7)),
+            ("Pashmina Shawl", 1, 25000.0, "WhatsApp Business", today.replace(day=5)),
+            ("Channapatna Toys", 5, 1250.0, "Amazon Karigar", today.replace(day=1)),
+            ("Channapatna Toys", 3, 1250.0, "Instagram", today.replace(day=8)),
+            ("Jaipur Blue Pottery", 2, 3400.0, "Etsy", today.replace(day=3)),
+            ("Jaipur Blue Pottery", 2, 3400.0, "Amazon Karigar", today.replace(day=9)),
+        ]
+        for product_name, quantity, price_per_unit, channel, sale_date in sales_data:
+            if sale_date > today:
+                continue
+            db.add(Sale(
+                user_id=user.id,
+                product_id=products_by_name[product_name].id,
+                quantity=quantity,
+                price_per_unit=price_per_unit,
+                channel=channel,
+                sale_date=sale_date,
+            ))
+
+        # ── Purchases (raw materials bought this month, for GST input tax credit) ──
+        purchases_data = [
+            ("Raw silk yarn", 8000.0, 5.0, "Bulk order from Surat mandi"),
+            ("Zari thread (gold)", 3200.0, 5.0, None),
+            ("Terracotta clay", 1800.0, 5.0, None),
+            ("Brass sheet", 6000.0, 12.0, "For Dhokra casting"),
+            ("Lacquer & wood blanks", 2500.0, 12.0, "Channapatna toy stock"),
+            ("Packaging materials", 1200.0, 18.0, None),
+        ]
+        for i, (material_name, amount, gst_rate, notes) in enumerate(purchases_data):
+            day = min(2 + i, today.day)
+            db.add(Purchase(
+                artisan_id=user.id,
+                material_name=material_name,
+                amount=amount,
+                gst_rate=gst_rate,
+                purchase_date=today.replace(day=day),
+                notes=notes,
+            ))
 
         # ── Materials (from Constraints.jsx) ────
         materials_data = [

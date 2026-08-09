@@ -5,15 +5,20 @@ import { getDashboardSummary, getProducts, getMandiPrices, advisorChatStream, ge
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
 import {
+  AlertTriangle,
   ArrowDown,
   ArrowUp,
   ArrowUpRight,
   ArrowDownRight,
   Bell,
   Bookmark,
+  CalendarClock,
   Compass,
   Home,
   LineChart,
+  ListTodo,
+  Mic,
+  MicOff,
   Send,
   Settings,
   Sparkles,
@@ -22,6 +27,7 @@ import {
   User,
   Search,
 } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import textileImg from "@/assets/craft-textile.jpg";
 import potteryImg from "@/assets/craft-pottery.jpg";
 import metalImg from "@/assets/craft-metal.jpg";
@@ -118,6 +124,84 @@ const Sidebar = () => {
   );
 };
 
+interface DashboardSummary {
+  low_stock_items?: Array<{ id: number; name: string; stock_qty: number }>;
+}
+
+interface DashboardPriority {
+  title?: string;
+  festival?: string;
+  festival_date?: string;
+}
+
+const NotificationsBell = () => {
+  const { data: summary } = useQuery({
+    queryKey: ["dashboardSummary"],
+    queryFn: getDashboardSummary,
+  });
+  const { data: priority } = useQuery({
+    queryKey: ["dashboardPriority"],
+    queryFn: getDashboardPriority,
+  });
+
+  const { low_stock_items: lowStockItems } = (summary || {}) as DashboardSummary;
+  const { title: priorityTitle, festival, festival_date: festivalDate } = (priority || {}) as DashboardPriority;
+
+  const daysToFestival = festivalDate
+    ? Math.max(0, Math.ceil((new Date(festivalDate).getTime() - Date.now()) / 86_400_000))
+    : null;
+
+  const notifications: { icon: typeof Bell; tone: string; text: string }[] = [];
+  (lowStockItems || []).slice(0, 3).forEach((item) => {
+    notifications.push({
+      icon: AlertTriangle,
+      tone: "text-destructive",
+      text: `Low stock: ${item.name} — ${item.stock_qty} left`,
+    });
+  });
+  if (priorityTitle) {
+    notifications.push({ icon: ListTodo, tone: "text-primary", text: priorityTitle });
+  }
+  if (festival && daysToFestival !== null) {
+    notifications.push({
+      icon: CalendarClock,
+      tone: "text-secondary",
+      text: `${festival} is ${daysToFestival} day${daysToFestival === 1 ? "" : "s"} away — start prepping stock`,
+    });
+  }
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          className="relative w-9 h-9 rounded-lg border border-border bg-card grid place-items-center hover:border-primary/60"
+          aria-label="Notifications"
+        >
+          <Bell size={14} />
+          {notifications.length > 0 && (
+            <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-primary" />
+          )}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-80 p-0">
+        <div className="px-4 py-3 border-b border-border font-display text-sm">Notifications</div>
+        {notifications.length === 0 ? (
+          <div className="px-4 py-6 text-sm text-muted-foreground text-center">You're all caught up.</div>
+        ) : (
+          <ul className="divide-y divide-border max-h-80 overflow-y-auto">
+            {notifications.map((n, i) => (
+              <li key={i} className="px-4 py-3 flex items-start gap-2.5 text-sm">
+                <n.icon size={14} className={`mt-0.5 shrink-0 ${n.tone}`} />
+                <span>{n.text}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+};
+
 const Topbar = () => (
   <div className="sticky top-0 z-20 backdrop-blur bg-background/85 border-b border-border px-5 lg:px-8 py-3.5 flex items-center justify-between gap-4">
     <div className="flex items-center gap-3 flex-1 max-w-md">
@@ -133,10 +217,7 @@ const Topbar = () => (
       <span className="hidden md:inline">Jaipur · 31°C</span>
       <span className="hidden md:inline w-1 h-1 rounded-full bg-border-strong" />
       <span className="text-forest hidden md:inline">mandi open</span>
-      <button className="relative w-9 h-9 rounded-lg border border-border bg-card grid place-items-center hover:border-primary/60">
-        <Bell size={14} />
-        <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-primary" />
-      </button>
+      <NotificationsBell />
       <button className="w-9 h-9 rounded-lg border border-border bg-card grid place-items-center hover:border-primary/60">
         <Settings size={14} />
       </button>
@@ -447,11 +528,50 @@ const ChatPanel = () => {
   });
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [voiceLang, setVoiceLang] = useState<"hi-IN" | "en-IN">("hi-IN");
   const scrollRef = useRef<HTMLDivElement>(null);
+  const recognitionRef = useRef<any>(null);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, typing]);
+
+  // Stop any active mic session on unmount
+  useEffect(() => {
+    return () => recognitionRef.current?.stop();
+  }, []);
+
+  const speechSupported = typeof window !== "undefined" && !!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
+
+  const toggleListening = () => {
+    const SpeechRecognitionCtor = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognitionCtor) {
+      toast.error("Voice input isn't supported in this browser. Try Chrome.");
+      return;
+    }
+    if (isListening) {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+      return;
+    }
+    const recognition = new SpeechRecognitionCtor();
+    recognition.lang = voiceLang;
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      setInput((prev) => (prev ? `${prev} ${transcript}` : transcript));
+    };
+    recognition.onerror = () => {
+      toast.error("Couldn't hear you clearly. Try again.");
+      setIsListening(false);
+    };
+    recognition.onend = () => setIsListening(false);
+    recognitionRef.current = recognition;
+    recognition.start();
+    setIsListening(true);
+  };
 
   // Persist chat to localStorage (keep last 30 messages)
   useEffect(() => {
@@ -562,16 +682,40 @@ const ChatPanel = () => {
         onSubmit={(e) => { e.preventDefault(); send(); }}
         className="p-3 bg-card flex gap-2"
       >
+        {speechSupported && (
+          <button
+            type="button"
+            onClick={() => setVoiceLang((l) => (l === "hi-IN" ? "en-IN" : "hi-IN"))}
+            title="Voice input language"
+            className="w-10 h-10 rounded-lg border border-border grid place-items-center text-[10px] font-data text-muted-foreground hover:border-primary/60 hover:text-primary transition-colors flex-shrink-0"
+          >
+            {voiceLang === "hi-IN" ? "हिं" : "EN"}
+          </button>
+        )}
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Ask about materials, batches, festivals…"
           className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-sm font-hindi focus:outline-none focus:border-primary/60"
         />
+        {speechSupported && (
+          <button
+            type="button"
+            onClick={toggleListening}
+            title={isListening ? "Stop listening" : "Speak your question"}
+            className={`w-10 h-10 rounded-lg grid place-items-center transition-colors flex-shrink-0 ${
+              isListening
+                ? "bg-destructive/15 text-destructive animate-pulse"
+                : "border border-border text-muted-foreground hover:border-primary/60 hover:text-primary"
+            }`}
+          >
+            {isListening ? <MicOff size={14} /> : <Mic size={14} />}
+          </button>
+        )}
         <button
           type="submit"
           disabled={typing || !input.trim()}
-          className="w-10 h-10 rounded-lg bg-primary text-primary-foreground grid place-items-center hover:opacity-90 disabled:opacity-40 transition-opacity"
+          className="w-10 h-10 rounded-lg bg-primary text-primary-foreground grid place-items-center hover:opacity-90 disabled:opacity-40 transition-opacity flex-shrink-0"
         >
           <Send size={14} />
         </button>
