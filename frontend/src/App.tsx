@@ -14,6 +14,7 @@ import AdvisorOnboarding from "./pages/AdvisorOnboarding.tsx";
 import Reports from "./pages/Reports.tsx";
 import Profile from "./pages/Profile.tsx";
 import Settings from "./pages/Settings.tsx";
+import KarigarCard from "./pages/KarigarCard.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient({
@@ -30,6 +31,7 @@ const App = () => (
           {/* Public routes */}
           <Route path="/" element={<Index />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/karigar/:id" element={<KarigarCard />} />
 
           {/* Protected routes — redirect to /login if not signed in */}
           <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />

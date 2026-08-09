@@ -1,6 +1,84 @@
 import { Link, NavLink, useLocation } from "react-router-dom";
-import { Bell, Compass, Home, LineChart, Search, Settings, Store, TrendingUp, User } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { AlertTriangle, Bell, CalendarClock, Compass, Home, LineChart, ListTodo, Search, Settings, Store, TrendingUp, User } from "lucide-react";
 import { ReactNode } from "react";
+import { getDashboardPriority, getDashboardSummary } from "@/lib/api";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+
+interface DashboardSummary {
+  low_stock_items?: Array<{ id: number; name: string; stock_qty: number }>;
+}
+
+interface DashboardPriority {
+  title?: string;
+  festival?: string;
+  festival_date?: string;
+}
+
+const NotificationsBell = () => {
+  const { data: summary } = useQuery({
+    queryKey: ["dashboardSummary"],
+    queryFn: getDashboardSummary,
+  });
+  const { data: priority } = useQuery({
+    queryKey: ["dashboardPriority"],
+    queryFn: getDashboardPriority,
+  });
+
+  const { low_stock_items: lowStockItems } = (summary || {}) as DashboardSummary;
+  const { title: priorityTitle, festival, festival_date: festivalDate } = (priority || {}) as DashboardPriority;
+
+  const daysToFestival = festivalDate
+    ? Math.max(0, Math.ceil((new Date(festivalDate).getTime() - Date.now()) / 86_400_000))
+    : null;
+
+  const notifications: { icon: typeof Bell; tone: string; text: string }[] = [];
+  (lowStockItems || []).slice(0, 3).forEach((item) => {
+    notifications.push({
+      icon: AlertTriangle,
+      tone: "text-destructive",
+      text: `Low stock: ${item.name} — ${item.stock_qty} left`,
+    });
+  });
+  if (priorityTitle) {
+    notifications.push({ icon: ListTodo, tone: "text-primary", text: priorityTitle });
+  }
+  if (festival && daysToFestival !== null) {
+    notifications.push({
+      icon: CalendarClock,
+      tone: "text-secondary",
+      text: `${festival} is ${daysToFestival} day${daysToFestival === 1 ? "" : "s"} away — start prepping stock`,
+    });
+  }
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button className="relative p-2 rounded-full hover:bg-muted" aria-label="Notifications">
+          <Bell size={16} />
+          {notifications.length > 0 && (
+            <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-primary" />
+          )}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-80 p-0">
+        <div className="px-4 py-3 border-b border-border font-display text-sm">Notifications</div>
+        {notifications.length === 0 ? (
+          <div className="px-4 py-6 text-sm text-muted-foreground text-center">You're all caught up.</div>
+        ) : (
+          <ul className="divide-y divide-border max-h-80 overflow-y-auto">
+            {notifications.map((n, i) => (
+              <li key={i} className="px-4 py-3 flex items-start gap-2.5 text-sm">
+                <n.icon size={14} className={`mt-0.5 shrink-0 ${n.tone}`} />
+                <span>{n.text}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+};
 
 const nav = [
   { to: "/dashboard", icon: Home, label: "Home", hindi: "घर" },
@@ -70,10 +148,7 @@ export const AppShell = ({
                   className="flex-1 bg-transparent outline-none text-sm placeholder:text-muted-foreground"
                 />
               </div>
-              <button className="relative p-2 rounded-full hover:bg-muted">
-                <Bell size={16} />
-                <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-primary" />
-              </button>
+              <NotificationsBell />
               <NavLink to="/settings" className="p-2 rounded-full hover:bg-muted" aria-label="Settings"><Settings size={16} /></NavLink>
               <NavLink to="/profile" className="w-9 h-9 rounded-full bg-secondary text-secondary-foreground grid place-items-center text-sm font-display hover:opacity-90">र</NavLink>
             </div>
