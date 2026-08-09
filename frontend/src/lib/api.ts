@@ -146,6 +146,127 @@ export async function getMandiPrices(category: string) {
   return apiGet<Record<string, unknown>[]>(`/materials/mandi?category=${encodeURIComponent(category)}`);
 }
 
+export async function getMandiArbitrage() {
+  return apiGet<{
+    markets: string[];
+    rows: Array<{
+      item: string;
+      hindi: string;
+      category: string;
+      unit: string;
+      prices: number[];
+      delta: number;
+      supply: string;
+      lowest_mandi: string;
+      arbitrage_savings: string;
+      updated_at: string;
+    }>;
+    suppliers: Array<{
+      name: string;
+      item: string;
+      lead: string;
+      trust: number;
+      savings: string;
+      mandi: string;
+    }>;
+  }>("/materials/mandi-arbitrage");
+}
+
+export async function getMandiScrapingLogs(limit = 50) {
+  return apiGet<Array<{
+    id: number;
+    log_id: string;
+    mandi_city: string;
+    commodity_name: string;
+    price_per_unit: number;
+    unit: string;
+    status_code: number;
+    response_time_ms: number;
+    scraped_at: string;
+  }>>(`/materials/scraping-logs?limit=${limit}`);
+}
+
+export async function triggerMandiScrape() {
+  return apiPost<Record<string, unknown>>("/materials/trigger-mandi-scrape");
+}
+
+export interface ArbitrageCalcResult {
+  commodity_name: string;
+  hindi_name: string;
+  unit: string;
+  quantity: number;
+  local_city: string;
+  local_unit_price: number;
+  local_total_cost: number;
+  recommended_mandi: string;
+  recommended_delivered_unit_price: number;
+  recommended_total_delivered_cost: number;
+  freight_cost: number;
+  net_savings: number;
+  net_savings_pct: number;
+  breakdown: Array<{
+    mandi_city: string;
+    unit_price: number;
+    raw_material_cost: number;
+    freight_cost: number;
+    total_delivered_cost: number;
+    savings_vs_local: number;
+    lead_time: string;
+    is_best: boolean;
+  }>;
+}
+
+export async function calculateArbitrage(payload: { commodity_name: string; quantity: number; destination_city?: string }) {
+  return apiPost<ArbitrageCalcResult>("/materials/calculate-arbitrage", payload);
+}
+
+export async function exportCSVApi() {
+  const res = await fetch(`${BASE_URL}/materials/export-csv`, {
+    headers: authHeaders(),
+  });
+  if (!res.ok) throw new Error("Failed to export CSV.");
+  const blob = await res.blob();
+  const contentDisposition = res.headers.get("Content-Disposition");
+  let filename = `mandi-arbitrage-prices-${new Date().toISOString().slice(0, 10)}.csv`;
+  if (contentDisposition && contentDisposition.includes("filename=")) {
+    filename = contentDisposition.split("filename=")[1].replace(/"/g, "");
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+export async function downloadSourcingSheetApi(payload: { commodity_name: string; quantity: number; destination_city?: string }) {
+  const res = await fetch(`${BASE_URL}/materials/download-sourcing-sheet`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error("Failed to generate sourcing sheet download.");
+  const blob = await res.blob();
+  const contentDisposition = res.headers.get("Content-Disposition");
+  let filename = "Sourcing-Order-Sheet.txt";
+  if (contentDisposition && contentDisposition.includes("filename=")) {
+    filename = contentDisposition.split("filename=")[1].replace(/"/g, "");
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+
+
+
 /* ---------- predictions ---------- */
 
 export async function getSeasonalPredictions(productId: number) {

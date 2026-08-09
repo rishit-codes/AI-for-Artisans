@@ -144,4 +144,4 @@ async def seed_database():
             db.add(Material(**m))
 
         await db.commit()
-        print("✅ Database seeded successfully!")
+        print("[OK] Database seeded successfully!")
