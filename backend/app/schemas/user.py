@@ -10,6 +10,7 @@ class PublicKarigarProfile(BaseModel):
     full_name: str
     craft_type: Optional[str] = None
     location: Optional[str] = None
+    avatar_url: Optional[str] = None
     craft_story: Optional[str] = None
     gi_certified: bool = False
     gi_year: Optional[str] = None
@@ -26,10 +27,11 @@ class UserRead(BaseModel):
     craft_type: Optional[str] = None
     location: Optional[str] = None
     bio: Optional[str] = None
+    avatar_url: Optional[str] = None
     is_active: bool
     created_at: datetime
     updated_at: datetime
-    
+
     model_config = ConfigDict(from_attributes=True)
 
 class UserUpdate(BaseModel):
@@ -37,5 +39,6 @@ class UserUpdate(BaseModel):
     craft_type: Optional[str] = None
     location: Optional[str] = None
     bio: Optional[str] = None
+    avatar_url: Optional[str] = None
 
     model_config = ConfigDict(extra='forbid')

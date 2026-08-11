@@ -7,6 +7,36 @@ import { toast } from "sonner";
 
 const defaultMarkets = ["Local · वाराणसी", "Surat", "Delhi", "Jaipur", "Mumbai"];
 
+// Artisan clusters mapped to their nearest of the 5 tracked wholesale mandi hubs.
+const CLUSTERS = [
+  { id: "varanasi", label: "Varanasi", hindi: "वाराणसी", city: "Varanasi", hub: null },
+  { id: "jaipur-sanganer", label: "Jaipur / Sanganer", hindi: "जयपुर · सांगानेर", city: "Jaipur", hub: null },
+  { id: "khurja", label: "Khurja", hindi: "खुर्जा", city: "Delhi", hub: "Delhi" },
+  { id: "moradabad", label: "Moradabad", hindi: "मुरादाबाद", city: "Delhi", hub: "Delhi" },
+] as const;
+
+// 7-day price trend sparkline — minimal inline SVG, no charting library needed
+const Sparkline = ({ points }: { points: number[] }) => {
+  if (!points || points.length < 2) {
+    return <span className="text-[10px] text-muted-foreground/60">—</span>;
+  }
+  const width = 64;
+  const height = 22;
+  const min = Math.min(...points);
+  const max = Math.max(...points);
+  const range = max - min || 1;
+  const step = width / (points.length - 1);
+  const coords = points.map((p, i) => `${(i * step).toFixed(1)},${(height - ((p - min) / range) * height).toFixed(1)}`);
+  const trendUp = points[points.length - 1] >= points[0];
+  const color = trendUp ? "#ef4444" : "#10b981"; // rising cost = red, falling cost = green (good for buyers)
+
+  return (
+    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="inline-block align-middle">
+      <polyline points={coords.join(" ")} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
+    </svg>
+  );
+};
+
 // Cross-browser local file download helper
 const downloadFile = (content: string, filename: string, mimeType: string) => {
   const blob = new Blob([content], { type: mimeType });
@@ -22,7 +52,11 @@ const downloadFile = (content: string, filename: string, mimeType: string) => {
 
 const Mandi = () => {
   const [tab, setTab] = useState<"prices" | "calculator" | "suppliers" | "audit">("prices");
-  
+
+  // Cluster filter — drives which mandi city is "Local" across the Prices & Calculator tabs
+  const [clusterId, setClusterId] = useState<(typeof CLUSTERS)[number]["id"]>("varanasi");
+  const activeCluster = CLUSTERS.find((c) => c.id === clusterId) ?? CLUSTERS[0];
+
   // Calculator Form State
   const [calcMaterial, setCalcMaterial] = useState<string>("Cotton yarn (40s)");
   const [calcQuantity, setCalcQuantity] = useState<number>(50);
@@ -31,10 +65,19 @@ const Mandi = () => {
 
   const queryClient = useQueryClient();
 
-  // 1. Live 5-City Arbitrage Query
+  const handleClusterChange = (id: (typeof CLUSTERS)[number]["id"]) => {
+    setClusterId(id);
+    const next = CLUSTERS.find((c) => c.id === id);
+    if (next) {
+      setCalcDestination(next.city);
+      toast.success(`Cluster set to ${next.label}${next.hub ? ` (via ${next.hub} hub)` : ""}`);
+    }
+  };
+
+  // 1. Live 5-City Arbitrage Query — recalculates "local" rates for the selected cluster
   const { data: arbitrageData, isLoading: isArbitrageLoading } = useQuery({
-    queryKey: ["mandiArbitrage"],
-    queryFn: getMandiArbitrage,
+    queryKey: ["mandiArbitrage", activeCluster.city],
+    queryFn: () => getMandiArbitrage(activeCluster.city),
   });
 
   // 2. Audit Logs Query
@@ -161,9 +204,20 @@ const Mandi = () => {
           </button>
         </div>
 
-        <button onClick={() => toast("Cluster filter set to Varanasi")} className="flex items-center gap-2 text-xs px-3.5 py-1.5 rounded-full border border-border hover:bg-card">
-          <Filter size={12} /> Cluster: {calcDestination}
-        </button>
+        <label className="flex items-center gap-2 text-xs px-3.5 py-1.5 rounded-full border border-border hover:bg-card cursor-pointer">
+          <Filter size={12} />
+          <select
+            value={clusterId}
+            onChange={(e) => handleClusterChange(e.target.value as (typeof CLUSTERS)[number]["id"])}
+            className="bg-transparent outline-none cursor-pointer"
+          >
+            {CLUSTERS.map((c) => (
+              <option key={c.id} value={c.id}>
+                Cluster: {c.label}{c.hub ? ` (via ${c.hub})` : ""}
+              </option>
+            ))}
+          </select>
+        </label>
 
         <button
           onClick={() => scrapeMutation.mutate()}
@@ -221,6 +275,7 @@ const Mandi = () => {
                     <th className="text-left px-5 py-3">Material / सामग्री</th>
                     <th className="text-left px-3 py-3">Unit</th>
                     {markets.map((m) => <th key={m} className="text-right px-3 py-3">{m}</th>)}
+                    <th className="text-right px-3 py-3">7-Day Trend</th>
                     <th className="text-right px-3 py-3">Arbitrage Savings</th>
                     <th className="text-right px-5 py-3">Supply</th>
                   </tr>
@@ -228,7 +283,7 @@ const Mandi = () => {
                 <tbody>
                   {isArbitrageLoading ? (
                     <tr>
-                      <td colSpan={9} className="text-center py-8 text-muted-foreground font-data">Loading 5-city mandi comparative matrix...</td>
+                      <td colSpan={10} className="text-center py-8 text-muted-foreground font-data">Loading 5-city mandi comparative matrix...</td>
                     </tr>
                   ) : displayRows.map((r, i) => {
                     const min = Math.min(...r.prices);
@@ -244,6 +299,9 @@ const Mandi = () => {
                             {p === min && "★ "}₹{p.toLocaleString("en-IN")}
                           </td>
                         ))}
+                        <td className="px-3 py-3.5 text-right">
+                          <Sparkline points={r.sparkline} />
+                        </td>
                         <td className="px-3 py-3.5 text-right font-data text-emerald-500 font-medium">
                           {r.arbitrage_savings}
                         </td>
@@ -358,7 +416,7 @@ const Mandi = () => {
                 >
                   <option value="Varanasi">Varanasi Cluster (Banarasi Weaving)</option>
                   <option value="Jaipur">Jaipur / Sanganer Cluster (Block Print)</option>
-                  <option value="Khurja">Khurja Cluster (Pottery & Ceramics)</option>
+                  <option value="Delhi">Khurja / Moradabad Cluster (via Delhi Hub)</option>
                   <option value="Surat">Surat Textile Hub</option>
                   <option value="Mumbai">Mumbai Craft Export Hub</option>
                 </select>

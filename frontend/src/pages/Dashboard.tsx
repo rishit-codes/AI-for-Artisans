@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Link, NavLink } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { getDashboardSummary, getProducts, getMandiPrices, advisorChatStream, getDashboardPriority } from "@/lib/api";
+import { getDashboardSummary, getProducts, getMandiPrices, advisorChatStream, getDashboardPriority, resolveImageUrl } from "@/lib/api";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
 import {
@@ -218,10 +218,10 @@ const Topbar = () => (
       <span className="hidden md:inline w-1 h-1 rounded-full bg-border-strong" />
       <span className="text-forest hidden md:inline">mandi open</span>
       <NotificationsBell />
-      <button className="w-9 h-9 rounded-lg border border-border bg-card grid place-items-center hover:border-primary/60">
+      <Link to="/settings" aria-label="Settings" className="w-9 h-9 rounded-lg border border-border bg-card grid place-items-center hover:border-primary/60">
         <Settings size={14} />
-      </button>
-      <div className="w-9 h-9 rounded-full bg-secondary text-secondary-foreground grid place-items-center font-display">र</div>
+      </Link>
+      <Link to="/profile" aria-label="Profile" className="w-9 h-9 rounded-full bg-secondary text-secondary-foreground grid place-items-center font-display hover:opacity-90">र</Link>
     </div>
   </div>
 );
@@ -309,7 +309,7 @@ const PriorityCard = () => {
 
   const title = data?.title || "Start 18 indigo dupattas before Friday";
   const hindi_title = data?.hindi_title || "शुक्रवार से पहले 18 दुपट्टे शुरू करें";
-  const image_url = data?.image_url || textileImg;
+  const image_url = resolveImageUrl(data?.image_url as string) || textileImg;
   const metrics = data?.metrics as string[] || ["+38% Diwali lift", "drying weather holds 4 days", "cotton at 90-day floor"];
 
   return (
@@ -457,7 +457,7 @@ const StockLedger = () => {
     sku: p.id ? p.id.toString().substring(0, 8).toUpperCase() : "SKU",
     name: p.name,
     hindi: p.category || "General",
-    img: p.image_url || textileImg,
+    img: resolveImageUrl(p.image_url) || textileImg,
     qty: p.stock_qty || 0,
     low: 5,
     price: p.price || 0,

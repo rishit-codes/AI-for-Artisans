@@ -37,5 +37,6 @@ class MandiPrice(Base):
     mumbai_price = Column(Float, default=0.0)
     
     delta_7d = Column(Float, default=0.0)
+    sparkline_points = Column(Text, default="")  # JSON array of 7 daily prices, oldest first
     supply_status = Column(String(20), default="stable")  # high, tight, stable
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))

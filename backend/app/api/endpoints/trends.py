@@ -29,10 +29,13 @@ _commodity_cache_v2 = {
     "mat_str": ""
 }
 
-_trends_cache_v2 = {
-    "timestamp": None,
-    "data": []
-}
+# Per-tab caches so switching tabs after first load doesn't re-pay the
+# full generation cost, and so each tab remembers its own recent titles.
+_trends_cache_v2: dict = {}   # tab_key -> {"timestamp", "data", "titles"}
+_breakout_cache: dict = {}    # tab_key -> {"timestamp", "text"}
+
+TRENDS_CACHE_TTL = timedelta(minutes=4)
+BREAKOUT_CACHE_TTL = timedelta(minutes=30)
 
 def get_mock_commodity(c):
     # Base fallback prices if Alpha Vantage API limit is reached
@@ -125,7 +128,17 @@ def _sync_get_indian_breakout_trends(tab: str) -> str:
 import asyncio
 
 async def get_indian_breakout_trends(tab: str) -> str:
-    return await asyncio.to_thread(_sync_get_indian_breakout_trends, tab)
+    """Cached wrapper — pytrends (Google Trends scraping) is the slowest and
+    most rate-limit-fragile part of this endpoint, and doesn't need to be
+    re-fetched as often as the post content itself."""
+    tab_key = tab.lower()
+    cached = _breakout_cache.get(tab_key)
+    if cached and datetime.now() - cached["timestamp"] < BREAKOUT_CACHE_TTL:
+        return cached["text"]
+
+    text = await asyncio.to_thread(_sync_get_indian_breakout_trends, tab)
+    _breakout_cache[tab_key] = {"timestamp": datetime.now(), "text": text}
+    return text
 
 async def fetch_unsplash_image(query: str) -> str:
     """Fetch a high-res image URL from Unsplash using the search query."""
@@ -153,30 +166,39 @@ async def get_trends(
 ):
     """
     Dynamically generates social media feed trends using Groq LLM based on live market conditions and Pytrends.
+    Cached per-tab for TRENDS_CACHE_TTL so repeat visits/tab-switches are fast; each fresh
+    generation is told what it posted last time so refreshing surfaces new content, not repeats.
     """
-    global _trends_cache_v2
-    
-    # 1. Check if we have valid cached data under 10 minutes old
-    if tab.lower() == "all trends" and _trends_cache_v2["data"] and _trends_cache_v2["timestamp"]:
-        if datetime.now() - _trends_cache_v2["timestamp"] < timedelta(minutes=10):
-            return _trends_cache_v2["data"]
+    tab_key = tab.lower()
+    cached = _trends_cache_v2.get(tab_key)
+
+    # 1. Serve cache if still fresh
+    if cached and datetime.now() - cached["timestamp"] < TRENDS_CACHE_TTL:
+        return cached["data"]
 
     try:
-        mat_str, _ = await fetch_live_commodities()
-        breakout_trends = await get_indian_breakout_trends(tab)
-        
+        # 2. Live commodity prices and Google Trends breakouts are independent — fetch concurrently
+        (mat_str, _), breakout_trends = await asyncio.gather(
+            fetch_live_commodities(),
+            get_indian_breakout_trends(tab),
+        )
+
         breakout_context = ""
         if breakout_trends:
             breakout_context = f"\nCRITICAL: Google Trends reports these exact queries are breaking out in India RIGHT NOW: {breakout_trends}. You MUST write posts about these specific items."
 
+        avoid_context = ""
+        if cached and cached.get("titles"):
+            avoid_context = f"\nIMPORTANT: You already posted about these topics recently — do NOT repeat them, write about something new: {', '.join(cached['titles'])}."
+
         # Ask LLM to generate trend data injected with live pricing
-        if tab.lower() == "all trends":
+        if tab_key == "all trends":
             quantity_instruction = "Generate exactly 9 realistic social media-style trend posts: 3 focused on Home Decor, 3 on Textiles, and 3 on Pottery."
         else:
             quantity_instruction = f"Generate exactly 3 realistic social media-style trend posts globally relevant to: {tab}."
 
         prompt = f"""You are an AI trend analyzer generating a realistic Instagram-style social timeline for traditional Indian artisans.
-Use this REAL-TIME market data to influence the content: {mat_str}. {breakout_context}
+Use this REAL-TIME market data to influence the content: {mat_str}. {breakout_context}{avoid_context}
 
 {quantity_instruction}
 
@@ -198,34 +220,45 @@ Each object must follow this strict schema exactly:
 
         api_key = settings.GROQ_API_KEY
         client = AsyncGroq(api_key=api_key)
-        
+
         completion = await client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[{"role": "user", "content": prompt}],
             response_format={"type": "json_object"},
-            temperature=0.8,
+            temperature=0.9,
         )
-        
+
         response_text = completion.choices[0].message.content
         data = json.loads(response_text)
         trends = data.get("trends", [])
-        
-        import asyncio
+
+        # Unique, batch-stable ids (not small 1-9 ints) so React keys and
+        # bookmarks don't collide across refreshes/batches.
+        batch_stamp = int(datetime.now().timestamp())
+        for i, t in enumerate(trends):
+            t["id"] = batch_stamp * 100 + i
+
         async def attach_image(t):
             search_query = t.get("image_search", "Indian traditional craft")
             t["image_url"] = await fetch_unsplash_image(search_query)
 
         await asyncio.gather(*(attach_image(t) for t in trends))
-            
-        # Optional validation to ensure we only cache if the LLM successfully generated array data
-        if trends and len(trends) > 0 and tab.lower() == "all trends":
-            _trends_cache_v2["data"] = trends
-            _trends_cache_v2["timestamp"] = datetime.now()
-            
+
+        # Only cache if the LLM successfully generated array data
+        if trends:
+            _trends_cache_v2[tab_key] = {
+                "timestamp": datetime.now(),
+                "data": trends,
+                "titles": [t.get("title") for t in trends if t.get("title")],
+            }
+
         return trends
-        
+
     except Exception as e:
         logger.error(f"Error generating dynamic trends via Groq: {e}")
+        # Serve stale cache rather than an empty feed if generation failed
+        if cached:
+            return cached["data"]
         return []
 
 @router.get("/intelligence")

@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import {
   BadgeCheck, Copy, Download, Loader2, MessageCircle, Package2, QrCode,
 } from "lucide-react";
-import { getPublicKarigarProfile } from "@/lib/api";
+import { getPublicKarigarProfile, resolveImageUrl } from "@/lib/api";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 
@@ -87,9 +87,17 @@ const KarigarCard = () => {
           <>
             {/* Hero */}
             <div className="relative rounded-3xl overflow-hidden border border-border bg-card p-8 sm:p-10 text-center sm:text-left sm:flex items-center gap-8">
-              <div className="w-28 h-28 mx-auto sm:mx-0 rounded-full bg-secondary text-secondary-foreground grid place-items-center font-display text-5xl uppercase shrink-0">
-                {profile.full_name.charAt(0)}
-              </div>
+              {profile.avatar_url ? (
+                <img
+                  src={resolveImageUrl(profile.avatar_url)}
+                  alt={profile.full_name}
+                  className="w-28 h-28 mx-auto sm:mx-0 rounded-full object-cover shrink-0"
+                />
+              ) : (
+                <div className="w-28 h-28 mx-auto sm:mx-0 rounded-full bg-secondary text-secondary-foreground grid place-items-center font-display text-5xl uppercase shrink-0">
+                  {profile.full_name.charAt(0)}
+                </div>
+              )}
               <div className="mt-6 sm:mt-0 flex-1 min-w-0">
                 <div className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground font-data">
                   {profile.craft_type || "Artisan"}{profile.location ? ` · ${profile.location}` : ""}
@@ -163,7 +171,7 @@ const KarigarCard = () => {
                     <div key={p.id} className="rounded-2xl border border-border bg-card overflow-hidden">
                       {p.image_url && (
                         <div className="h-40 overflow-hidden">
-                          <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" />
+                          <img src={resolveImageUrl(p.image_url)} alt={p.name} className="w-full h-full object-cover" />
                         </div>
                       )}
                       <div className="p-4">

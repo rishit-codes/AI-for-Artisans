@@ -4,38 +4,15 @@ import { toast } from "sonner";
 import {
   Download, FileText, TrendingUp, IndianRupee, Calendar,
   Package2, ShoppingBag, AlertCircle, CheckCircle2, Clock,
-  BarChart2, ArrowUpRight, ArrowDownRight, Loader2, Plus, FileSpreadsheet,
+  BarChart2, Loader2, Plus, FileSpreadsheet,
 } from "lucide-react";
 import AppShell from "@/components/site/AppShell";
-import { getGstSummary, downloadGstSummaryCsv, downloadGstSummaryPdf, getPurchaseHistory, recordPurchase, PurchaseCreatePayload } from "@/lib/api";
+import {
+  getGstSummary, downloadGstSummaryCsv, downloadGstSummaryPdf, getPurchaseHistory, recordPurchase, PurchaseCreatePayload,
+  getReportsSummary,
+} from "@/lib/api";
 
 /* ─── data ─── */
-
-const months = [
-  { m: "Dec", rev: 38, cost: 22, orders: 34 },
-  { m: "Jan", rev: 42, cost: 24, orders: 41 },
-  { m: "Feb", rev: 51, cost: 28, orders: 58 },
-  { m: "Mar", rev: 47, cost: 26, orders: 52 },
-  { m: "Apr", rev: 58, cost: 31, orders: 67 },
-  { m: "May", rev: 64, cost: 33, orders: 74 },
-];
-
-const reports = [
-  { name: "Monthly P&L · April", hindi: "मासिक लाभ-हानि", date: "01 May 2026", size: "248 KB", type: "PDF", status: "ready" },
-  { name: "GST filing helper · Q4", hindi: "जीएसटी सहायक", date: "12 Apr 2026", size: "112 KB", type: "XLSX", status: "ready" },
-  { name: "Mandi sourcing summary", hindi: "मंडी सारांश", date: "28 Apr 2026", size: "84 KB", type: "PDF", status: "ready" },
-  { name: "Festival demand forecast", hindi: "त्योहार मांग", date: "20 Apr 2026", size: "196 KB", type: "PDF", status: "ready" },
-  { name: "Stock movement · March", hindi: "स्टॉक रिपोर्ट", date: "02 Apr 2026", size: "320 KB", type: "XLSX", status: "ready" },
-  { name: "May P&L · generating…", hindi: "मई रिपोर्ट", date: "—", size: "—", type: "PDF", status: "pending" },
-];
-
-const categories = [
-  { name: "Banarasi silk", hindi: "बनारसी रेशम", revenue: 28400, cost: 14200, units: 18, trend: 12 },
-  { name: "Indigo dupattas", hindi: "नील दुपट्टा", revenue: 19600, cost: 8900, units: 14, trend: 8 },
-  { name: "Brass diya sets", hindi: "पीतल दीया", revenue: 14720, cost: 6100, units: 32, trend: -4 },
-  { name: "Terracotta planters", hindi: "मिट्टी गमला", revenue: 9600, cost: 4500, units: 30, trend: 22 },
-  { name: "Khurja bowls", hindi: "खुरजा कटोरा", revenue: 7480, cost: 3800, units: 11, trend: -2 },
-];
 
 const gstTimeline = [
   { date: "20 Mar", label: "GSTR-3B filed", status: "done" },
@@ -64,19 +41,52 @@ const getPeriodRange = (period: "this_month" | "last_month"): { from?: string; t
   };
 };
 
+// GSTR-3B is due the 20th of the month following the taxable period, for most small taxpayers.
+const nextGstDueDate = (): { label: string; daysAway: number } => {
+  const now = new Date();
+  let due = new Date(now.getFullYear(), now.getMonth(), 20);
+  if (now.getDate() > 20) due = new Date(now.getFullYear(), now.getMonth() + 1, 20);
+  const daysAway = Math.ceil((due.getTime() - now.getTime()) / 86_400_000);
+  return { label: due.toLocaleDateString("en-IN", { day: "numeric", month: "short" }), daysAway };
+};
+
 const Reports = () => {
   const [activeTab, setActiveTab] = useState<"overview" | "categories" | "gst">("overview");
   const [gstPeriod, setGstPeriod] = useState<"this_month" | "last_month">("this_month");
   const [purchaseForm, setPurchaseForm] = useState({ material_name: "", amount: "", gst_rate: "5", purchase_date: new Date().toISOString().slice(0, 10), notes: "" });
-  const max = Math.max(...months.map((m) => m.rev));
-  const totalRev = months.reduce((s, m) => s + m.rev, 0) * 1000;
-  const totalCost = months.reduce((s, m) => s + m.cost, 0) * 1000;
-  const totalProfit = totalRev - totalCost;
-  const totalOrders = months.reduce((s, m) => s + m.orders, 0);
-  const avgMargin = Math.round(((totalRev - totalCost) / totalRev) * 100);
 
   const queryClient = useQueryClient();
   const { from: periodFrom, to: periodTo, label: periodLabel } = getPeriodRange(gstPeriod);
+
+  const { data: reportsData, isLoading: isReportsLoading, refetch: refetchReports } = useQuery({
+    queryKey: ["reportsSummary"],
+    queryFn: () => getReportsSummary(6),
+  });
+
+  const monthly = reportsData?.monthly || [];
+  const totalRev = reportsData?.total_revenue || 0;
+  const totalProfit = reportsData?.total_profit || 0;
+  const totalOrders = reportsData?.total_orders || 0;
+  const totalProducts = reportsData?.total_products || 0;
+  const avgMargin = totalRev > 0 ? Math.round((totalProfit / totalRev) * 100) : 0;
+  const maxMonthlyValue = Math.max(1, ...monthly.map((m) => Math.max(m.revenue, m.cost)));
+  const gstDue = nextGstDueDate();
+
+  const handleDownloadMonthlyPnl = () => {
+    if (!monthly.length) return;
+    const headers = "Month,Revenue,Cost,Profit,Orders\n";
+    const rows = monthly.map((m) => `${m.label} ${m.month.slice(0, 4)},${m.revenue},${m.cost},${m.profit},${m.orders}`).join("\n");
+    const blob = new Blob(["﻿" + headers + rows], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Monthly-PnL-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast.success("Monthly P&L (.csv) downloaded!");
+  };
 
   const { data: gstSummary, isLoading: isGstLoading } = useQuery({
     queryKey: ["gstSummary", periodFrom, periodTo],
@@ -144,19 +154,19 @@ const Reports = () => {
       {/* KPI row */}
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         {[
-          { label: "6-mo revenue", hindi: "कुल आय", value: inr(totalRev), tone: "text-primary", icon: IndianRupee, delta: "+14%" },
-          { label: "6-mo profit", hindi: "कुल मुनाफा", value: inr(totalProfit), tone: "text-forest", icon: TrendingUp, delta: "+18%" },
-          { label: "Avg margin", hindi: "औसत मार्जिन", value: `${avgMargin}%`, tone: "text-secondary", icon: BarChart2, delta: "healthy" },
-          { label: "Total orders", hindi: "कुल आर्डर", value: String(totalOrders), tone: "text-foreground", icon: ShoppingBag, delta: "+21%" },
-          { label: "SKUs tracked", hindi: "उत्पाद", value: "42", tone: "text-foreground", icon: Package2, delta: "5 low stock" },
-          { label: "Next GST due", hindi: "जीएसटी", value: "20 May", tone: "text-accent", icon: Calendar, delta: "7 days" },
+          { label: "6-mo revenue", hindi: "कुल आय", value: inr(totalRev), tone: "text-primary", icon: IndianRupee, delta: "from your sales ledger" },
+          { label: "6-mo profit", hindi: "कुल मुनाफा", value: inr(totalProfit), tone: "text-forest", icon: TrendingUp, delta: "revenue − logged purchases" },
+          { label: "Avg margin", hindi: "औसत मार्जिन", value: `${avgMargin}%`, tone: "text-secondary", icon: BarChart2, delta: totalRev > 0 ? "healthy" : "no sales yet" },
+          { label: "Total orders", hindi: "कुल आर्डर", value: String(totalOrders), tone: "text-foreground", icon: ShoppingBag, delta: "6 months" },
+          { label: "SKUs tracked", hindi: "उत्पाद", value: String(totalProducts), tone: "text-foreground", icon: Package2, delta: "all products" },
+          { label: "Next GST due", hindi: "जीएसटी", value: gstDue.label, tone: "text-accent", icon: Calendar, delta: `${gstDue.daysAway} days` },
         ].map((k) => (
           <div key={k.label} className="rounded-2xl border border-border bg-card p-4 flex flex-col gap-1">
             <div className="flex items-center justify-between text-muted-foreground">
               <span className="text-[10px] uppercase tracking-[0.18em] font-data leading-tight">{k.label}</span>
               <k.icon size={13} />
             </div>
-            <div className={`font-display text-2xl mt-1 ${k.tone}`}>{k.value}</div>
+            <div className={`font-display text-2xl mt-1 ${k.tone}`}>{isReportsLoading && k.label !== "Next GST due" ? "…" : k.value}</div>
             <div className="text-[10px] font-hindi text-muted-foreground">{k.hindi}</div>
             <div className="text-[10px] font-data text-muted-foreground/70 mt-auto">{k.delta}</div>
           </div>
@@ -193,63 +203,77 @@ const Reports = () => {
                 <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-forest/40 border border-forest" /> Profit</span>
               </div>
             </div>
-            <div className="flex items-end justify-between gap-2 h-52">
-              {months.map((m) => (
-                <div key={m.m} className="flex-1 flex flex-col items-center gap-1.5 group">
-                  <div className="relative w-full flex items-end gap-1 h-44">
-                    <div
-                      className="flex-1 bg-primary/80 rounded-t-md hover:bg-primary transition-colors cursor-pointer"
-                      style={{ height: `${(m.rev / max) * 100}%` }}
-                      title={`Revenue: ₹${m.rev}k`}
-                    />
-                    <div
-                      className="flex-1 bg-secondary/70 rounded-t-md hover:bg-secondary transition-colors cursor-pointer"
-                      style={{ height: `${(m.cost / max) * 100}%` }}
-                      title={`Cost: ₹${m.cost}k`}
-                    />
-                    <div
-                      className="flex-1 bg-forest/30 border border-forest/40 rounded-t-md"
-                      style={{ height: `${((m.rev - m.cost) / max) * 100}%` }}
-                      title={`Profit: ₹${m.rev - m.cost}k`}
-                    />
-                  </div>
-                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-data">{m.m}</div>
-                </div>
-              ))}
-            </div>
-
-            {/* Monthly breakdown mini-table */}
-            <div className="mt-6 border-t border-border pt-4 overflow-x-auto">
-              <table className="w-full text-xs font-data">
-                <thead>
-                  <tr className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                    <th className="text-left pb-2">Month</th>
-                    <th className="text-right pb-2">Revenue</th>
-                    <th className="text-right pb-2">Cost</th>
-                    <th className="text-right pb-2">Profit</th>
-                    <th className="text-right pb-2">Margin</th>
-                    <th className="text-right pb-2">Orders</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {months.map((m, i) => {
-                    const profit = m.rev - m.cost;
-                    const margin = Math.round((profit / m.rev) * 100);
-                    const isLast = i === months.length - 1;
+            {isReportsLoading ? (
+              <div className="h-52 flex items-center justify-center text-sm text-muted-foreground gap-2">
+                <Loader2 size={14} className="animate-spin" /> Loading your sales ledger...
+              </div>
+            ) : monthly.length === 0 ? (
+              <div className="h-52 flex items-center justify-center text-sm text-muted-foreground italic">
+                No sales recorded yet — record a sale to see your revenue trend here.
+              </div>
+            ) : (
+              <>
+                <div className="flex items-end justify-between gap-2 h-52">
+                  {monthly.map((m, i) => {
+                    const isCurrent = i === monthly.length - 1;
                     return (
-                      <tr key={m.m} className={`border-t border-border/50 ${isLast ? "font-semibold text-foreground" : "text-muted-foreground"}`}>
-                        <td className="py-2">{m.m} {isLast && <span className="text-primary ml-1">← current</span>}</td>
-                        <td className="py-2 text-right">₹{m.rev}k</td>
-                        <td className="py-2 text-right">₹{m.cost}k</td>
-                        <td className="py-2 text-right text-forest">₹{profit}k</td>
-                        <td className="py-2 text-right">{margin}%</td>
-                        <td className="py-2 text-right">{m.orders}</td>
-                      </tr>
+                      <div key={m.month} className="flex-1 flex flex-col items-center gap-1.5 group">
+                        <div className="relative w-full flex items-end gap-1 h-44">
+                          <div
+                            className="flex-1 bg-primary/80 rounded-t-md hover:bg-primary transition-colors cursor-pointer"
+                            style={{ height: `${(m.revenue / maxMonthlyValue) * 100}%` }}
+                            title={`Revenue: ${inr(m.revenue)}`}
+                          />
+                          <div
+                            className="flex-1 bg-secondary/70 rounded-t-md hover:bg-secondary transition-colors cursor-pointer"
+                            style={{ height: `${(m.cost / maxMonthlyValue) * 100}%` }}
+                            title={`Cost: ${inr(m.cost)}`}
+                          />
+                          <div
+                            className="flex-1 bg-forest/30 border border-forest/40 rounded-t-md"
+                            style={{ height: `${(Math.max(0, m.profit) / maxMonthlyValue) * 100}%` }}
+                            title={`Profit: ${inr(m.profit)}`}
+                          />
+                        </div>
+                        <div className={`text-[10px] uppercase tracking-wider font-data ${isCurrent ? "text-primary font-semibold" : "text-muted-foreground"}`}>{m.label}</div>
+                      </div>
                     );
                   })}
-                </tbody>
-              </table>
-            </div>
+                </div>
+
+                {/* Monthly breakdown mini-table */}
+                <div className="mt-6 border-t border-border pt-4 overflow-x-auto">
+                  <table className="w-full text-xs font-data">
+                    <thead>
+                      <tr className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                        <th className="text-left pb-2">Month</th>
+                        <th className="text-right pb-2">Revenue</th>
+                        <th className="text-right pb-2">Cost</th>
+                        <th className="text-right pb-2">Profit</th>
+                        <th className="text-right pb-2">Margin</th>
+                        <th className="text-right pb-2">Orders</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {monthly.map((m, i) => {
+                        const margin = m.revenue > 0 ? Math.round((m.profit / m.revenue) * 100) : 0;
+                        const isLast = i === monthly.length - 1;
+                        return (
+                          <tr key={m.month} className={`border-t border-border/50 ${isLast ? "font-semibold text-foreground" : "text-muted-foreground"}`}>
+                            <td className="py-2">{m.label} {isLast && <span className="text-primary ml-1">← current</span>}</td>
+                            <td className="py-2 text-right">{inr(m.revenue)}</td>
+                            <td className="py-2 text-right">{inr(m.cost)}</td>
+                            <td className="py-2 text-right text-forest">{inr(m.profit)}</td>
+                            <td className="py-2 text-right">{m.revenue > 0 ? `${margin}%` : "—"}</td>
+                            <td className="py-2 text-right">{m.orders}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
           </div>
 
           {/* Saved reports */}
@@ -259,30 +283,35 @@ const Reports = () => {
                 <div className="font-display text-lg">Saved reports</div>
                 <div className="text-xs text-muted-foreground font-hindi">पुरानी रिपोर्ट</div>
               </div>
-              <button className="text-xs px-3 py-1.5 rounded-full bg-primary text-primary-foreground hover:opacity-90">+ Generate</button>
+              <button onClick={() => refetchReports()} className="text-xs px-3 py-1.5 rounded-full bg-primary text-primary-foreground hover:opacity-90">Refresh</button>
             </div>
             <div className="divide-y divide-border flex-1">
-              {reports.map((r) => (
-                <div key={r.name} className="px-4 py-3 flex items-center gap-3 hover:bg-background-deep/40 transition-colors">
-                  <div className={`w-9 h-9 rounded-lg grid place-items-center shrink-0 ${
-                    r.status === "pending" ? "bg-muted text-muted-foreground" : "bg-secondary/10 text-secondary"
-                  }`}>
-                    {r.status === "pending" ? <Clock size={15} /> : <FileText size={15} />}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-xs font-medium truncate">{r.name}</div>
-                    <div className="text-[10px] font-hindi text-muted-foreground">{r.hindi} · {r.date}</div>
-                  </div>
-                  <div className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-muted font-data shrink-0">{r.type}</div>
-                  {r.status === "ready" ? (
-                    <button className="p-1.5 rounded-full hover:bg-muted text-foreground shrink-0">
-                      <Download size={13} />
-                    </button>
-                  ) : (
-                    <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse mx-2" />
-                  )}
+              <div className="px-4 py-3 flex items-center gap-3 hover:bg-background-deep/40 transition-colors">
+                <div className="w-9 h-9 rounded-lg grid place-items-center shrink-0 bg-secondary/10 text-secondary">
+                  <FileText size={15} />
                 </div>
-              ))}
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-medium truncate">Monthly P&L · last 6 months</div>
+                  <div className="text-[10px] font-hindi text-muted-foreground">मासिक लाभ-हानि · वास्तविक डेटा</div>
+                </div>
+                <div className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-muted font-data shrink-0">CSV</div>
+                <button onClick={handleDownloadMonthlyPnl} disabled={!monthly.length} className="p-1.5 rounded-full hover:bg-muted text-foreground shrink-0 disabled:opacity-40">
+                  <Download size={13} />
+                </button>
+              </div>
+              <div className="px-4 py-3 flex items-center gap-3 hover:bg-background-deep/40 transition-colors">
+                <div className="w-9 h-9 rounded-lg grid place-items-center shrink-0 bg-secondary/10 text-secondary">
+                  <FileText size={15} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-medium truncate">GST summary · this month</div>
+                  <div className="text-[10px] font-hindi text-muted-foreground">जीएसटी सहायक · वास्तविक डेटा</div>
+                </div>
+                <div className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-muted font-data shrink-0">CSV</div>
+                <button onClick={handleDownloadGstCsv} className="p-1.5 rounded-full hover:bg-muted text-foreground shrink-0">
+                  <Download size={13} />
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -292,88 +321,59 @@ const Reports = () => {
         <div className="rounded-2xl border border-border bg-card overflow-hidden">
           <div className="px-5 py-4 border-b border-border flex items-baseline justify-between">
             <div>
-              <div className="font-display text-xl">Category P&L breakdown</div>
-              <div className="text-xs text-muted-foreground font-hindi mt-0.5">श्रेणी-वार लाभ-हानि — मई 2026</div>
+              <div className="font-display text-xl">Category breakdown · last 6 months</div>
+              <div className="text-xs text-muted-foreground font-hindi mt-0.5">श्रेणी-वार बिक्री — वास्तविक डेटा</div>
             </div>
-            <button className="text-xs px-3 py-1.5 rounded-full border border-border hover:bg-muted flex items-center gap-1.5">
-              <Download size={12} /> Export
-            </button>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-[10px] uppercase tracking-wider text-muted-foreground font-data border-b border-border">
-                  <th className="text-left px-5 py-3">Category</th>
-                  <th className="text-right px-3 py-3">Units sold</th>
-                  <th className="text-right px-3 py-3">Revenue</th>
-                  <th className="text-right px-3 py-3">Cost</th>
-                  <th className="text-right px-3 py-3">Gross profit</th>
-                  <th className="text-right px-3 py-3">Margin</th>
-                  <th className="text-right px-5 py-3">Trend</th>
-                </tr>
-              </thead>
-              <tbody>
-                {categories.map((c) => {
-                  const profit = c.revenue - c.cost;
-                  const margin = Math.round((profit / c.revenue) * 100);
-                  const maxRev = Math.max(...categories.map((x) => x.revenue));
-                  return (
-                    <tr key={c.name} className="border-b border-border/60 last:border-0 hover:bg-background transition-colors">
-                      <td className="px-5 py-4">
-                        <div className="font-medium">{c.name}</div>
-                        <div className="text-xs font-hindi text-muted-foreground">{c.hindi}</div>
-                        <div className="mt-2 h-1 rounded-full bg-muted overflow-hidden max-w-[120px]">
-                          <div className="h-full bg-primary/60" style={{ width: `${(c.revenue / maxRev) * 100}%` }} />
-                        </div>
-                      </td>
-                      <td className="px-3 py-4 text-right font-data">{c.units}</td>
-                      <td className="px-3 py-4 text-right font-data">{inr(c.revenue)}</td>
-                      <td className="px-3 py-4 text-right font-data text-muted-foreground">{inr(c.cost)}</td>
-                      <td className="px-3 py-4 text-right font-data text-forest font-semibold">{inr(profit)}</td>
-                      <td className="px-3 py-4 text-right font-data">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                          margin >= 50 ? "bg-forest/15 text-forest" : margin >= 40 ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"
-                        }`}>
-                          {margin}%
-                        </span>
-                      </td>
-                      <td className="px-5 py-4 text-right">
-                        <span className={`inline-flex items-center gap-0.5 text-xs font-data font-semibold ${
-                          c.trend > 0 ? "text-forest" : "text-destructive"
-                        }`}>
-                          {c.trend > 0 ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />}
-                          {Math.abs(c.trend)}%
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-              <tfoot>
-                <tr className="bg-secondary/5 border-t border-border font-semibold">
-                  <td className="px-5 py-3 text-sm">Total</td>
-                  <td className="px-3 py-3 text-right font-data text-sm">
-                    {categories.reduce((s, c) => s + c.units, 0)}
-                  </td>
-                  <td className="px-3 py-3 text-right font-data text-sm">
-                    {inr(categories.reduce((s, c) => s + c.revenue, 0))}
-                  </td>
-                  <td className="px-3 py-3 text-right font-data text-sm text-muted-foreground">
-                    {inr(categories.reduce((s, c) => s + c.cost, 0))}
-                  </td>
-                  <td className="px-3 py-3 text-right font-data text-sm text-forest">
-                    {inr(categories.reduce((s, c) => s + c.revenue - c.cost, 0))}
-                  </td>
-                  <td className="px-3 py-3 text-right font-data text-sm" colSpan={2}>
-                    {Math.round(
-                      (categories.reduce((s, c) => s + (c.revenue - c.cost), 0) /
-                        categories.reduce((s, c) => s + c.revenue, 0)) * 100
-                    )}% blended
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
+          {isReportsLoading ? (
+            <div className="py-10 flex items-center justify-center gap-2 text-sm text-muted-foreground">
+              <Loader2 size={14} className="animate-spin" /> Loading category breakdown...
+            </div>
+          ) : !reportsData || reportsData.categories.length === 0 ? (
+            <div className="py-10 text-center text-sm text-muted-foreground italic">
+              No sales recorded yet — record a sale to see category performance here.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-[10px] uppercase tracking-wider text-muted-foreground font-data border-b border-border">
+                    <th className="text-left px-5 py-3">Category</th>
+                    <th className="text-right px-3 py-3">Units sold</th>
+                    <th className="text-right px-5 py-3">Revenue</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {reportsData.categories.map((c) => {
+                    const maxRev = Math.max(...reportsData.categories.map((x) => x.revenue), 1);
+                    return (
+                      <tr key={c.category} className="border-b border-border/60 last:border-0 hover:bg-background transition-colors">
+                        <td className="px-5 py-4">
+                          <div className="font-medium">{c.category}</div>
+                          <div className="mt-2 h-1 rounded-full bg-muted overflow-hidden max-w-[160px]">
+                            <div className="h-full bg-primary/60" style={{ width: `${(c.revenue / maxRev) * 100}%` }} />
+                          </div>
+                        </td>
+                        <td className="px-3 py-4 text-right font-data">{c.units}</td>
+                        <td className="px-5 py-4 text-right font-data font-semibold">{inr(c.revenue)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="bg-secondary/5 border-t border-border font-semibold">
+                    <td className="px-5 py-3 text-sm">Total</td>
+                    <td className="px-3 py-3 text-right font-data text-sm">
+                      {reportsData.categories.reduce((s, c) => s + c.units, 0)}
+                    </td>
+                    <td className="px-5 py-3 text-right font-data text-sm">
+                      {inr(reportsData.categories.reduce((s, c) => s + c.revenue, 0))}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
@@ -559,7 +559,7 @@ const Reports = () => {
         </div>
       )}
 
-      {/* Saved reports (always visible at bottom in overview) */}
+      {/* Saved reports (always visible at bottom, outside overview which has its own panel) */}
       {activeTab !== "overview" && (
         <div className="rounded-2xl border border-border bg-card overflow-hidden">
           <div className="px-5 py-4 border-b border-border flex items-baseline justify-between">
@@ -567,30 +567,35 @@ const Reports = () => {
               <div className="font-display text-xl">Saved reports</div>
               <div className="text-xs text-muted-foreground font-hindi">पुरानी रिपोर्ट — डाउनलोड करें</div>
             </div>
-            <button className="text-xs px-3 py-1.5 rounded-full bg-primary text-primary-foreground hover:opacity-90">+ Generate new</button>
+            <button onClick={() => refetchReports()} className="text-xs px-3 py-1.5 rounded-full bg-primary text-primary-foreground hover:opacity-90">Refresh</button>
           </div>
           <div className="divide-y divide-border">
-            {reports.map((r) => (
-              <div key={r.name} className="px-5 py-4 flex items-center gap-4 hover:bg-background-deep/40 transition-colors">
-                <div className={`w-10 h-10 rounded-lg grid place-items-center ${
-                  r.status === "pending" ? "bg-muted text-muted-foreground" : "bg-secondary/10 text-secondary"
-                }`}>
-                  {r.status === "pending" ? <Clock size={16} /> : <FileText size={18} />}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium truncate">{r.name}</div>
-                  <div className="text-xs text-muted-foreground font-hindi">{r.hindi}</div>
-                </div>
-                <div className="hidden sm:block text-xs font-data text-muted-foreground">{r.date}</div>
-                <div className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-muted font-data">{r.type}</div>
-                <div className="hidden sm:block text-xs font-data text-muted-foreground w-16 text-right">{r.size}</div>
-                {r.status === "ready" ? (
-                  <button className="p-2 rounded-full hover:bg-muted text-foreground"><Download size={14} /></button>
-                ) : (
-                  <div className="w-2 h-2 rounded-full bg-primary animate-pulse mx-2" />
-                )}
+            <div className="px-5 py-4 flex items-center gap-4 hover:bg-background-deep/40 transition-colors">
+              <div className="w-10 h-10 rounded-lg grid place-items-center bg-secondary/10 text-secondary">
+                <FileText size={18} />
               </div>
-            ))}
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium truncate">Monthly P&L · last 6 months</div>
+                <div className="text-xs text-muted-foreground font-hindi">मासिक लाभ-हानि · वास्तविक डेटा</div>
+              </div>
+              <div className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-muted font-data">CSV</div>
+              <button onClick={handleDownloadMonthlyPnl} disabled={!monthly.length} className="p-2 rounded-full hover:bg-muted text-foreground disabled:opacity-40">
+                <Download size={14} />
+              </button>
+            </div>
+            <div className="px-5 py-4 flex items-center gap-4 hover:bg-background-deep/40 transition-colors">
+              <div className="w-10 h-10 rounded-lg grid place-items-center bg-secondary/10 text-secondary">
+                <FileText size={18} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium truncate">GST summary · this month</div>
+                <div className="text-xs text-muted-foreground font-hindi">जीएसटी सहायक · वास्तविक डेटा</div>
+              </div>
+              <div className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-muted font-data">CSV</div>
+              <button onClick={handleDownloadGstCsv} className="p-2 rounded-full hover:bg-muted text-foreground">
+                <Download size={14} />
+              </button>
+            </div>
           </div>
         </div>
       )}

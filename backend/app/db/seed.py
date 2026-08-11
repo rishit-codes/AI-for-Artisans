@@ -102,6 +102,48 @@ async def seed_database():
                 notes=notes,
             ))
 
+        # ── Prior months' sales & purchases (for the Reports > 6-month trend) ──
+        def months_before(d: date, n: int) -> date:
+            month_index = d.month - 1 - n
+            year = d.year + month_index // 12
+            month = month_index % 12 + 1
+            return date(year, month, min(d.day, 28))
+
+        # Modest, growing month-over-month history leading into the current month
+        history = [
+            # (months_back, [(product, qty, price, channel, day), ...], [(material, amount, gst_rate), ...])
+            (5, [("Hand-painted Pot", 4, 850.0, "Amazon Karigar", 5), ("Channapatna Toys", 6, 1250.0, "Instagram", 14)],
+                 [("Terracotta clay", 1200.0, 5.0)]),
+            (4, [("Hand-painted Pot", 5, 850.0, "Etsy", 4), ("Brass Dhokra Art", 1, 4200.0, "Amazon Karigar", 18)],
+                 [("Brass sheet", 3500.0, 12.0)]),
+            (3, [("Banarasi Silk Saree", 1, 18500.0, "WhatsApp Business", 9), ("Jaipur Blue Pottery", 2, 3400.0, "Etsy", 21)],
+                 [("Raw silk yarn", 5500.0, 5.0), ("Terracotta clay", 1400.0, 5.0)]),
+            (2, [("Pashmina Shawl", 1, 25000.0, "Etsy", 6), ("Channapatna Toys", 4, 1250.0, "Amazon Karigar", 16), ("Hand-painted Pot", 3, 850.0, "Instagram", 24)],
+                 [("Raw silk yarn", 6000.0, 5.0), ("Lacquer & wood blanks", 1800.0, 12.0)]),
+            (1, [("Banarasi Silk Saree", 1, 18500.0, "Amazon Karigar", 3), ("Brass Dhokra Art", 2, 4200.0, "Etsy", 12), ("Jaipur Blue Pottery", 3, 3400.0, "WhatsApp Business", 22)],
+                 [("Brass sheet", 5000.0, 12.0), ("Zari thread (gold)", 2800.0, 5.0)]),
+        ]
+        for months_back, month_sales, month_purchases in history:
+            for product_name, quantity, price_per_unit, channel, day in month_sales:
+                sale_date = months_before(today, months_back).replace(day=min(day, 28))
+                db.add(Sale(
+                    user_id=user.id,
+                    product_id=products_by_name[product_name].id,
+                    quantity=quantity,
+                    price_per_unit=price_per_unit,
+                    channel=channel,
+                    sale_date=sale_date,
+                ))
+            for i, (material_name, amount, gst_rate) in enumerate(month_purchases):
+                purchase_date = months_before(today, months_back).replace(day=min(5 + i * 3, 28))
+                db.add(Purchase(
+                    artisan_id=user.id,
+                    material_name=material_name,
+                    amount=amount,
+                    gst_rate=gst_rate,
+                    purchase_date=purchase_date,
+                ))
+
         # ── Materials (from Constraints.jsx) ────
         materials_data = [
             {

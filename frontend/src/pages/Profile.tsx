@@ -1,8 +1,14 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
-import { Award, MapPin, Phone, Mail, Globe, Languages, Edit3, Star, Package2, ShoppingBag, TrendingUp, ExternalLink, BadgeCheck } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { Award, MapPin, Phone, Mail, Globe, Languages, Edit3, Star, Package2, ShoppingBag, TrendingUp, ExternalLink, BadgeCheck, Camera, Loader2, Trash2, ImageOff } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
-import { updateProfile } from "@/lib/api";
+import {
+  updateProfile, uploadAvatar, uploadProductImage, resolveImageUrl,
+  getProducts, createProduct, updateProduct, deleteProduct,
+  Product, ProductWritePayload,
+} from "@/lib/api";
 import AppShell from "@/components/site/AppShell";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
@@ -30,13 +36,6 @@ const rameshMilestones = [
   { y: "2025", e: "Onboarded ArtisanGPS · went pan-India" },
 ];
 
-const rameshProducts = [
-  { name: "Indigo dupatta", hindi: "नील दुपट्टा", sku: "DUP-IND-018", price: 1450, stock: 12, img: textileImg, tag: "Bestseller", tone: "primary" },
-  { name: "Banarasi stole", hindi: "बनारसी स्टोल", sku: "TEX-BAN-007", price: 3200, stock: 0, img: textileImg, tag: "Out of stock", tone: "destructive" },
-  { name: "Brass diya set", hindi: "पीतल दीया", sku: "BRS-DIY-011", price: 920, stock: 28, img: metalImg, tag: "Listed", tone: "forest" },
-  { name: "Khurja serving bowl", hindi: "खुरजा कटोरा", sku: "POT-KHU-042", price: 680, stock: 4, img: potteryImg, tag: "Low stock", tone: "accent" },
-];
-
 const rameshOrders = [
   { id: "#A-2841", buyer: "Priya Mehta, Mumbai", item: "Indigo dupatta × 3", date: "10 May", status: "Shipped", value: 4350 },
   { id: "#A-2839", buyer: "Etsy — Germany", item: "Brass diya set × 5", date: "08 May", status: "Processing", value: 4600 },
@@ -58,6 +57,7 @@ const inr = (n: number) => `₹${n.toLocaleString("en-IN")}`;
 
 const Profile = () => {
   const { user, updateUser } = useAuth();
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<"overview" | "products" | "orders" | "channels">("overview");
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editSkills, setEditSkills] = useState("");
@@ -68,6 +68,32 @@ const Profile = () => {
   const [editCraftStory, setEditCraftStory] = useState("");
   const [editGiCertified, setEditGiCertified] = useState(false);
   const [editGiYear, setEditGiYear] = useState("");
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  const [productModal, setProductModal] = useState<{ open: boolean; product: Product | null }>({ open: false, product: null });
+
+  const { data: productsList = [] } = useQuery({
+    queryKey: ["products"],
+    queryFn: getProducts,
+  });
+
+  const handleAvatarPick = () => avatarInputRef.current?.click();
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setIsUploadingAvatar(true);
+    try {
+      const res = await uploadAvatar(file);
+      updateUser({ avatar_url: res.avatar_url });
+      toast.success("Profile photo updated!");
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to upload photo.");
+    } finally {
+      setIsUploadingAvatar(false);
+    }
+  };
 
   const isRamesh = user?.email === "ramesh@example.com";
   let parsedBio: any = {};
@@ -79,7 +105,6 @@ const Profile = () => {
   const milestonesList = (isRamesh && !user?.bio) ? rameshMilestones : (parsedBio.milestones || []);
   const channelsList = (isRamesh && !user?.bio) ? rameshChannels : (parsedBio.channels || []);
   const ordersList = isRamesh ? rameshOrders : [];
-  const productsList = isRamesh ? rameshProducts : []; // Mapped backend products omitted for MVP simplicity
   const revMay = isRamesh ? "₹64k" : "₹0";
   const rating = isRamesh ? "4.9 ★" : "New ★";
   const craftStory = parsedBio.craftStory || (isRamesh && !user?.bio
@@ -147,8 +172,33 @@ const Profile = () => {
         </div>
         <div className="absolute inset-0 bg-gradient-to-r from-card via-card/95 to-card/40" />
         <div className="relative p-8 lg:p-10 grid md:grid-cols-[180px_1fr_auto] gap-8 items-center">
-          <div className="w-36 h-36 rounded-full bg-secondary text-secondary-foreground grid place-items-center font-display text-6xl ring-4 ring-background shadow-paper uppercase">
-            {user?.full_name?.charAt(0) || "र"}
+          <div className="relative w-36 h-36 shrink-0">
+            {user?.avatar_url ? (
+              <img
+                src={resolveImageUrl(user.avatar_url as string)}
+                alt={(user?.full_name as string) || "Profile photo"}
+                className="w-36 h-36 rounded-full object-cover ring-4 ring-background shadow-paper"
+              />
+            ) : (
+              <div className="w-36 h-36 rounded-full bg-secondary text-secondary-foreground grid place-items-center font-display text-6xl ring-4 ring-background shadow-paper uppercase">
+                {user?.full_name?.charAt(0) || "र"}
+              </div>
+            )}
+            <button
+              onClick={handleAvatarPick}
+              disabled={isUploadingAvatar}
+              title="Change profile photo"
+              className="absolute bottom-1 right-1 w-10 h-10 rounded-full bg-primary text-primary-foreground grid place-items-center shadow-paper hover:opacity-90 disabled:opacity-60"
+            >
+              {isUploadingAvatar ? <Loader2 size={16} className="animate-spin" /> : <Camera size={16} />}
+            </button>
+            <input
+              ref={avatarInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="hidden"
+              onChange={handleAvatarChange}
+            />
           </div>
           <div>
             <div className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground font-data capitalize">Master Weaver · {user?.location || "Varanasi"}</div>
@@ -332,7 +382,10 @@ const Profile = () => {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="text-sm text-muted-foreground font-data">{productsList.length} products</div>
-            <button className="text-xs px-3 py-1.5 rounded-full bg-primary text-primary-foreground hover:opacity-90 flex items-center gap-1.5">
+            <button
+              onClick={() => setProductModal({ open: true, product: null })}
+              className="text-xs px-3 py-1.5 rounded-full bg-primary text-primary-foreground hover:opacity-90 flex items-center gap-1.5"
+            >
               <Package2 size={12} /> + Add product
             </button>
           </div>
@@ -342,30 +395,43 @@ const Profile = () => {
             </div>
           ) : (
             <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-5">
-              {productsList.map((p: any) => {
+              {productsList.map((p) => {
+                const tag = p.stock_qty === 0 ? "Out of stock" : p.stock_qty < 5 ? "Low stock" : p.is_listed ? "Listed" : "Unlisted";
                 const toneMap: Record<string, string> = {
-                  primary: "bg-primary/10 text-primary border-primary/20",
-                  destructive: "bg-destructive/10 text-destructive border-destructive/20",
-                  forest: "bg-forest/10 text-forest border-forest/20",
-                  accent: "bg-accent/10 text-accent border-accent/20",
+                  "Out of stock": "bg-destructive/10 text-destructive border-destructive/20",
+                  "Low stock": "bg-accent/10 text-accent border-accent/20",
+                  "Listed": "bg-forest/10 text-forest border-forest/20",
+                  "Unlisted": "bg-muted text-muted-foreground border-border",
                 };
+                const resolvedImg = resolveImageUrl(p.image_url);
                 return (
-                  <div key={p.sku} className="rounded-2xl border border-border bg-card overflow-hidden group hover:shadow-paper transition-shadow">
-                    <div className="relative h-44 overflow-hidden">
-                      <img src={p.img} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                      <span className={`absolute top-3 left-3 text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-full border font-data font-bold ${toneMap[p.tone || "primary"]}`}>
-                        {p.tag || "Listed"}
+                  <div key={p.id} className="rounded-2xl border border-border bg-card overflow-hidden group hover:shadow-paper transition-shadow">
+                    <div className="relative h-44 overflow-hidden bg-muted">
+                      {resolvedImg ? (
+                        <img src={resolvedImg} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                      ) : (
+                        <div className="w-full h-full grid place-items-center text-muted-foreground">
+                          <ImageOff size={28} />
+                        </div>
+                      )}
+                      <span className={`absolute top-3 left-3 text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-full border font-data font-bold ${toneMap[tag]}`}>
+                        {tag}
                       </span>
                     </div>
                     <div className="p-4">
                       <div className="font-display text-lg leading-tight">{p.name}</div>
-                      <div className="font-hindi text-xs text-muted-foreground">{p.hindi}</div>
+                      <div className="text-xs text-muted-foreground">{p.material || p.category}</div>
                       <div className="flex items-end justify-between mt-3">
                         <div>
                           <div className="font-data text-xl">{inr(p.price)}</div>
-                          <div className="text-[10px] text-muted-foreground font-data">{p.stock} on hand · {p.sku}</div>
+                          <div className="text-[10px] text-muted-foreground font-data">{p.stock_qty} on hand</div>
                         </div>
-                        <button className="text-xs px-3 py-1.5 rounded-full border border-border hover:bg-muted font-data">Edit</button>
+                        <button
+                          onClick={() => setProductModal({ open: true, product: p })}
+                          className="text-xs px-3 py-1.5 rounded-full border border-border hover:bg-muted font-data"
+                        >
+                          Edit
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -543,7 +609,193 @@ const Profile = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ProductModal
+        open={productModal.open}
+        product={productModal.product}
+        onClose={() => setProductModal({ open: false, product: null })}
+      />
     </AppShell>
+  );
+};
+
+/* ─── add / edit product modal ─── */
+
+const ProductModal = ({
+  open,
+  product,
+  onClose,
+}: {
+  open: boolean;
+  product: Product | null;
+  onClose: () => void;
+}) => {
+  const queryClient = useQueryClient();
+  const isEdit = !!product;
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [name, setName] = useState("");
+  const [material, setMaterial] = useState("");
+  const [category, setCategory] = useState("");
+  const [price, setPrice] = useState("");
+  const [stockQty, setStockQty] = useState("");
+  const [isListed, setIsListed] = useState(true);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    setName(product?.name || "");
+    setMaterial(product?.material || "");
+    setCategory(product?.category || "");
+    setPrice(product ? String(product.price) : "");
+    setStockQty(product ? String(product.stock_qty) : "");
+    setIsListed(product?.is_listed ?? true);
+    setImageFile(null);
+    setImagePreview(resolveImageUrl(product?.image_url) || null);
+  }, [open, product]);
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      let imageUrl = product?.image_url;
+      if (imageFile) {
+        const res = await uploadProductImage(imageFile);
+        imageUrl = res.image_url;
+      }
+      const payload: ProductWritePayload = {
+        name: name.trim(),
+        material: material.trim() || undefined,
+        category: category.trim() || undefined,
+        image_url: imageUrl,
+        price: parseFloat(price),
+        stock_qty: parseInt(stockQty || "0", 10),
+        is_listed: isListed,
+      };
+      return isEdit && product ? updateProduct(product.id, payload) : createProduct(payload);
+    },
+    onSuccess: () => {
+      toast.success(isEdit ? "Product updated!" : "Product added!");
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      onClose();
+    },
+    onError: (e: any) => toast.error(e?.message || "Failed to save product."),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: () => deleteProduct(product!.id),
+    onSuccess: () => {
+      toast.success("Product deleted.");
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      onClose();
+    },
+    onError: (e: any) => toast.error(e?.message || "Failed to delete product."),
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim() || !price || parseFloat(price) <= 0) {
+      toast.error("Enter a product name and a valid price.");
+      return;
+    }
+    saveMutation.mutate();
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-[440px]">
+        <DialogHeader>
+          <DialogTitle>{isEdit ? "Edit Product" : "Add Product"}</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="grid gap-4 py-2">
+          <div className="space-y-2">
+            <Label>Product Photo</Label>
+            <div className="flex items-center gap-3">
+              <div className="w-20 h-20 rounded-xl bg-muted overflow-hidden shrink-0 grid place-items-center">
+                {imagePreview ? (
+                  <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+                ) : (
+                  <ImageOff size={20} className="text-muted-foreground" />
+                )}
+              </div>
+              <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+                Choose photo
+              </Button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                onChange={handleFileChange}
+              />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label>Product Name</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Indigo dupatta" />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Material</Label>
+              <Input value={material} onChange={(e) => setMaterial(e.target.value)} placeholder="Hand-woven silk" />
+            </div>
+            <div className="space-y-2">
+              <Label>Category</Label>
+              <Input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="Textiles" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Price (₹)</Label>
+              <Input type="number" min="0" step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="1450" />
+            </div>
+            <div className="space-y-2">
+              <Label>Stock Quantity</Label>
+              <Input type="number" min="0" value={stockQty} onChange={(e) => setStockQty(e.target.value)} placeholder="12" />
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              id="is-listed"
+              type="checkbox"
+              checked={isListed}
+              onChange={(e) => setIsListed(e.target.checked)}
+              className="h-4 w-4 rounded border-border"
+            />
+            <Label htmlFor="is-listed" className="cursor-pointer">Listed for sale</Label>
+          </div>
+          <div className="flex justify-between items-center gap-2 pt-2">
+            {isEdit ? (
+              <Button
+                type="button"
+                variant="ghost"
+                className="text-destructive hover:text-destructive"
+                onClick={() => {
+                  if (confirm(`Delete "${product?.name}"? This can't be undone.`)) deleteMutation.mutate();
+                }}
+                disabled={deleteMutation.isPending}
+              >
+                <Trash2 size={14} className="mr-1.5" /> Delete
+              </Button>
+            ) : <span />}
+            <div className="flex gap-2">
+              <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
+              <Button type="submit" disabled={saveMutation.isPending}>
+                {saveMutation.isPending && <Loader2 size={14} className="mr-1.5 animate-spin" />}
+                {isEdit ? "Save changes" : "Add product"}
+              </Button>
+            </div>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 };
 
