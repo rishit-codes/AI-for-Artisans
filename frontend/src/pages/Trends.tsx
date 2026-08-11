@@ -221,7 +221,7 @@ const Trends = () => {
     <AppShell
       title="Trends ledger"
       hindi="रुझान · what India is buying"
-      subtitle="A social feed of demand, mandi prices and festival pull across 6 craft clusters. Refreshed every 30 minutes."
+      subtitle="A social feed of demand, mandi prices and festival pull across 6 craft clusters. Refreshed every few minutes."
     >
       <div className="flex flex-col lg:flex-row gap-8 xl:gap-14 items-start">
         {/* Feed column */}

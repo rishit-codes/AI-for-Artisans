@@ -17,6 +17,23 @@ function authHeaders(): HeadersInit {
   };
 }
 
+// For multipart/form-data uploads — no Content-Type here, the browser sets
+// its own (with the multipart boundary) when given a FormData body.
+function authHeadersMultipart(): HeadersInit {
+  const token = localStorage.getItem("token");
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+// Uploaded files are served by the backend (e.g. /uploads/products/x.jpg);
+// seeded demo images live in the frontend's own /public/images and stay
+// relative. Resolve only backend-served paths to an absolute URL.
+export function resolveImageUrl(url?: string | null): string | undefined {
+  if (!url) return undefined;
+  if (url.startsWith("http://") || url.startsWith("https://")) return url;
+  if (url.startsWith("/uploads/")) return `${BASE_URL}${url}`;
+  return url;
+}
+
 async function handleResponse<T>(res: Response): Promise<T> {
   if (res.status === 401) {
     localStorage.removeItem("token");
@@ -87,23 +104,78 @@ export async function getDashboardPriority() {
 /* ---------- products ---------- */
 
 export interface Product {
-  id: number;
+  id: string;
+  artisan_id: string;
   name: string;
-  craft_type: string;
-  materials: string;
-  base_price: number;
-  time_hours: number;
-  description: string;
-  image_url: string;
-  category: string;
+  material?: string;
+  description?: string;
+  category?: string;
+  image_url?: string;
+  price: number;
+  stock_qty: number;
+  is_listed: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProductWritePayload {
+  name: string;
+  material?: string;
+  description?: string;
+  category?: string;
+  image_url?: string;
+  price: number;
+  stock_qty: number;
+  is_listed?: boolean;
 }
 
 export async function getProducts(): Promise<Product[]> {
   return apiGet<Product[]>("/products");
 }
 
-export async function createProduct(data: Partial<Product>): Promise<Product> {
+export async function createProduct(data: ProductWritePayload): Promise<Product> {
   return apiPost<Product>("/products", data);
+}
+
+export async function updateProduct(id: string, data: Partial<ProductWritePayload>): Promise<Product> {
+  const res = await fetch(`${BASE_URL}/products/${id}`, {
+    method: "PUT",
+    headers: authHeaders(),
+    body: JSON.stringify(data),
+  });
+  return handleResponse<Product>(res);
+}
+
+export async function deleteProduct(id: string): Promise<void> {
+  const res = await fetch(`${BASE_URL}/products/${id}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  if (!res.ok && res.status !== 204) {
+    const body = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(body.detail || `HTTP ${res.status}`);
+  }
+}
+
+/* ---------- uploads ---------- */
+
+async function uploadImage(path: string, file: File): Promise<Record<string, string>> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await fetch(`${BASE_URL}${path}`, {
+    method: "POST",
+    headers: authHeadersMultipart(),
+    body: formData,
+  });
+  return handleResponse<Record<string, string>>(res);
+}
+
+export async function uploadAvatar(file: File): Promise<{ avatar_url: string }> {
+  return uploadImage("/upload/avatar", file) as Promise<{ avatar_url: string }>;
+}
+
+export async function uploadProductImage(file: File): Promise<{ image_url: string }> {
+  return uploadImage("/upload/product-image", file) as Promise<{ image_url: string }>;
 }
 
 /* ---------- trends ---------- */
@@ -146,8 +218,10 @@ export async function getMandiPrices(category: string) {
   return apiGet<Record<string, unknown>[]>(`/materials/mandi?category=${encodeURIComponent(category)}`);
 }
 
-export async function getMandiArbitrage() {
+export async function getMandiArbitrage(localCity?: string) {
+  const qs = localCity ? `?local_city=${encodeURIComponent(localCity)}` : "";
   return apiGet<{
+    local_city: string;
     markets: string[];
     rows: Array<{
       item: string;
@@ -156,6 +230,7 @@ export async function getMandiArbitrage() {
       unit: string;
       prices: number[];
       delta: number;
+      sparkline: number[];
       supply: string;
       lowest_mandi: string;
       arbitrage_savings: string;
@@ -169,7 +244,7 @@ export async function getMandiArbitrage() {
       savings: string;
       mandi: string;
     }>;
-  }>("/materials/mandi-arbitrage");
+  }>(`/materials/mandi-arbitrage${qs}`);
 }
 
 export async function getMandiScrapingLogs(limit = 50) {
@@ -335,6 +410,7 @@ export interface PublicKarigarProfile {
   full_name: string;
   craft_type?: string;
   location?: string;
+  avatar_url?: string;
   craft_story?: string;
   gi_certified: boolean;
   gi_year?: string;
@@ -411,6 +487,37 @@ export async function getGstSummary(fromDate?: string, toDate?: string): Promise
   if (fromDate) params.set("from_date", fromDate);
   if (toDate) params.set("to_date", toDate);
   return apiGet<GstSummary>(`/gst/summary${params.toString() ? `?${params}` : ""}`);
+}
+
+/* ---------- reports ---------- */
+
+export interface ReportsMonth {
+  month: string;
+  label: string;
+  revenue: number;
+  cost: number;
+  profit: number;
+  orders: number;
+}
+
+export interface ReportsCategory {
+  category: string;
+  revenue: number;
+  units: number;
+}
+
+export interface ReportsSummary {
+  monthly: ReportsMonth[];
+  categories: ReportsCategory[];
+  total_products: number;
+  total_revenue: number;
+  total_cost: number;
+  total_profit: number;
+  total_orders: number;
+}
+
+export async function getReportsSummary(months = 6): Promise<ReportsSummary> {
+  return apiGet<ReportsSummary>(`/sales/reports-summary?months=${months}`);
 }
 
 async function downloadGstFile(path: string, fromDate: string | undefined, toDate: string | undefined, defaultFilename: string, errorMessage: string) {

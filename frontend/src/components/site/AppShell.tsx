@@ -171,7 +171,7 @@ export const AppShell = ({
             {children}
             <footer className="pt-8 pb-4 text-xs text-muted-foreground font-data flex items-center justify-between border-t border-border">
               <span>ArtisanGPS · बहीखाता v0.4 · {new Date().getFullYear()}</span>
-              <Link to="/" className="hover:text-foreground">← home</Link>
+              <Link to="/dashboard" className="hover:text-foreground">← home</Link>
             </footer>
           </main>
         </div>

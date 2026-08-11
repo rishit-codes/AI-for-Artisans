@@ -3,6 +3,8 @@ import asyncio
 import time
 import uuid
 import random
+import hashlib
+import json
 import httpx
 from bs4 import BeautifulSoup
 from datetime import datetime, timezone
@@ -14,6 +16,24 @@ from app.models.mandi_log import MandiScrapingLog, MandiPrice
 from app.models.material import Material
 
 logger = logging.getLogger(__name__)
+
+def generate_sparkline_series(current_price: float, delta_7d_pct: float, seed_key: str, points: int = 7) -> str:
+    """
+    Deterministic (seeded by commodity name) 7-point price trend ending exactly at
+    `current_price`, drifting from a starting price implied by `delta_7d_pct`. Stable
+    across repeated reads instead of being random on every request.
+    """
+    rng = random.Random(int(hashlib.md5(seed_key.encode()).hexdigest(), 16) % (2 ** 32))
+    start_price = current_price / (1 + delta_7d_pct / 100) if delta_7d_pct != -100 else current_price
+
+    values = []
+    for i in range(points):
+        t = i / (points - 1)
+        trend_price = start_price + (current_price - start_price) * t
+        jitter = trend_price * rng.uniform(-0.012, 0.012)
+        values.append(round(trend_price + jitter, 2))
+    values[-1] = round(current_price, 2)
+    return json.dumps(values)
 
 MANDI_URLS = {
     "Varanasi": "https://agmarknet.gov.in/SearchCListFinal.aspx?Tx_Mandi=Varanasi",
@@ -201,6 +221,7 @@ async def fetch_mandi_prices_async(db: AsyncSession) -> Dict[str, Any]:
         mandi_rec = res.scalar_one_or_none()
         
         if not mandi_rec:
+            delta_7d = round(random.uniform(-4.5, 3.5), 1)
             mandi_rec = MandiPrice(
                 commodity_name=item_name,
                 hindi_name=comm["hindi"],
@@ -211,7 +232,8 @@ async def fetch_mandi_prices_async(db: AsyncSession) -> Dict[str, Any]:
                 delhi_price=city_prices["Delhi"],
                 jaipur_price=city_prices["Jaipur"],
                 mumbai_price=city_prices["Mumbai"],
-                delta_7d=round(random.uniform(-4.5, 3.5), 1),
+                delta_7d=delta_7d,
+                sparkline_points=generate_sparkline_series(city_prices["Varanasi"], delta_7d, item_name),
                 supply_status=comm["supply"],
                 updated_at=now_utc
             )

@@ -1,6 +1,8 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Bell, Globe, Lock, Palette, CreditCard, Smartphone, Languages, LogOut, Check } from "lucide-react";
 import AppShell from "@/components/site/AppShell";
+import { useAuth } from "@/hooks/use-auth";
 
 const sections = [
   { id: "account", label: "Account", hindi: "खाता", icon: Lock },
@@ -41,6 +43,8 @@ const channels = [
 ];
 
 const Settings = () => {
+  const navigate = useNavigate();
+  const { logout } = useAuth();
   const [active, setActive] = useState("account");
   const [notif, setNotif] = useState({ orders: true, mandi: true, festival: true, weekly: false, marketing: false });
   const [theme, setTheme] = useState("paper");
@@ -88,7 +92,12 @@ const Settings = () => {
                 ))}
               </div>
               <div className="mt-6 pt-6 border-t border-border flex items-center justify-between">
-                <button className="text-xs text-destructive flex items-center gap-2 hover:underline"><LogOut size={12} /> Sign out of all devices</button>
+                <button
+                  onClick={() => { logout(); navigate("/login"); }}
+                  className="text-xs text-destructive flex items-center gap-2 hover:underline"
+                >
+                  <LogOut size={12} /> Sign out of all devices
+                </button>
                 <button className="text-sm px-5 py-2.5 rounded-full bg-primary text-primary-foreground">Save changes</button>
               </div>
             </div>
