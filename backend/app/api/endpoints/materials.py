@@ -1,5 +1,6 @@
 import csv
 import io
+import json
 import logging
 from typing import List, Optional
 from datetime import datetime, timezone
@@ -53,39 +54,68 @@ async def get_mandi(
     comparison = await get_mandi_comparison(db, category)
     return comparison
 
+CITY_HINDI_NAMES = {
+    "Varanasi": "वाराणसी",
+    "Surat": "सूरत",
+    "Delhi": "दिल्ली",
+    "Jaipur": "जयपुर",
+    "Mumbai": "मुंबई",
+}
+ALL_CITIES = ["Varanasi", "Surat", "Delhi", "Jaipur", "Mumbai"]
+
 @router.get("/mandi-arbitrage")
-async def get_mandi_arbitrage(db: AsyncSession = Depends(get_db)):
+async def get_mandi_arbitrage(
+    local_city: str = Query("Varanasi", description="Artisan cluster's home mandi city — drives which column is 'Local'"),
+    db: AsyncSession = Depends(get_db)
+):
     """
-    Get 5-city cross-mandi comparative price sheet, arbitrage savings, and supplier recommendations.
+    Get 5-city cross-mandi comparative price sheet, arbitrage savings, and supplier recommendations,
+    reordered and recalculated relative to `local_city` (the artisan's selected cluster).
     """
+    if local_city not in ALL_CITIES:
+        local_city = "Varanasi"
+
     res = await db.execute(select(MandiPrice).order_by(MandiPrice.id))
     mandi_records = res.scalars().all()
-    
+
     if not mandi_records:
         await fetch_mandi_prices_async(db)
         res = await db.execute(select(MandiPrice).order_by(MandiPrice.id))
         mandi_records = res.scalars().all()
 
-    cities = ["Local · वाराणसी", "Surat", "Delhi", "Jaipur", "Mumbai"]
-    city_names = ["Varanasi", "Surat", "Delhi", "Jaipur", "Mumbai"]
-    
+    # Local city always shown first; the rest keep their usual order.
+    city_order = [local_city] + [c for c in ALL_CITIES if c != local_city]
+    cities = [f"Local · {CITY_HINDI_NAMES[local_city]}"] + city_order[1:]
+
     rows = []
     suppliers = []
 
     for r in mandi_records:
-        prices = [
-            r.varanasi_price,
-            r.surat_price,
-            r.delhi_price,
-            r.jaipur_price,
-            r.mumbai_price
-        ]
-        
-        min_price = min(prices)
-        min_index = prices.index(min_price)
-        lowest_city = city_names[min_index]
-        savings = round(r.varanasi_price - min_price, 2)
-        
+        city_price_map = {
+            "Varanasi": r.varanasi_price,
+            "Surat": r.surat_price,
+            "Delhi": r.delhi_price,
+            "Jaipur": r.jaipur_price,
+            "Mumbai": r.mumbai_price,
+        }
+        prices = [city_price_map[c] for c in city_order]
+        local_price = prices[0]
+
+        other_prices = prices[1:]
+        min_price = min(other_prices) if other_prices else local_price
+        if min_price < local_price:
+            min_index = other_prices.index(min_price) + 1
+            lowest_city = city_order[min_index]
+        else:
+            min_price = local_price
+            lowest_city = local_city
+        savings = round(local_price - min_price, 2)
+
+        try:
+            sparkline = json.loads(r.sparkline_points) if r.sparkline_points else []
+        except (json.JSONDecodeError, TypeError):
+            sparkline = []
+
         rows.append({
             "item": r.commodity_name,
             "hindi": r.hindi_name,
@@ -93,6 +123,7 @@ async def get_mandi_arbitrage(db: AsyncSession = Depends(get_db)):
             "unit": r.unit,
             "prices": prices,
             "delta": r.delta_7d,
+            "sparkline": sparkline,
             "supply": r.supply_status,
             "lowest_mandi": lowest_city,
             "arbitrage_savings": f"₹{int(savings)}{r.unit}" if savings > 0 else "Best Local Rate",
@@ -105,11 +136,12 @@ async def get_mandi_arbitrage(db: AsyncSession = Depends(get_db)):
                 "item": r.commodity_name,
                 "lead": FREIGHT_RULES.get(lowest_city, {}).get("lead_days", "2-3 days"),
                 "trust": 4.8,
-                "savings": f"Save ₹{int(savings)}{r.unit} (-{round((savings / r.varanasi_price) * 100, 1)}%)",
+                "savings": f"Save ₹{int(savings)}{r.unit} (-{round((savings / local_price) * 100, 1)}%)",
                 "mandi": lowest_city
             })
 
     return {
+        "local_city": local_city,
         "markets": cities,
         "rows": rows,
         "suppliers": suppliers[:4]

@@ -46,6 +46,10 @@ backend/alembic/__pycache__/
 *.sqlite3
 pgdata/
 
+# ── User-uploaded content ───────────────────────────────────────────────
+backend/uploads/*
+!backend/uploads/.gitkeep
+
 # ── Docker ────────────────────────────────────────────────────────────
 docker-compose.override.yml
 

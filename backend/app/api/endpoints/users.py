@@ -48,6 +48,7 @@ async def read_user_public(
         full_name=user.full_name,
         craft_type=user.craft_type,
         location=user.location,
+        avatar_url=user.avatar_url,
         craft_story=bio_data.get("craftStory"),
         gi_certified=bool(bio_data.get("giCertified", False)),
         gi_year=bio_data.get("giYear"),
