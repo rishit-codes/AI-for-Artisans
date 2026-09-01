@@ -6,9 +6,13 @@ from .config import settings
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=12)
 
-def create_access_token(subject: str | int) -> str:
+def create_access_token(subject: str | int, token_version: int = 0) -> str:
+    # `tv` is checked against User.token_version on every request. Bumping the
+    # column (e.g. on "sign out of all devices") makes every previously-issued
+    # token for that user fail validation immediately, without needing a
+    # per-token blocklist — this JWT setup has no jti/session table to revoke by.
     expire = datetime.now(timezone.utc) + timedelta(days=settings.JWT_EXPIRE_DAYS)
-    to_encode = {"exp": expire, "iat": datetime.now(timezone.utc), "sub": str(subject)}
+    to_encode = {"exp": expire, "iat": datetime.now(timezone.utc), "sub": str(subject), "tv": token_version}
     encoded_jwt = jwt.encode(to_encode, settings.JWT_SECRET_KEY, algorithm="HS256")
     return encoded_jwt
 

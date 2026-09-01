@@ -2,11 +2,13 @@ import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Award, MapPin, Phone, Mail, Globe, Languages, Edit3, Star, Package2, ShoppingBag, TrendingUp, ExternalLink, BadgeCheck, Camera, Loader2, Trash2, ImageOff } from "lucide-react";
+import { Award, MapPin, Phone, Mail, Globe, Languages, Edit3, Star, Package2, ShoppingBag, TrendingUp, ExternalLink, BadgeCheck, Camera, Loader2, Trash2, ImageOff, Sparkles, ArrowUpCircle } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import {
   updateProfile, uploadAvatar, uploadProductImage, resolveImageUrl,
   getProducts, createProduct, updateProduct, deleteProduct,
+  getSeasonalPredictions, triggerModelUpgrade, getReportsSummary,
+  getOrders,
   Product, ProductWritePayload,
 } from "@/lib/api";
 import AppShell from "@/components/site/AppShell";
@@ -19,36 +21,40 @@ import textileImg from "@/assets/craft-textile.jpg";
 import potteryImg from "@/assets/craft-pottery.jpg";
 import metalImg from "@/assets/craft-metal.jpg";
 
+interface BioSkill {
+  name: string;
+  level: number;
+}
+
+interface BioMilestone {
+  y: string;
+  e: string;
+}
+
+interface ParsedBio {
+  skills?: BioSkill[];
+  milestones?: BioMilestone[];
+  phone?: string;
+  pincode?: string;
+  languages?: string;
+  craftStory?: string;
+  giCertified?: boolean;
+  giYear?: string;
+  workshopName?: string;
+  gstin?: string;
+}
+
 /* ─── data ─── */
 
-const rameshSkills = [
-  { name: "Banarasi handloom", level: 92 },
-  { name: "Natural dyeing", level: 78 },
-  { name: "Zari work", level: 85 },
-  { name: "Block printing", level: 64 },
-];
-
-const rameshMilestones = [
-  { y: "1998", e: "Started weaving under guru Shyam Lal ji" },
-  { y: "2007", e: "First independent loom · Lallapura" },
-  { y: "2014", e: "GI tag certification for Banarasi silk" },
-  { y: "2021", e: "Joined Karigar Karyashala collective" },
-  { y: "2025", e: "Onboarded ArtisanGPS · went pan-India" },
-];
-
-const rameshOrders = [
-  { id: "#A-2841", buyer: "Priya Mehta, Mumbai", item: "Indigo dupatta × 3", date: "10 May", status: "Shipped", value: 4350 },
-  { id: "#A-2839", buyer: "Etsy — Germany", item: "Brass diya set × 5", date: "08 May", status: "Processing", value: 4600 },
-  { id: "#A-2836", buyer: "Ananya Stores, Delhi", item: "Banarasi stole × 2", date: "06 May", status: "Delivered", value: 6400 },
-  { id: "#A-2831", buyer: "FabIndia Wholesale", item: "Block-print cotton × 12", date: "02 May", status: "Delivered", value: 14400 },
-  { id: "#A-2828", buyer: "Ritu Bhatia, Bangalore", item: "Zari dupatta × 1", date: "29 Apr", status: "Delivered", value: 1850 },
-];
-
-const rameshChannels = [
-  { name: "Etsy", handle: "ramesh-prajapati.etsy.com", sales: "₹28.4k / mo", connected: true },
-  { name: "Amazon Karigar", handle: "Seller ID A2X8…", sales: "₹19.1k / mo", connected: true },
-  { name: "Instagram", handle: "@ramesh.weaves", sales: "₹6.2k / mo", connected: true },
-  { name: "WhatsApp Business", handle: "+91 98765 43210", sales: "₹11.5k / mo", connected: true },
+// Selling-channel integrations (Etsy, Amazon Karigar, Instagram, WhatsApp
+// Business) aren't wired to anything on the backend — there's no OAuth/API
+// connection for any of them yet. Shown as available-but-not-connected,
+// same honesty pattern as the Settings page's channel list.
+const SELLABLE_CHANNELS = [
+  { name: "Etsy", handle: "Not connected" },
+  { name: "Amazon Karigar", handle: "Not connected" },
+  { name: "Instagram", handle: "Not connected" },
+  { name: "WhatsApp Business", handle: "Not connected" },
 ];
 
 const inr = (n: number) => `₹${n.toLocaleString("en-IN")}`;
@@ -88,40 +94,50 @@ const Profile = () => {
       const res = await uploadAvatar(file);
       updateUser({ avatar_url: res.avatar_url });
       toast.success("Profile photo updated!");
-    } catch (err: any) {
-      toast.error(err?.message || "Failed to upload photo.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to upload photo.");
     } finally {
       setIsUploadingAvatar(false);
     }
   };
 
-  const isRamesh = user?.email === "ramesh@example.com";
-  let parsedBio: any = {};
+  let parsedBio: ParsedBio = {};
   try {
     parsedBio = user?.bio ? JSON.parse(user?.bio as string) : {};
-  } catch { }
+  } catch { /* malformed bio JSON — fall back to empty profile fields */ }
 
-  const skillsList = (isRamesh && !user?.bio) ? rameshSkills : (parsedBio.skills || []);
-  const milestonesList = (isRamesh && !user?.bio) ? rameshMilestones : (parsedBio.milestones || []);
-  const channelsList = (isRamesh && !user?.bio) ? rameshChannels : (parsedBio.channels || []);
-  const ordersList = isRamesh ? rameshOrders : [];
-  const revMay = isRamesh ? "₹64k" : "₹0";
-  const rating = isRamesh ? "4.9 ★" : "New ★";
-  const craftStory = parsedBio.craftStory || (isRamesh && !user?.bio
-    ? "I am a third-generation master weaver based in the heart of Jaipur, Rajasthan. My family has been dedicated to the intricate art of Banarasi silk weaving for over seven decades."
-    : "");
-  const giCertified: boolean = parsedBio.giCertified ?? (isRamesh && !user?.bio);
-  const giYear = parsedBio.giYear || (isRamesh && !user?.bio ? "2014" : "");
+  const skillsList = parsedBio.skills || [];
+  const milestonesList = parsedBio.milestones || [];
+
+  const { data: ordersList = [] } = useQuery({
+    queryKey: ["orders"],
+    queryFn: getOrders,
+  });
+
+  // Revenue/profit here come from the real sales ledger — same endpoint Reports
+  // uses — instead of a number hardcoded to one demo account.
+  const { data: reportsSummary } = useQuery({
+    queryKey: ["reportsSummary", "profile-stats"],
+    queryFn: () => getReportsSummary(1),
+  });
+  const thisMonth = reportsSummary?.monthly?.[reportsSummary.monthly.length - 1];
+  const inr = (n: number) => `₹${n >= 1000 ? `${(n / 1000).toFixed(1)}k` : n.toFixed(0)}`;
+  const revenueThisMonth = thisMonth ? inr(thisMonth.revenue) : "₹0";
+  const profitThisMonth = thisMonth ? inr(thisMonth.profit) : "₹0";
+
+  const craftStory = parsedBio.craftStory || "";
+  const giCertified: boolean = parsedBio.giCertified ?? false;
+  const giYear = parsedBio.giYear || "";
 
   const statusTone = (s: string) =>
-    s === "Delivered" ? "text-forest bg-forest/10" : s === "Shipped" ? "text-secondary bg-secondary/10" : "text-primary bg-primary/10";
+    s === "fulfilled" ? "text-forest bg-forest/10" : s === "cancelled" ? "text-destructive bg-destructive/10" : "text-primary bg-primary/10";
 
   const handleEditOpen = () => {
-    setEditSkills(skillsList.map((s: any) => `${s.name},${s.level}`).join("\n"));
-    setEditMilestones(milestonesList.map((m: any) => `${m.y},${m.e}`).join("\n"));
-    setEditPhone(parsedBio.phone || (isRamesh && !user?.bio ? "+91 98765 43210" : ""));
-    setEditPincode(parsedBio.pincode || (isRamesh && !user?.bio ? "UP 221002" : ""));
-    setEditLanguages(parsedBio.languages || (isRamesh && !user?.bio ? "Hindi · Bhojpuri · little English" : ""));
+    setEditSkills(skillsList.map((s) => `${s.name},${s.level}`).join("\n"));
+    setEditMilestones(milestonesList.map((m) => `${m.y},${m.e}`).join("\n"));
+    setEditPhone(parsedBio.phone || "");
+    setEditPincode(parsedBio.pincode || "");
+    setEditLanguages(parsedBio.languages || "");
     setEditCraftStory(craftStory);
     setEditGiCertified(giCertified);
     setEditGiYear(giYear);
@@ -139,9 +155,9 @@ const Profile = () => {
     });
 
     const newBio = JSON.stringify({
+      ...parsedBio,
       skills: newSkills,
       milestones: newMilestones,
-      channels: channelsList,
       phone: editPhone.trim(),
       pincode: editPincode.trim(),
       languages: editLanguages.trim(),
@@ -151,7 +167,7 @@ const Profile = () => {
     });
 
     try {
-      const res = await updateProfile({ bio: newBio });
+      await updateProfile({ bio: newBio });
       updateUser({ bio: newBio });
       setIsEditModalOpen(false);
     } catch (err) {
@@ -201,16 +217,16 @@ const Profile = () => {
             />
           </div>
           <div>
-            <div className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground font-data capitalize">Master Weaver · {user?.location || "Varanasi"}</div>
-            <h2 className="font-display text-4xl lg:text-5xl mt-1 capitalize">{user?.full_name || "Ramesh Prajapati"}</h2>
-            <div className="font-hindi text-xl text-muted-foreground mt-1 capitalize">{user?.full_name || "रमेश प्रजापति"} · {user?.location || "वाराणसी"}</div>
+            <div className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground font-data capitalize">{(user?.craft_type as string) || "Artisan"} · {(user?.location as string) || "Varanasi"}</div>
+            <h2 className="font-display text-4xl lg:text-5xl mt-1 capitalize">{(user?.full_name as string) || "Ramesh Prajapati"}</h2>
+            <div className="font-hindi text-xl text-muted-foreground mt-1 capitalize">{(user?.full_name as string) || "रमेश प्रजापति"} · {(user?.location as string) || "वाराणसी"}</div>
             <div className="flex flex-wrap gap-2 mt-4">
               {giCertified && (
                 <span className="text-[11px] uppercase tracking-wider font-data px-3 py-1 rounded-full bg-forest/10 text-forest border border-forest/30 inline-flex items-center gap-1.5">
                   <BadgeCheck size={12} /> GI Certified{giYear ? ` · ${giYear}` : ""}
                 </span>
               )}
-              {[user?.craft_type || "Banarasi silk", "Natural dye", "27 yrs"].map((t) => (
+              {[user?.craft_type as string | undefined, parsedBio.languages].filter(Boolean).map((t) => (
                 <span key={t} className="text-[11px] uppercase tracking-wider font-data px-3 py-1 rounded-full bg-background border border-border">{t}</span>
               ))}
             </div>
@@ -236,10 +252,10 @@ const Profile = () => {
       {/* Quick stats bar */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
-          { label: "Avg rating", hindi: "रेटिंग", value: rating, tone: "text-primary" },
+          { label: "Profit · this month", hindi: "मुनाफा", value: profitThisMonth, tone: "text-primary" },
           { label: "Active orders", hindi: "आर्डर", value: ordersList.length.toString(), tone: "text-secondary" },
           { label: "Listed products", hindi: "उत्पाद", value: productsList.length.toString(), tone: "text-forest" },
-          { label: "Revenue · May", hindi: "आय", value: revMay, tone: "text-foreground" },
+          { label: "Revenue · this month", hindi: "आय", value: revenueThisMonth, tone: "text-foreground" },
         ].map((s) => (
           <div key={s.label} className="rounded-2xl border border-border bg-card p-4">
             <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-data">{s.label}</div>
@@ -271,11 +287,11 @@ const Profile = () => {
               <div className="font-display text-lg mb-4">Contact</div>
               <div className="space-y-3 text-sm">
                 {[
-                  { i: MapPin, t: `${user?.location || "Lallapura, Varanasi"}${parsedBio.pincode || (isRamesh && !user?.bio ? " · UP 221002" : "") ? ` · ${parsedBio.pincode || (isRamesh && !user?.bio ? "UP 221002" : "")}` : ""}` },
-                  { i: Phone, t: parsedBio.phone || (isRamesh && !user?.bio ? "+91 98765 43210" : "Add phone number") },
-                  { i: Mail, t: user?.email || "ramesh@artisangps.in" },
-                  { i: Globe, t: `artisangps.in/${user?.full_name?.split(' ')[0].toLowerCase() || "r-prajapati"}` },
-                  { i: Languages, t: parsedBio.languages || (isRamesh && !user?.bio ? "Hindi · Bhojpuri · little English" : "Add languages") },
+                  { i: MapPin, t: `${user?.location || "Add location"}${parsedBio.pincode ? ` · ${parsedBio.pincode}` : ""}` },
+                  { i: Phone, t: parsedBio.phone || "Add phone number" },
+                  { i: Mail, t: user?.email || "" },
+                  { i: Globe, t: `artisangps.in/${(user?.full_name as string)?.split(' ')[0]?.toLowerCase() || "your-name"}` },
+                  { i: Languages, t: parsedBio.languages || "Add languages" },
                 ].map((c) => (
                   <div key={c.t} className="flex items-center gap-3 text-foreground/85">
                     <c.i size={14} className="text-muted-foreground shrink-0" /> {c.t}
@@ -290,7 +306,7 @@ const Profile = () => {
                 <div className="text-sm text-muted-foreground italic">No skills added yet.</div>
               ) : (
                 <div className="space-y-4">
-                  {skillsList.map((s: any) => (
+                  {skillsList.map((s) => (
                     <div key={s.name}>
                       <div className="flex justify-between text-sm mb-1.5">
                         <span>{s.name}</span>
@@ -330,7 +346,7 @@ const Profile = () => {
               ) : (
                 <div className="relative pl-6">
                   <div className="absolute left-1.5 top-1 bottom-1 w-px bg-border" />
-                  {milestonesList.map((m: any, i: number) => (
+                  {milestonesList.map((m, i) => (
                     <div key={m.y} className="relative pb-5 last:pb-0">
                       <div className={`absolute -left-[18px] top-1 w-3 h-3 rounded-full ring-4 ring-card ${i === milestonesList.length - 1 ? "bg-primary" : "bg-secondary"}`} />
                       <div className="font-data text-xs text-muted-foreground">{m.y}</div>
@@ -347,31 +363,24 @@ const Profile = () => {
                   <Award size={14} />
                   <span className="text-[10px] uppercase tracking-[0.2em] font-data">Certifications</span>
                 </div>
-                <ul className="space-y-2 text-sm">
-                  <li>· GI tag — Banarasi silk (2014)</li>
-                  <li>· Handloom Mark · Govt. of India</li>
-                  <li>· Cluster lead · Karigar Karyashala</li>
-                  <li>· Fair-trade verified · 2023</li>
-                </ul>
+                {giCertified ? (
+                  <ul className="space-y-2 text-sm">
+                    <li>· GI tag{giYear ? ` — certified ${giYear}` : " — certified"}</li>
+                  </ul>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    No certifications on file yet. Add a GI certification year from "Edit profile" if you have one.
+                  </p>
+                )}
               </div>
               <div className="rounded-2xl border border-border bg-card p-6">
                 <div className="flex items-center justify-between text-muted-foreground mb-3">
                   <span className="text-[10px] uppercase tracking-[0.2em] font-data">Buyer rating</span>
                   <Star size={14} />
                 </div>
-                <div className="font-display text-5xl">4.9</div>
-                <div className="text-xs text-muted-foreground font-data mt-1">across 184 verified reviews</div>
-                <div className="mt-4 space-y-1.5">
-                  {[5, 4, 3].map((r, i) => (
-                    <div key={r} className="flex items-center gap-2 text-xs font-data">
-                      <span className="w-3 text-muted-foreground">{r}</span>
-                      <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-                        <div className="h-full bg-primary" style={{ width: `${[88, 9, 3][i]}%` }} />
-                      </div>
-                      <span className="w-8 text-right text-muted-foreground">{[88, 9, 3][i]}%</span>
-                    </div>
-                  ))}
-                </div>
+                <p className="text-xs text-muted-foreground">
+                  No review system is built yet — this card doesn't collect or display buyer ratings.
+                </p>
               </div>
             </div>
           </div>
@@ -458,54 +467,57 @@ const Profile = () => {
             <div className="p-8 text-center text-muted-foreground italic">No orders yet.</div>
           ) : (
             <div className="divide-y divide-border">
-              {ordersList.map((o: any) => (
-                <div key={o.id} className="px-5 py-4 flex items-center gap-4 hover:bg-background transition-colors">
-                  <div className="w-10 h-10 rounded-lg bg-secondary/10 text-secondary grid place-items-center font-data text-xs shrink-0">
-                    {o.id.slice(1, 3)}
+              {ordersList.map((o) => {
+                const product = productsList.find((p) => p.id === o.product_id);
+                return (
+                  <div key={o.id} className="px-5 py-4 flex items-center gap-4 hover:bg-background transition-colors">
+                    <div className="w-10 h-10 rounded-lg bg-secondary/10 text-secondary grid place-items-center font-data text-xs shrink-0">
+                      {o.id.slice(0, 2).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium truncate">{product ? `${product.name} × ${o.quantity}` : `Order × ${o.quantity}`}</div>
+                    </div>
+                    <div className="hidden sm:block text-xs font-data text-muted-foreground">
+                      {o.created_at ? new Date(o.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "—"}
+                    </div>
+                    <span className={`text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-full font-data font-bold ${statusTone(o.status)}`}>
+                      {o.status}
+                    </span>
+                    <div className="text-right">
+                      <div className="font-data text-sm font-semibold">{inr(Number(o.total_price))}</div>
+                      <div className="text-[10px] text-muted-foreground font-data">#{o.id.slice(0, 8)}</div>
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium truncate">{o.item}</div>
-                    <div className="text-xs text-muted-foreground">{o.buyer}</div>
-                  </div>
-                  <div className="hidden sm:block text-xs font-data text-muted-foreground">{o.date}</div>
-                  <span className={`text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-full font-data font-bold ${statusTone(o.status)}`}>
-                    {o.status}
-                  </span>
-                  <div className="text-right">
-                    <div className="font-data text-sm font-semibold">{inr(o.value)}</div>
-                    <div className="text-[10px] text-muted-foreground font-data">{o.id}</div>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
           <div className="px-5 py-3 border-t border-border flex items-center justify-between text-xs font-data text-muted-foreground">
-            <span>Total shown: {inr(ordersList.reduce((s: number, o: any) => s + o.value, 0))}</span>
-            <button className="hover:text-foreground underline">View full order history →</button>
+            <span>Total shown: {inr(ordersList.reduce((s, o) => s + Number(o.total_price), 0))}</span>
           </div>
         </div>
       )}
 
       {activeTab === "channels" && (
         <div className="grid sm:grid-cols-2 gap-5">
-          {channelsList.map((c: any) => (
+          {SELLABLE_CHANNELS.map((c) => (
             <div key={c.name} className="rounded-2xl border border-border bg-card p-6 hover:shadow-paper transition-shadow">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <div className="font-display text-xl">{c.name}</div>
                   <div className="text-xs text-muted-foreground font-data mt-1">{c.handle}</div>
                 </div>
-                <span className="text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-full bg-forest/10 text-forest font-data font-bold shrink-0">
-                  Connected
+                <span className="text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-full bg-muted text-muted-foreground font-data font-bold shrink-0">
+                  Not connected
                 </span>
               </div>
               <div className="mt-5 flex items-end justify-between">
-                <div>
-                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-data">Revenue this month</div>
-                  <div className="font-data text-2xl mt-1 text-forest">{c.sales}</div>
-                </div>
-                <button className="text-xs px-3 py-1.5 rounded-full border border-border hover:bg-muted flex items-center gap-1.5">
-                  <TrendingUp size={11} /> View analytics
+                <div className="text-xs text-muted-foreground">No integration is built for this channel yet.</div>
+                <button
+                  onClick={() => toast.info(`${c.name} integration isn't available yet.`)}
+                  className="text-xs px-3 py-1.5 rounded-full border border-border hover:bg-muted flex items-center gap-1.5"
+                >
+                  <TrendingUp size={11} /> Connect
                 </button>
               </div>
             </div>
@@ -515,8 +527,13 @@ const Profile = () => {
               <ExternalLink size={18} />
             </div>
             <div className="font-display text-lg">Add a channel</div>
-            <div className="text-xs text-muted-foreground">Connect Flipkart Samarth, Shopify, or a custom storefront.</div>
-            <button className="text-xs px-4 py-2 rounded-full bg-primary text-primary-foreground hover:opacity-90">+ Connect</button>
+            <div className="text-xs text-muted-foreground">Flipkart Samarth, Shopify, and custom storefronts aren't supported yet.</div>
+            <button
+              onClick={() => toast.info("Adding new sales channels isn't available yet.")}
+              className="text-xs px-4 py-2 rounded-full bg-primary text-primary-foreground hover:opacity-90"
+            >
+              + Connect
+            </button>
           </div>
         </div>
       )}
@@ -678,7 +695,7 @@ const ProductModal = ({
       queryClient.invalidateQueries({ queryKey: ["products"] });
       onClose();
     },
-    onError: (e: any) => toast.error(e?.message || "Failed to save product."),
+    onError: (e: Error) => toast.error(e.message || "Failed to save product."),
   });
 
   const deleteMutation = useMutation({
@@ -688,7 +705,7 @@ const ProductModal = ({
       queryClient.invalidateQueries({ queryKey: ["products"] });
       onClose();
     },
-    onError: (e: any) => toast.error(e?.message || "Failed to delete product."),
+    onError: (e: Error) => toast.error(e.message || "Failed to delete product."),
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -771,6 +788,9 @@ const ProductModal = ({
             />
             <Label htmlFor="is-listed" className="cursor-pointer">Listed for sale</Label>
           </div>
+
+          {isEdit && product && <DemandForecastPanel productId={product.id} />}
+
           <div className="flex justify-between items-center gap-2 pt-2">
             {isEdit ? (
               <Button
@@ -796,6 +816,87 @@ const ProductModal = ({
         </form>
       </DialogContent>
     </Dialog>
+  );
+};
+
+/* ─── demand forecast panel (3-tier: category prior / SARIMAX / DeepAR) ─── */
+
+const TIER_LABEL: Record<string, string> = {
+  deepar_v1: "DeepAR (PyTorch)",
+  sarima_v1: "SARIMAX (Exogenous)",
+  category_prior_v1: "Category Prior",
+  sarima_v1_insufficient_data: "Category Prior",
+};
+
+const DemandForecastPanel = ({ productId }: { productId: string }) => {
+  const queryClient = useQueryClient();
+  const { data, isLoading } = useQuery({
+    queryKey: ["seasonalPrediction", productId],
+    queryFn: () => getSeasonalPredictions(productId),
+  });
+
+  const upgradeMutation = useMutation({
+    mutationFn: () => triggerModelUpgrade(productId),
+    onSuccess: (res) => {
+      if (res.upgrade_queued) {
+        toast.success("DeepAR training started in the background — check back in a bit for an upgraded forecast.");
+      } else {
+        toast.info(`Needs ${res.records_needed} more sales records before DeepAR can train.`);
+      }
+      queryClient.invalidateQueries({ queryKey: ["seasonalPrediction", productId] });
+    },
+    onError: (e: Error) => toast.error(e.message || "Failed to start the upgrade."),
+  });
+
+  if (isLoading) {
+    return (
+      <div className="rounded-xl border border-border bg-muted/30 p-3 flex items-center gap-2 text-xs text-muted-foreground">
+        <Loader2 size={12} className="animate-spin" /> Loading demand forecast…
+      </div>
+    );
+  }
+  if (!data || data.forecast.length === 0) {
+    return null;
+  }
+
+  const next30 = data.forecast.slice(0, 30).reduce((sum, f) => sum + f.demand, 0);
+  // MAPE is mathematically unstable (can blow up past thousands of a %) on holdout windows
+  // with mostly zero-sale days — showing that raw number reads as broken, not useful.
+  const mapeDisplay = data.mape == null || data.mape > 5 ? null : `${(data.mape * 100).toFixed(1)}%`;
+
+  return (
+    <div className="rounded-xl border border-border bg-muted/30 p-3 space-y-2">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1.5 text-xs font-medium">
+          <Sparkles size={12} className="text-primary" />
+          90-day demand forecast
+        </div>
+        <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-data uppercase tracking-wide">
+          {TIER_LABEL[data.model_type] || data.model_type}
+        </span>
+      </div>
+      <div className="text-sm">
+        <span className="font-display text-lg">{Math.round(next30)}</span>
+        <span className="text-muted-foreground text-xs"> units predicted, next 30 days</span>
+      </div>
+      {mapeDisplay && <div className="text-[11px] text-muted-foreground">Model accuracy (MAPE): {mapeDisplay}</div>}
+      {data.next_festival && (
+        <div className="text-[11px] text-muted-foreground">
+          {data.next_festival.name} in {data.next_festival.days_away} days — expect ~{data.next_festival.multiplier}× demand
+        </div>
+      )}
+      {data.upgrade_available && (
+        <button
+          type="button"
+          onClick={() => upgradeMutation.mutate()}
+          disabled={upgradeMutation.isPending}
+          className="text-[11px] flex items-center gap-1.5 text-primary hover:underline disabled:opacity-50"
+        >
+          {upgradeMutation.isPending ? <Loader2 size={11} className="animate-spin" /> : <ArrowUpCircle size={11} />}
+          You have enough sales history — upgrade to DeepAR for a sharper forecast
+        </button>
+      )}
+    </div>
   );
 };
 

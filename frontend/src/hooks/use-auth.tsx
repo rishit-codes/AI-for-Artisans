@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
-import { loginApi, registerApi, type LoginResponse } from "@/lib/api";
+import { loginApi, registerApi, logoutAllDevicesApi, type LoginResponse } from "@/lib/api";
 
 /* ---------- types ---------- */
 
@@ -17,6 +17,7 @@ interface AuthContextValue {
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   register: (userData: Record<string, unknown>) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
+  logoutAllDevices: () => Promise<void>;
   updateUser: (data: Partial<AuthUser>) => void;
 }
 
@@ -42,6 +43,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     }
     setLoading(false);
+  }, []);
+
+  // A 401 from any API call (including a token revoked server-side by
+  // logoutAllDevices, possibly from a different tab) clears localStorage in
+  // handleResponse — this mirrors that into React state so the UI actually
+  // reflects it instead of still looking logged in.
+  useEffect(() => {
+    const onUnauthorized = () => {
+      setToken(null);
+      setUser(null);
+    };
+    window.addEventListener("auth:unauthorized", onUnauthorized);
+    return () => window.removeEventListener("auth:unauthorized", onUnauthorized);
   }, []);
 
   const persist = (data: LoginResponse) => {
@@ -80,6 +94,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     localStorage.removeItem("user");
   }, []);
 
+  const logoutAllDevices = useCallback(async () => {
+    try {
+      await logoutAllDevicesApi();
+    } finally {
+      // Revoke server-side first so other devices' tokens actually stop working;
+      // clear local state regardless of whether that call succeeded.
+      logout();
+    }
+  }, [logout]);
+
   const updateUser = useCallback((data: Partial<AuthUser>) => {
     setUser((prev) => {
       if (!prev) return null;
@@ -90,7 +114,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, logout, updateUser }}>
+    <AuthContext.Provider value={{ user, token, loading, login, register, logout, logoutAllDevices, updateUser }}>
       {!loading && children}
     </AuthContext.Provider>
   );

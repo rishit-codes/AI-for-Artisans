@@ -1,6 +1,7 @@
 import { Link, useLocation } from "react-router-dom";
 import { ArrowLeft, Home, Search } from "lucide-react";
 import { useEffect } from "react";
+import { toast } from "sonner";
 
 const NotFound = () => {
   const location = useLocation();
@@ -48,10 +49,13 @@ const NotFound = () => {
         </div>
 
         <div className="mt-12 pt-8 border-t border-border max-w-sm mx-auto">
-          <div className="flex items-center gap-2 px-4 py-3 rounded-full border border-border bg-card text-left">
+          <form
+            onSubmit={(e) => { e.preventDefault(); toast.info("Search isn't available yet — try one of the links above."); }}
+            className="flex items-center gap-2 px-4 py-3 rounded-full border border-border bg-card text-left"
+          >
             <Search size={14} className="text-muted-foreground" />
             <input placeholder="Search SKUs, mandi, festivals…" className="flex-1 bg-transparent outline-none text-sm placeholder:text-muted-foreground" />
-          </div>
+          </form>
           <div className="mt-3 text-[10px] uppercase tracking-[0.2em] text-muted-foreground font-data">
             requested · {location.pathname}
           </div>

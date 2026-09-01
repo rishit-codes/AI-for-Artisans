@@ -1,8 +1,10 @@
 import { Link, NavLink, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, Bell, CalendarClock, Compass, Home, LineChart, ListTodo, Search, Settings, Store, TrendingUp, User } from "lucide-react";
-import { ReactNode } from "react";
+import { ReactNode, useState, type FormEvent } from "react";
+import { toast } from "sonner";
 import { getDashboardPriority, getDashboardSummary } from "@/lib/api";
+import { useAuth } from "@/hooks/use-auth";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 interface DashboardSummary {
@@ -101,6 +103,13 @@ export const AppShell = ({
   subtitle?: string;
 }) => {
   const { pathname } = useLocation();
+  const { user } = useAuth();
+  const [searchQuery, setSearchQuery] = useState("");
+  const handleSearch = (e: FormEvent) => {
+    e.preventDefault();
+    if (!searchQuery.trim()) return;
+    toast.info("Search isn't wired up yet — try the Trends, Mandi, or Profile pages directly.");
+  };
   return (
     <div className="min-h-screen bg-background-deep text-foreground">
       <div className="grid lg:grid-cols-[240px_1fr] min-h-screen">
@@ -132,25 +141,32 @@ export const AppShell = ({
             })}
           </nav>
           <div className="mt-6 p-4 rounded-xl bg-secondary text-secondary-foreground">
-            <div className="text-[10px] uppercase tracking-[0.18em] opacity-70 font-data">Cluster</div>
-            <div className="font-display text-lg mt-1">Varanasi · Weave</div>
-            <div className="text-xs opacity-70 mt-1 font-hindi">वाराणसी · बुनकर समूह</div>
+            <div className="text-[10px] uppercase tracking-[0.18em] opacity-70 font-data">Location</div>
+            <div className="font-display text-lg mt-1 capitalize">{(user?.location as string) || "Add location"}</div>
+            <div className="text-xs opacity-70 mt-1 capitalize">{(user?.craft_type as string) || "Add craft type"}</div>
           </div>
         </aside>
 
         <div className="flex flex-col min-w-0">
           <header>
             <div className="sticky top-0 z-30 bg-background/85 backdrop-blur-xl flex items-center gap-4 px-5 lg:px-8 h-16 border-b border-border">
-              <div className="flex items-center gap-2 max-w-md w-full lg:w-80 mr-auto border border-border rounded-full px-3 py-1.5 bg-card/40">
+              <form
+                onSubmit={handleSearch}
+                className="flex items-center gap-2 max-w-md w-full lg:w-80 mr-auto border border-border rounded-full px-3 py-1.5 bg-card/40"
+              >
                 <Search size={16} className="text-muted-foreground" />
                 <input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search SKUs, mandi, festivals…"
                   className="flex-1 bg-transparent outline-none text-sm placeholder:text-muted-foreground"
                 />
-              </div>
+              </form>
               <NotificationsBell />
               <NavLink to="/settings" className="p-2 rounded-full hover:bg-muted" aria-label="Settings"><Settings size={16} /></NavLink>
-              <NavLink to="/profile" className="w-9 h-9 rounded-full bg-secondary text-secondary-foreground grid place-items-center text-sm font-display hover:opacity-90">र</NavLink>
+              <NavLink to="/profile" className="w-9 h-9 rounded-full bg-secondary text-secondary-foreground grid place-items-center text-sm font-display hover:opacity-90">
+                {(user?.full_name as string)?.charAt(0)?.toUpperCase() || "?"}
+              </NavLink>
             </div>
             <div className="px-5 lg:px-8 pb-5 pt-2">
               <div className="flex items-end justify-between gap-4 flex-wrap">

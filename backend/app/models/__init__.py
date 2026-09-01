@@ -3,7 +3,6 @@ from .user import User
 from .product import Product
 from .order import Order
 from .material import Material
-from .artisan import Artisan
 from .sale import Sale
 from .purchase import Purchase
 from .market_signal import MarketSignal

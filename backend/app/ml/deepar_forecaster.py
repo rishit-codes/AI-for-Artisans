@@ -1,6 +1,8 @@
 import os
+import contextlib
 import pandas as pd
 import numpy as np
+import torch
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List
 from pathlib import Path
@@ -15,6 +17,27 @@ from app.models.model_version import ModelVersion
 
 class InsufficientDataError(Exception):
     pass
+
+@contextlib.contextmanager
+def _trusted_torch_load():
+    """
+    GluonTS's Lightning checkpoint (and its own Predictor serialization
+    format) reload hits an ever-growing set of objects torch 2.6+'s
+    weights_only=True default won't allowlist (functools.partial,
+    builtins.getattr, ...). These files are always ones this same process
+    just wrote to local disk moments earlier, so they're trusted — force
+    the pre-2.6 behavior for the duration of the load rather than playing
+    whack-a-mole with torch.serialization.add_safe_globals.
+    """
+    original_load = torch.load
+    def trusted_load(*args, **kwargs):
+        kwargs["weights_only"] = False
+        return original_load(*args, **kwargs)
+    torch.load = trusted_load
+    try:
+        yield
+    finally:
+        torch.load = original_load
 
 class DeepARForecaster:
     MODEL_VERSION = "deepar_v1"
@@ -99,13 +122,42 @@ class DeepARForecaster:
             from sklearn.metrics import mean_absolute_percentage_error
         
         df = await self._load_training_data()
-        
+
         train_df = df.iloc[:-14]
         val_df = df.iloc[-14:]
-        
+
         train_ds = self._build_gluonts_dataset(train_df)
-        val_ds = self._build_gluonts_dataset(val_df)
-        
+
+        # predictor.predict() forecasts PREDICTION_LENGTH steps past the end of
+        # the given target, and needs feat_dynamic_real known that far into the
+        # future too — so val's feature arrays must extend PREDICTION_LENGTH
+        # days past val_df's last date, not just cover val_df's own 14 rows
+        # (matching the same pattern predict() uses for its own inference_ds).
+        val_future_start = val_df['ds'].max() + timedelta(days=1)
+        val_future_end = val_df['ds'].max() + timedelta(days=self.PREDICTION_LENGTH)
+        val_fest_df = get_festival_feature_df(val_future_start.strftime('%Y-%m-%d'), val_future_end.strftime('%Y-%m-%d'))
+        val_fest_df['ds'] = pd.to_datetime(val_fest_df['ds'])
+        val_trend_df = await get_trend_feature_df(self.craft_type, val_future_start.date(), val_future_end.date(), self.db)
+        val_trend_df['ds'] = pd.to_datetime(val_trend_df['ds'])
+        val_future_exog = pd.merge(val_fest_df, val_trend_df, on='ds', how='left')
+        val_future_exog['trend_score'] = val_future_exog['trend_score'].fillna(0.5)
+
+        from gluonts.dataset.common import ListDataset
+        val_ds = ListDataset(
+            [
+                {
+                    "start": pd.Period(val_df['ds'].min(), freq='D'),
+                    "target": val_df['y'].values.astype(float),
+                    "feat_dynamic_real": np.stack([
+                        np.concatenate([val_df['holiday'].values, val_future_exog['holiday'].values]),
+                        np.concatenate([val_df['multiplier'].values, val_future_exog['multiplier'].values]),
+                        np.concatenate([val_df['trend_score'].values, val_future_exog['trend_score'].values]),
+                    ])
+                }
+            ],
+            freq="D"
+        )
+
         estimator = DeepAREstimator(
             freq="D",
             prediction_length=self.PREDICTION_LENGTH,
@@ -120,7 +172,8 @@ class DeepARForecaster:
             }
         )
         
-        predictor = estimator.train(train_ds)
+        with _trusted_torch_load():
+            predictor = estimator.train(train_ds)
         
         forecasts = list(predictor.predict(val_ds))
         val_preds = forecasts[0].quantile(0.5)[:14]
@@ -142,9 +195,9 @@ class DeepARForecaster:
         promoted = bool(deepar_mape < min(sarima_mape, 0.25))
         
         base_dir = Path(__file__).parent.parent.parent / "data" / "models" / str(self.user_id) / str(self.product_id) / self.MODEL_VERSION
-        os.makedirs(base_dir, exist_ok=True)
         save_path = base_dir / "latest"
-        
+        os.makedirs(save_path, exist_ok=True)
+
         predictor.serialize(save_path)
         
         new_row = ModelVersion(
@@ -200,7 +253,8 @@ class DeepARForecaster:
         
         if not predictor:
             save_path = Path(active.params_json["save_path"])
-            predictor = Predictor.deserialize(save_path)
+            with _trusted_torch_load():
+                predictor = Predictor.deserialize(save_path)
             self.__class__._predictor_cache[cache_key] = predictor
             
         df = await self._load_training_data()

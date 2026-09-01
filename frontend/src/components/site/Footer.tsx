@@ -1,8 +1,17 @@
-const cols = [
-  {
-    title: "Product",
-    items: ["Trends", "Mandi Watch", "Production", "Festival lift", "Stock ledger"],
-  },
+import { Link } from "react-router-dom";
+
+// Only the Product column links to pages that actually exist (each behind
+// login). Clusters and Company are aspirational sections with nothing built
+// yet, so they render as plain text instead of links that go nowhere.
+const productLinks = [
+  { label: "Trends", to: "/trends" },
+  { label: "Mandi Watch", to: "/mandi" },
+  { label: "Production", to: "/advisor" },
+  { label: "Festival lift", to: "/dashboard" },
+  { label: "Stock ledger", to: "/profile" },
+];
+
+const textCols = [
   {
     title: "Clusters",
     items: ["Bagru block-print", "Khurja pottery", "Moradabad brass", "Banaras silk", "Channapatna toys"],
@@ -41,17 +50,29 @@ const Footer = () => {
           </div>
 
           <div className="lg:col-span-7 grid grid-cols-2 sm:grid-cols-3 gap-8">
-            {cols.map((c) => (
+            <div>
+              <div className="text-[11px] uppercase tracking-wider text-background/50 font-data mb-4">
+                Product
+              </div>
+              <ul className="space-y-2.5">
+                {productLinks.map((l) => (
+                  <li key={l.label}>
+                    <Link to={l.to} className="text-background/85 hover:text-primary transition-colors">
+                      {l.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            {textCols.map((c) => (
               <div key={c.title}>
                 <div className="text-[11px] uppercase tracking-wider text-background/50 font-data mb-4">
                   {c.title}
                 </div>
                 <ul className="space-y-2.5">
                   {c.items.map((i) => (
-                    <li key={i}>
-                      <a href="#" className="text-background/85 hover:text-primary transition-colors">
-                        {i}
-                      </a>
+                    <li key={i} className="text-background/50">
+                      {i}
                     </li>
                   ))}
                 </ul>
@@ -67,9 +88,9 @@ const Footer = () => {
         <div className="mt-8 pt-8 border-t border-background/10 flex flex-wrap items-center justify-between gap-4 text-xs text-background/50 font-data">
           <div>© 2026 ArtisanGPS Co-operative</div>
           <div className="flex gap-6">
-            <a href="#" className="hover:text-background">Privacy</a>
-            <a href="#" className="hover:text-background">Terms</a>
-            <a href="#" className="hover:text-background">Open data</a>
+            <span>Privacy</span>
+            <span>Terms</span>
+            <span>Open data</span>
           </div>
         </div>
       </div>

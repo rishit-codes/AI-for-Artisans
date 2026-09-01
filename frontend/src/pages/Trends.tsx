@@ -16,6 +16,7 @@ import {
   Sun,
   ChevronRight,
 } from "lucide-react";
+import { toast } from "sonner";
 import AppShell from "@/components/site/AppShell";
 import textileImg from "@/assets/craft-textile.jpg";
 import potteryImg from "@/assets/craft-pottery.jpg";
@@ -142,7 +143,10 @@ const MATERIAL_FORECAST = [
 ];
 
 const AI_SUGGESTION = {
+  title: "Artisan AI suggestion",
+  subtitle: "Market optimization tip",
   text: "Cotton prices dropped 5.2% in Surat this week — consider stocking 4 weeks of raw cotton before festival demand pushes prices back up. Pair with your wedding-silk SKUs for the Diwali pre-order window.",
+  action: "Calculate Potential Profit",
 };
 
 const TABS = ["All trends", "Home decor", "Textiles", "Pottery", "Saved"] as const;
@@ -202,14 +206,32 @@ const Trends = () => {
     queryFn: () => getTrends(tab === "Saved" ? "All Trends" : tab),
   });
 
-  const mappedTrends = useMemo(() => {
+  const mappedTrends = useMemo((): Trend[] => {
     if (!rawTrends || rawTrends.length === 0) return TRENDS;
-    return rawTrends.map((t: any) => ({
-      ...t,
-      image: t.image_url || textileImg,
-      badge: t.performance_badge ? { label: t.performance_badge, tone: "primary" as const } : undefined,
-      category: t.category || "Textiles",
-    }));
+    return rawTrends.map((t) => {
+      // Backend tags a post's craft with a "HomeDecor"/"Textiles"/"Pottery" tag
+      // (no dedicated category field), matching the LLM prompt's schema.
+      const categoryTag: Trend["category"] | undefined = t.tags.includes("HomeDecor")
+        ? "Home Decor"
+        : t.tags.includes("Textiles")
+        ? "Textiles"
+        : t.tags.includes("Pottery")
+        ? "Pottery"
+        : undefined;
+      return {
+        id: t.id,
+        author: t.author,
+        title: t.title,
+        content: t.content,
+        timestamp: t.timestamp,
+        image: t.image_url || textileImg,
+        tags: t.tags,
+        badge: t.performance_badge ? { label: t.performance_badge, tone: "primary" as const } : undefined,
+        likes: t.likes,
+        comments: t.comments,
+        category: categoryTag || "Textiles",
+      };
+    });
   }, [rawTrends]);
 
   const filtered = useMemo(() => {
@@ -293,7 +315,10 @@ export default Trends;
 
 const FilterBar = ({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) => (
   <div className="rounded-3xl bg-card border border-border shadow-sm p-3 flex items-center gap-3">
-    <button className="w-9 h-9 rounded-full grid place-items-center text-primary hover:bg-primary/10 transition-colors shrink-0">
+    <button
+      onClick={() => toast.info("Advanced filters aren't available yet — use the category tabs for now.")}
+      className="w-9 h-9 rounded-full grid place-items-center text-primary hover:bg-primary/10 transition-colors shrink-0"
+    >
       <SlidersHorizontal size={16} />
     </button>
     <div className="flex items-center gap-2 overflow-x-auto flex-1 no-scrollbar">
@@ -315,7 +340,10 @@ const FilterBar = ({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) => (
       })}
     </div>
     <span className="w-px h-8 bg-border shrink-0" />
-    <button className="w-9 h-9 rounded-full grid place-items-center text-muted-foreground hover:text-foreground hover:bg-muted shrink-0">
+    <button
+      onClick={() => toast.info("Search isn't available yet — use the category tabs for now.")}
+      className="w-9 h-9 rounded-full grid place-items-center text-muted-foreground hover:text-foreground hover:bg-muted shrink-0"
+    >
       <Search size={16} />
     </button>
   </div>
@@ -358,7 +386,10 @@ const TrendCard = ({
             {trend.badge.label}
           </span>
         )}
-        <button className="p-1.5 text-muted-foreground hover:text-foreground">
+        <button
+          onClick={() => toast.info("Post actions aren't available yet.")}
+          className="p-1.5 text-muted-foreground hover:text-foreground"
+        >
           <MoreVertical size={16} />
         </button>
       </header>
@@ -390,7 +421,10 @@ const TrendCard = ({
             <Heart size={16} fill={liked ? "currentColor" : "none"} />
             <span className="font-data">{trend.likes}</span>
           </button>
-          <button className="flex items-center gap-1.5 text-[13px] text-muted-foreground hover:text-primary transition-colors">
+          <button
+            onClick={() => toast.info("Comments aren't available yet.")}
+            className="flex items-center gap-1.5 text-[13px] text-muted-foreground hover:text-primary transition-colors"
+          >
             <MessageCircle size={16} />
             <span className="font-data">{trend.comments}</span>
           </button>
@@ -453,7 +487,7 @@ const NicheInsightsCard = ({ currentTab }: { currentTab: Tab }) => {
     staleTime: 5 * 60 * 1000,
   });
 
-  const insights = data?.insights?.map((i: any) => ({
+  const insights = data?.insights?.map((i) => ({
     niche: i.niche,
     confidence: i.confidence_score,
     status: i.status,
@@ -469,7 +503,7 @@ const NicheInsightsCard = ({ currentTab }: { currentTab: Tab }) => {
       <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-data ml-auto">live trends</span>
     </div>
     <div className="space-y-4">
-      {insights.map((n: any, i: number) => (
+      {insights.map((n, i) => (
         <motion.div
           key={n.niche}
           initial={{ opacity: 0, x: 10 }}
@@ -582,7 +616,7 @@ const MaterialForecastCard = () => {
   });
 
   const rawList = data?.material_forecast || MATERIAL_FORECAST;
-  const mappedList = rawList.map((m: any) => ({
+  const mappedList = rawList.map((m) => ({
     name: m.name,
     price: m.price,
     status: m.status,

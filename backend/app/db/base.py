@@ -11,12 +11,12 @@ class Base(DeclarativeBase):
 
 async def init_db():
     """Create all database tables (if they don't already exist)."""
-    # Import all models here so they are registered with Base.metadata
-    import app.models.user  # noqa: F401
-    import app.models.artisan  # noqa: F401
-    import app.models.product  # noqa: F401
-    import app.models.order  # noqa: F401
-    import app.models.material  # noqa: F401
+    # app.models's own __init__ imports every model so each one registers with
+    # Base.metadata — previously only a handful were listed here explicitly, and
+    # the rest (sales, purchases, predictions, model_versions, market_signals,
+    # mandi_*) only ever got registered incidentally because something else
+    # imported them first during router setup.
+    import app.models  # noqa: F401
 
     async with engine.begin() as conn:
         if engine.dialect.name == "postgresql":
