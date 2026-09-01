@@ -77,11 +77,16 @@ async def get_dashboard_priority(
     if fest_info:
         festival_name = fest_info["name"]
         festival_date = fest_info["date"]
+        festival_multiplier = fest_info.get("multiplier")
     else:
         festival_name = "Diwali"
         festival_date = f"{date.today().year}-11-08"
+        festival_multiplier = None
 
-    metrics = [f"+20% {festival_name} lift", "Start planning stock"]
+    # Use the festival's real multiplier (from the same table the forecasting
+    # engine's exogenous features read) rather than a flat, made-up "+20%".
+    lift_text = f"~{round((festival_multiplier - 1) * 100)}% {festival_name} demand lift" if festival_multiplier else f"{festival_name} coming up"
+    metrics = [lift_text, "Start planning stock"]
     
     # 2. Check their low stock items
     low_stock_stmt = (
@@ -106,7 +111,7 @@ async def get_dashboard_priority(
     else:
         # Step B: Recommend a new item
         return {
-            "title": f"Start 18 new items for {festival_name}",
+            "title": f"Consider a new batch for {festival_name}",
             "hindi_title": f"{festival_name} के लिए नया काम शुरू करें",
             "image_url": None,
             "metrics": metrics,

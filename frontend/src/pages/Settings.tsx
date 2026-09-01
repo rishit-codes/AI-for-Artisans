@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell, Globe, Lock, Palette, CreditCard, Smartphone, Languages, LogOut, Check } from "lucide-react";
+import { toast } from "sonner";
+import { Bell, Globe, Lock, Palette, CreditCard, Smartphone, Languages, LogOut, Check, Loader2 } from "lucide-react";
 import AppShell from "@/components/site/AppShell";
 import { useAuth } from "@/hooks/use-auth";
+import { updateProfile } from "@/lib/api";
 
 const sections = [
   { id: "account", label: "Account", hindi: "खाता", icon: Lock },
@@ -33,22 +35,79 @@ const Row = ({ label, hindi, children }: { label: string; hindi?: string; childr
   </div>
 );
 
+// No backend concept of a "connected sales channel" exists yet — this is a
+// placeholder list, not live integration state. "Connect" is intentionally
+// wired to say so rather than pretend to do something.
 const channels = [
-  { name: "Etsy", connected: true, sub: "ramesh-prajapati.etsy.com" },
-  { name: "Amazon Karigar", connected: true, sub: "Seller ID · A2X8…" },
-  { name: "Instagram Shop", connected: true, sub: "@ramesh.weaves" },
-  { name: "WhatsApp Business", connected: true, sub: "+91 98765 43210" },
-  { name: "Flipkart Samarth", connected: false, sub: "Connect to expand" },
-  { name: "Shopify storefront", connected: false, sub: "Coming soon" },
+  { name: "Etsy", connected: false, sub: "Not connected" },
+  { name: "Amazon Karigar", connected: false, sub: "Not connected" },
+  { name: "Instagram Shop", connected: false, sub: "Not connected" },
+  { name: "WhatsApp Business", connected: false, sub: "Not connected" },
+  { name: "Flipkart Samarth", connected: false, sub: "Not connected" },
+  { name: "Shopify storefront", connected: false, sub: "Not connected" },
 ];
 
 const Settings = () => {
   const navigate = useNavigate();
-  const { logout } = useAuth();
+  const { user, logout, logoutAllDevices, updateUser } = useAuth();
   const [active, setActive] = useState("account");
   const [notif, setNotif] = useState({ orders: true, mandi: true, festival: true, weekly: false, marketing: false });
   const [theme, setTheme] = useState("paper");
   const [lang, setLang] = useState("hi");
+  const [currency, setCurrency] = useState("inr");
+  const [timezone, setTimezone] = useState("ist");
+  const [signingOutAll, setSigningOutAll] = useState(false);
+  const [savingAccount, setSavingAccount] = useState(false);
+
+  let parsedBio: Record<string, unknown> = {};
+  try {
+    parsedBio = user?.bio ? JSON.parse(user.bio as string) : {};
+  } catch { /* corrupt bio — treat as empty rather than crash the settings page */ }
+
+  const [accountForm, setAccountForm] = useState({
+    full_name: (user?.full_name as string) || "",
+    location: (user?.location as string) || "",
+    workshopName: (parsedBio.workshopName as string) || "",
+    phone: (parsedBio.phone as string) || "",
+    gstin: (parsedBio.gstin as string) || "",
+  });
+
+  const handleSignOutAll = async () => {
+    setSigningOutAll(true);
+    try {
+      await logoutAllDevices();
+      navigate("/login");
+    } catch (e) {
+      toast.error("Couldn't reach the server to sign out other devices — signed out locally instead.");
+      logout();
+      navigate("/login");
+    } finally {
+      setSigningOutAll(false);
+    }
+  };
+
+  const handleSaveAccount = async () => {
+    setSavingAccount(true);
+    try {
+      const newBio = JSON.stringify({
+        ...parsedBio,
+        workshopName: accountForm.workshopName.trim(),
+        phone: accountForm.phone.trim(),
+        gstin: accountForm.gstin.trim(),
+      });
+      await updateProfile({
+        full_name: accountForm.full_name.trim(),
+        location: accountForm.location.trim(),
+        bio: newBio,
+      });
+      updateUser({ full_name: accountForm.full_name.trim(), location: accountForm.location.trim(), bio: newBio });
+      toast.success("Account details saved.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to save account details.");
+    } finally {
+      setSavingAccount(false);
+    }
+  };
 
   return (
     <AppShell title="Settings · सेटिंग्स" hindi="व्यवस्था" subtitle="Tune ArtisanGPS to your workshop — language, notifications, channels, and identity.">
@@ -77,28 +136,74 @@ const Settings = () => {
               <div className="font-display text-xl mb-1">Account</div>
               <div className="text-xs font-hindi text-muted-foreground mb-6">अपनी पहचान</div>
               <div className="grid sm:grid-cols-2 gap-4">
-                {[
-                  { l: "Full name", v: "Ramesh Prajapati" },
-                  { l: "Workshop name", v: "Lallapura Looms" },
-                  { l: "Phone", v: "+91 98765 43210" },
-                  { l: "Email", v: "ramesh@artisangps.in" },
-                  { l: "GSTIN", v: "09ABCDE1234F2Z5" },
-                  { l: "Cluster", v: "Varanasi · Weave" },
-                ].map((f) => (
-                  <label key={f.l} className="block">
-                    <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground font-data mb-1.5">{f.l}</div>
-                    <input defaultValue={f.v} className="w-full px-3 py-2.5 text-sm rounded-lg bg-background border border-border focus:outline-none focus:border-primary" />
-                  </label>
-                ))}
+                <label className="block">
+                  <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground font-data mb-1.5">Full name</div>
+                  <input
+                    value={accountForm.full_name}
+                    onChange={(e) => setAccountForm((f) => ({ ...f, full_name: e.target.value }))}
+                    className="w-full px-3 py-2.5 text-sm rounded-lg bg-background border border-border focus:outline-none focus:border-primary"
+                  />
+                </label>
+                <label className="block">
+                  <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground font-data mb-1.5">Workshop name</div>
+                  <input
+                    value={accountForm.workshopName}
+                    onChange={(e) => setAccountForm((f) => ({ ...f, workshopName: e.target.value }))}
+                    className="w-full px-3 py-2.5 text-sm rounded-lg bg-background border border-border focus:outline-none focus:border-primary"
+                  />
+                </label>
+                <label className="block">
+                  <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground font-data mb-1.5">Phone</div>
+                  <input
+                    value={accountForm.phone}
+                    onChange={(e) => setAccountForm((f) => ({ ...f, phone: e.target.value }))}
+                    className="w-full px-3 py-2.5 text-sm rounded-lg bg-background border border-border focus:outline-none focus:border-primary"
+                  />
+                </label>
+                <label className="block">
+                  <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground font-data mb-1.5">Email</div>
+                  <input
+                    value={(user?.email as string) || ""}
+                    disabled
+                    title="Email can't be changed from here yet"
+                    className="w-full px-3 py-2.5 text-sm rounded-lg bg-muted border border-border text-muted-foreground cursor-not-allowed"
+                  />
+                </label>
+                <label className="block">
+                  <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground font-data mb-1.5">GSTIN</div>
+                  <input
+                    value={accountForm.gstin}
+                    onChange={(e) => setAccountForm((f) => ({ ...f, gstin: e.target.value }))}
+                    placeholder="Optional"
+                    className="w-full px-3 py-2.5 text-sm rounded-lg bg-background border border-border focus:outline-none focus:border-primary"
+                  />
+                </label>
+                <label className="block">
+                  <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground font-data mb-1.5">Cluster / location</div>
+                  <input
+                    value={accountForm.location}
+                    onChange={(e) => setAccountForm((f) => ({ ...f, location: e.target.value }))}
+                    className="w-full px-3 py-2.5 text-sm rounded-lg bg-background border border-border focus:outline-none focus:border-primary"
+                  />
+                </label>
               </div>
               <div className="mt-6 pt-6 border-t border-border flex items-center justify-between">
                 <button
-                  onClick={() => { logout(); navigate("/login"); }}
-                  className="text-xs text-destructive flex items-center gap-2 hover:underline"
+                  onClick={handleSignOutAll}
+                  disabled={signingOutAll}
+                  className="text-xs text-destructive flex items-center gap-2 hover:underline disabled:opacity-50"
                 >
-                  <LogOut size={12} /> Sign out of all devices
+                  {signingOutAll ? <Loader2 size={12} className="animate-spin" /> : <LogOut size={12} />}
+                  Sign out of all devices
                 </button>
-                <button className="text-sm px-5 py-2.5 rounded-full bg-primary text-primary-foreground">Save changes</button>
+                <button
+                  onClick={handleSaveAccount}
+                  disabled={savingAccount}
+                  className="text-sm px-5 py-2.5 rounded-full bg-primary text-primary-foreground disabled:opacity-50 flex items-center gap-2"
+                >
+                  {savingAccount && <Loader2 size={12} className="animate-spin" />}
+                  Save changes
+                </button>
               </div>
             </div>
           )}
@@ -146,14 +251,24 @@ const Settings = () => {
               <div className="mt-6 grid sm:grid-cols-2 gap-4">
                 <label>
                   <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground font-data mb-1.5">Currency</div>
-                  <select className="w-full px-3 py-2.5 text-sm rounded-lg bg-background border border-border">
-                    <option>₹ INR · Indian Rupee</option><option>$ USD</option><option>€ EUR</option>
+                  <select
+                    value={currency}
+                    onChange={(e) => setCurrency(e.target.value)}
+                    className="w-full px-3 py-2.5 text-sm rounded-lg bg-background border border-border"
+                  >
+                    <option value="inr">₹ INR · Indian Rupee</option>
+                    <option value="usd">$ USD</option>
+                    <option value="eur">€ EUR</option>
                   </select>
                 </label>
                 <label>
                   <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground font-data mb-1.5">Timezone</div>
-                  <select className="w-full px-3 py-2.5 text-sm rounded-lg bg-background border border-border">
-                    <option>Asia/Kolkata · IST</option>
+                  <select
+                    value={timezone}
+                    onChange={(e) => setTimezone(e.target.value)}
+                    className="w-full px-3 py-2.5 text-sm rounded-lg bg-background border border-border"
+                  >
+                    <option value="ist">Asia/Kolkata · IST</option>
                   </select>
                 </label>
               </div>
@@ -203,7 +318,10 @@ const Settings = () => {
                       <div className="text-sm font-medium">{c.name}</div>
                       <div className="text-xs text-muted-foreground font-data mt-0.5">{c.sub}</div>
                     </div>
-                    <button className={`text-xs px-3 py-1.5 rounded-full ${c.connected ? "bg-forest/15 text-forest" : "bg-primary text-primary-foreground"}`}>
+                    <button
+                      onClick={() => toast.info(`${c.name} integration isn't built yet — no backend support for connected sales channels.`)}
+                      className={`text-xs px-3 py-1.5 rounded-full ${c.connected ? "bg-forest/15 text-forest" : "bg-primary text-primary-foreground"}`}
+                    >
                       {c.connected ? "Connected" : "Connect"}
                     </button>
                   </div>
@@ -221,22 +339,22 @@ const Settings = () => {
                 <div className="font-display text-3xl mt-1">Karigar · Free</div>
                 <div className="text-xs text-muted-foreground mt-2">Free for first 6 months across all 14 craft clusters. No card on file.</div>
                 <div className="mt-4 flex items-center gap-3">
-                  <button className="text-sm px-5 py-2 rounded-full bg-primary text-primary-foreground">Upgrade to Master</button>
-                  <button className="text-sm text-muted-foreground hover:text-foreground">Compare plans →</button>
+                  <button
+                    onClick={() => toast.info("Paid plans aren't live yet — everyone's on Free for now.")}
+                    className="text-sm px-5 py-2 rounded-full bg-primary text-primary-foreground"
+                  >
+                    Upgrade to Master
+                  </button>
+                  <button
+                    onClick={() => toast.info("Paid plans aren't live yet — everyone's on Free for now.")}
+                    className="text-sm text-muted-foreground hover:text-foreground"
+                  >
+                    Compare plans →
+                  </button>
                 </div>
               </div>
-              <div className="mt-6 grid sm:grid-cols-3 gap-4 text-center">
-                {[
-                  { l: "AI calls used", v: "1,284", sub: "of ∞" },
-                  { l: "Mandi lookups", v: "342", sub: "this month" },
-                  { l: "Storage", v: "112 MB", sub: "of 5 GB" },
-                ].map((s) => (
-                  <div key={s.l} className="p-4 rounded-xl bg-background-deep border border-border">
-                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-data">{s.l}</div>
-                    <div className="font-display text-2xl mt-1">{s.v}</div>
-                    <div className="text-xs text-muted-foreground font-data">{s.sub}</div>
-                  </div>
-                ))}
+              <div className="mt-6 p-4 rounded-xl bg-background-deep border border-border text-xs text-muted-foreground text-center">
+                Usage metering (AI calls, mandi lookups, storage) isn't implemented yet — there's nothing to bill against on the Free plan regardless.
               </div>
             </div>
           )}
@@ -246,19 +364,20 @@ const Settings = () => {
               <div className="font-display text-xl mb-1">Active devices</div>
               <div className="text-xs font-hindi text-muted-foreground mb-6">किन फ़ोनों से लॉगिन</div>
               <div className="space-y-2">
-                {[
-                  { d: "Redmi Note 13 · Varanasi", t: "Active now", current: true },
-                  { d: "Workshop tablet · Lenovo", t: "2 hours ago" },
-                  { d: "Web · Chrome on Windows", t: "Yesterday, 6:42 PM" },
-                ].map((d) => (
-                  <div key={d.d} className="flex items-center justify-between p-4 rounded-xl border border-border">
-                    <div>
-                      <div className="text-sm flex items-center gap-2">{d.d} {d.current && <span className="text-[10px] bg-forest/15 text-forest px-2 py-0.5 rounded-full font-data uppercase tracking-wider">this device</span>}</div>
-                      <div className="text-xs text-muted-foreground font-data mt-0.5">{d.t}</div>
+                <div className="flex items-center justify-between p-4 rounded-xl border border-border">
+                  <div>
+                    <div className="text-sm flex items-center gap-2">
+                      This device
+                      <span className="text-[10px] bg-forest/15 text-forest px-2 py-0.5 rounded-full font-data uppercase tracking-wider">active now</span>
                     </div>
-                    {!d.current && <button className="text-xs text-destructive hover:underline">Sign out</button>}
+                    <div className="text-xs text-muted-foreground font-data mt-0.5">{user?.email as string}</div>
                   </div>
-                ))}
+                </div>
+              </div>
+              <div className="mt-4 p-4 rounded-xl bg-background-deep border border-border text-xs text-muted-foreground">
+                Per-device session tracking (device name, location, last-seen) isn't implemented — there's no session table behind it yet.
+                What <span className="font-medium text-foreground">is</span> real: "Sign out of all devices" on the Account tab immediately
+                invalidates every token issued for your account, everywhere, the next time each one is used.
               </div>
             </div>
           )}

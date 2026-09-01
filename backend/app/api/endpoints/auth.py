@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Any
@@ -9,45 +9,51 @@ from app.schemas.user import UserRead, UserUpdate
 from app.crud.user import get_by_email, create
 from app.core.security import verify_password, create_access_token
 from app.core.exceptions import InvalidCredentialsError, ArtisanConflictError
+from app.core.limiter import limiter
 from app.api.dependencies import get_current_user
 
 router = APIRouter()
 
+# Credential-guessing and account-enumeration surfaces — capped independently of
+# the rest of the API's traffic.
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+@limiter.limit("5/minute")
 async def register(
-    data: RegisterRequest, db: AsyncSession = Depends(get_db)
+    request: Request, data: RegisterRequest, db: AsyncSession = Depends(get_db)
 ) -> Any:
     user = await get_by_email(db, email=data.email)
     if user:
         raise ArtisanConflictError(detail="Email already registered")
     
     new_user = await create(db, obj_in=data)
-    access_token = create_access_token(subject=new_user.id)
+    access_token = create_access_token(subject=new_user.id, token_version=new_user.token_version)
     user_dict = UserRead.model_validate(new_user).model_dump()
     return {"access_token": access_token, "token_type": "bearer", "user": user_dict}
 
 @router.post("/login", response_model=TokenResponse)
+@limiter.limit("10/minute")
 async def login(
-    data: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)
+    request: Request, data: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)
 ) -> Any:
     user = await get_by_email(db, email=data.username) # OAuth2 uses username
     if not user or not verify_password(data.password, user.hashed_password):
         raise InvalidCredentialsError(detail="Incorrect email or password")
-    
-    access_token = create_access_token(subject=user.id)
+
+    access_token = create_access_token(subject=user.id, token_version=user.token_version)
     user_dict = UserRead.model_validate(user).model_dump()
     return {"access_token": access_token, "token_type": "bearer", "user": user_dict}
 
 # Also support JSON payload for login just in case frontend prefers it
 @router.post("/login/json", response_model=TokenResponse)
+@limiter.limit("10/minute")
 async def login_json(
-    data: LoginRequest, db: AsyncSession = Depends(get_db)
+    request: Request, data: LoginRequest, db: AsyncSession = Depends(get_db)
 ) -> Any:
     user = await get_by_email(db, email=data.email)
     if not user or not verify_password(data.password, user.hashed_password):
         raise InvalidCredentialsError(detail="Incorrect email or password")
-    
-    access_token = create_access_token(subject=user.id)
+
+    access_token = create_access_token(subject=user.id, token_version=user.token_version)
     user_dict = UserRead.model_validate(user).model_dump()
     return {"access_token": access_token, "token_type": "bearer", "user": user_dict}
 
@@ -61,3 +67,14 @@ async def update_current_user(
     from app.crud.user import update as update_user
     updated_user = await update_user(db, db_obj=current_user, obj_in=data)
     return updated_user
+
+@router.post("/logout-all", status_code=status.HTTP_204_NO_CONTENT)
+async def logout_all_devices(
+    current_user: Any = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+) -> None:
+    """Invalidate every token issued for this user so far, on every device —
+    bumping token_version makes get_current_user reject them all immediately."""
+    current_user.token_version += 1
+    db.add(current_user)
+    await db.commit()

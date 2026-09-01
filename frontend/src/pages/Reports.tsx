@@ -128,7 +128,7 @@ const Reports = () => {
       queryClient.invalidateQueries({ queryKey: ["products"] });
       setSaleForm((f) => ({ ...f, quantity: "1", price_per_unit: "", unit_cost: "", channel: "" }));
     },
-    onError: (e: any) => toast.error(e?.message || "Failed to log sale."),
+    onError: (e: Error) => toast.error(e.message || "Failed to log sale."),
   });
 
   const handleLogSale = (e: React.FormEvent) => {
@@ -161,7 +161,7 @@ const Reports = () => {
       queryClient.invalidateQueries({ queryKey: ["purchaseHistory"] });
       setPurchaseForm({ material_name: "", amount: "", gst_rate: "5", purchase_date: new Date().toISOString().slice(0, 10), notes: "" });
     },
-    onError: (e: any) => toast.error(e?.message || "Failed to log purchase."),
+    onError: (e: Error) => toast.error(e.message || "Failed to log purchase."),
   });
 
   const handleLogPurchase = (e: React.FormEvent) => {
@@ -185,8 +185,8 @@ const Reports = () => {
       toast.info("Generating GST summary CSV...");
       await downloadGstSummaryCsv(periodFrom, periodTo);
       toast.success("GST summary (.csv) downloaded!");
-    } catch (e: any) {
-      toast.error(e?.message || "Failed to download the GST summary CSV.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to download the GST summary CSV.");
     }
   };
 
@@ -195,8 +195,8 @@ const Reports = () => {
       toast.info("Generating GST summary PDF...");
       await downloadGstSummaryPdf(periodFrom, periodTo);
       toast.success("GST summary (.pdf) downloaded!");
-    } catch (e: any) {
-      toast.error(e?.message || "Failed to download the GST summary PDF.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to download the GST summary PDF.");
     }
   };
 
@@ -559,9 +559,9 @@ const Reports = () => {
                 <>
                   <div className="space-y-3">
                     {[
-                      { l: "Taxable sales", v: inr(gstSummary?.taxable_value || 0), sub: `${gstSummary?.sale_count || 0} sale(s) this period` },
-                      { l: "Output GST (collected)", v: inr(gstSummary?.output_gst || 0), sub: "Per-category GST rate on sales" },
-                      { l: "Input GST (paid on materials)", v: inr(gstSummary?.input_gst || 0), sub: `${gstSummary?.purchase_count || 0} purchase(s) logged — eligible for credit` },
+                      { l: "Taxable sales", v: inr(gstSummary?.taxable_value || 0), sub: `${gstSummary?.sale_count || 0} sale(s) this period`, accent: false },
+                      { l: "Output GST (collected)", v: inr(gstSummary?.output_gst || 0), sub: "Per-category GST rate on sales", accent: false },
+                      { l: "Input GST (paid on materials)", v: inr(gstSummary?.input_gst || 0), sub: `${gstSummary?.purchase_count || 0} purchase(s) logged — eligible for credit`, accent: false },
                       { l: "Net GST payable", v: inr(gstSummary?.net_payable || 0), sub: "After input tax credit offset", accent: true },
                     ].map((r) => (
                       <div key={r.l} className="flex items-center justify-between py-3 border-b border-border last:border-0">
@@ -569,7 +569,7 @@ const Reports = () => {
                           <div className="text-sm">{r.l}</div>
                           <div className="text-[10px] text-muted-foreground font-data mt-0.5">{r.sub}</div>
                         </div>
-                        <div className={`font-data text-lg font-semibold ${(r as any).accent ? "text-primary" : ""}`}>
+                        <div className={`font-data text-lg font-semibold ${r.accent ? "text-primary" : ""}`}>
                           {r.v}
                         </div>
                       </div>

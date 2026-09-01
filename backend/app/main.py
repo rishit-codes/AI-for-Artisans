@@ -5,9 +5,13 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 import os
 
 from app.core.config import settings
+from app.core.limiter import limiter
 from app.core.exceptions import ArtisanNotFoundError, ArtisanForbiddenError, ArtisanConflictError, InvalidCredentialsError
 from app.api.endpoints import api_router
 from app.db.base import init_db
@@ -31,6 +35,10 @@ async def lifespan(app: FastAPI):
     shutdown_scheduler()
 
 app = FastAPI(title="ArtisanGPS API", lifespan=lifespan)
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
 
 origins = [
     "http://localhost:5173",   # Vite dev server

@@ -9,7 +9,7 @@ import AppShell from "@/components/site/AppShell";
 import { useAdvisor } from "@/hooks/use-advisor";
 import { CLUSTERS, CLUSTER_BENCHMARKS, RECOMMENDATIONS } from "@/data/advisorRecommendations";
 import { useQuery } from "@tanstack/react-query";
-import { getAdvisorFeed } from "@/lib/api";
+import { getAdvisorFeed, type AdvisorFeedNode } from "@/lib/api";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
@@ -25,10 +25,9 @@ const Advisor = () => {
 
   const { data: feedData, isLoading: isFeedLoading } = useQuery({
     queryKey: ["advisorFeed", profile?.cluster],
-    queryFn: async () => {
+    queryFn: async (): Promise<AdvisorFeedNode[]> => {
       if (!profile) return [];
-      const res = await getAdvisorFeed(profile.cluster);
-      return Array.isArray(res) ? res : (res as any).feed || res;
+      return getAdvisorFeed(profile.cluster);
     },
     enabled: !!profile,
   });
@@ -126,8 +125,8 @@ const Advisor = () => {
                   <Loader2 className="animate-spin text-primary" />
                   <span className="ml-2 text-sm text-muted-foreground font-data">Generating live feed...</span>
                 </div>
-              ) : feedData && (feedData as any[]).length > 0 ? (
-                (feedData as any[]).map((node, i) => (
+              ) : feedData && feedData.length > 0 ? (
+                feedData.map((node, i) => (
                   <div key={i} className="relative pl-6 pb-6 last:pb-0 border-l border-border ml-2">
                     <div className="absolute -left-[5px] top-1.5 w-2.5 h-2.5 rounded-full bg-primary" />
                     <div className="rounded-2xl border border-border bg-card p-5">
@@ -147,7 +146,7 @@ const Advisor = () => {
                       )}
 
                       <div className="flex flex-wrap gap-2 mt-3">
-                        {node.pills?.map((p: any, idx: number) => (
+                        {node.pills?.map((p, idx) => (
                           <Badge key={idx} variant="outline" className="font-data text-[10px] bg-background">
                             {p.label}
                           </Badge>

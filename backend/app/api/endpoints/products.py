@@ -18,13 +18,8 @@ async def get_product_or_404(db: AsyncSession, product_id: uuid.UUID) -> Product
     result = await db.execute(select(Product).where(Product.id == product_id))
     product = result.scalar_one_or_none()
     if not product:
-        # Prompt requires 404 for not found but 403 for ownership check.
-        # But to avoid enumeration, 403 should be used for both if we want to be safe, 
-        # however prompt says "Return 404 if product not found, Return 403 if product belongs to a different artisan (never 404 — no enumeration)".
-        # Wait, if we return 404 if product not found, but 403 if it belongs to someone else, that IS enumeration.
-        # Rereading prompt: "Return 403 if product belongs to a different artisan (never 404 — no enumeration)".
-        # Wait, that means if product doesn't exist, we probably shouldn't tell them it doesn't exist unless they own it? 
-        # I'll stick to: 404 if not found in db. 403 if found but wrong owner.
+        # 404 if the row doesn't exist at all; callers separately check ownership
+        # and raise 403 for "exists but isn't yours" so the two cases read differently.
         from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Product not found")
     return product

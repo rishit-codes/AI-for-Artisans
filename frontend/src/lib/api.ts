@@ -38,11 +38,17 @@ async function handleResponse<T>(res: Response): Promise<T> {
   if (res.status === 401) {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
-    // Optionally redirect — handled by auth context watching storage
+    // AuthProvider listens for this and clears its React state too — without it,
+    // a token revoked server-side (e.g. by "sign out of all devices" from another
+    // tab) leaves the UI looking logged in until something forces a reload.
+    window.dispatchEvent(new Event("auth:unauthorized"));
   }
   if (!res.ok) {
     const body = await res.json().catch(() => ({ detail: res.statusText }));
     throw new Error(body.detail || `HTTP ${res.status}`);
+  }
+  if (res.status === 204) {
+    return undefined as T;
   }
   return res.json() as Promise<T>;
 }
@@ -76,6 +82,10 @@ export async function loginApi(email: string, password: string): Promise<LoginRe
 
 export async function registerApi(userData: Record<string, unknown>): Promise<LoginResponse> {
   return apiPost<LoginResponse>("/auth/register", userData);
+}
+
+export async function logoutAllDevicesApi(): Promise<void> {
+  await apiPost<void>("/auth/logout-all");
 }
 
 export async function updateProfile(userData: Record<string, unknown>): Promise<Record<string, unknown>> {
@@ -157,6 +167,23 @@ export async function deleteProduct(id: string): Promise<void> {
   }
 }
 
+/* ---------- orders ---------- */
+
+export interface Order {
+  id: string;
+  artisan_id: string;
+  product_id: string | null;
+  quantity: number;
+  total_price: number;
+  currency: string;
+  status: string;
+  created_at: string | null;
+}
+
+export async function getOrders(): Promise<Order[]> {
+  return apiGet<Order[]>("/orders");
+}
+
 /* ---------- uploads ---------- */
 
 async function uploadImage(path: string, file: File): Promise<Record<string, string>> {
@@ -182,30 +209,61 @@ export async function uploadProductImage(file: File): Promise<{ image_url: strin
 
 export interface TrendItem {
   id: number;
+  author: string;
   title: string;
-  description: string;
-  category: string;
-  source: string;
-  trend_type: string;
-  confidence: number;
+  content: string;
+  timestamp: string;
+  tags: string[];
+  performance_badge?: string;
+  likes: string;
+  comments: number;
   image_url?: string;
-  tags?: string[];
-  likes?: number;
-  created_at?: string;
 }
 
 export async function getTrends(tab = "All Trends"): Promise<TrendItem[]> {
   return apiGet<TrendItem[]>(`/trends?tab=${encodeURIComponent(tab)}`);
 }
 
+export interface AiSuggestion {
+  title: string;
+  subtitle: string;
+  text: string;
+  action: string;
+}
+
+export interface MaterialForecastItem {
+  name: string;
+  price: string;
+  status: string;
+  trend: string;
+}
+
+export interface TrendIntelligence {
+  ai_suggestion: Partial<AiSuggestion>;
+  material_forecast: MaterialForecastItem[];
+}
+
 export async function getTrendIntelligence() {
-  return apiGet<Record<string, unknown>>("/trends/intelligence");
+  return apiGet<TrendIntelligence>("/trends/intelligence");
 }
 
 /* ---------- market / niche insights ---------- */
 
+export interface MarketInsightItem {
+  niche: string;
+  confidence_score: number;
+  status: string;
+  trend_momentum: string;
+  upcoming_season: string;
+}
+
+export interface MarketInsightsResponse {
+  category: string;
+  insights: MarketInsightItem[];
+}
+
 export async function getMarketInsights(category: string) {
-  return apiGet<Record<string, unknown>>(`/market/insights?category=${encodeURIComponent(category)}`);
+  return apiGet<MarketInsightsResponse>(`/market/insights?category=${encodeURIComponent(category)}`);
 }
 
 /* ---------- materials / mandi ---------- */
@@ -214,8 +272,20 @@ export async function getCommodities() {
   return apiGet<Record<string, unknown>[]>("/materials/commodities");
 }
 
+export interface MandiComparisonItem {
+  commodity: string;
+  sub: string;
+  local_price: string;
+  local_best: boolean;
+  surat_price: string;
+  surat_best: boolean;
+  delhi_price: string;
+  delhi_best: boolean;
+  action: string;
+}
+
 export async function getMandiPrices(category: string) {
-  return apiGet<Record<string, unknown>[]>(`/materials/mandi?category=${encodeURIComponent(category)}`);
+  return apiGet<MandiComparisonItem[]>(`/materials/mandi?category=${encodeURIComponent(category)}`);
 }
 
 export async function getMandiArbitrage(localCity?: string) {
@@ -261,8 +331,15 @@ export async function getMandiScrapingLogs(limit = 50) {
   }>>(`/materials/scraping-logs?limit=${limit}`);
 }
 
+export interface MandiScrapeResult {
+  status: string;
+  scraped_cities: string[];
+  log_count: number;
+  timestamp: string;
+}
+
 export async function triggerMandiScrape() {
-  return apiPost<Record<string, unknown>>("/materials/trigger-mandi-scrape");
+  return apiPost<MandiScrapeResult>("/materials/trigger-mandi-scrape");
 }
 
 export interface ArbitrageCalcResult {
@@ -357,12 +434,40 @@ export async function downloadSourcingSheetPdfApi(payload: { commodity_name: str
 
 /* ---------- predictions ---------- */
 
-export async function getSeasonalPredictions(productId: number) {
-  return apiGet<Record<string, unknown>>(`/predictions/seasonal?product_id=${productId}`);
+export interface ForecastPoint {
+  date: string;
+  demand: number;
+  lower: number;
+  upper: number;
 }
 
-export async function triggerModelUpgrade(productId: number) {
-  return apiPost<Record<string, unknown>>("/predictions/trigger-upgrade", { product_id: productId });
+export interface SeasonalPrediction {
+  forecast: ForecastPoint[];
+  next_festival: { name: string; date: string; days_away: number; multiplier: number } | null;
+  peak_periods: { start: string; end: string; multiplier: number }[];
+  has_enough_data: boolean;
+  model_version: string;
+  model_type: string;
+  mape: number | null;
+  alpha?: number;
+  upgrade_available: boolean;
+  records_to_upgrade: number;
+}
+
+export interface TriggerUpgradeResponse {
+  upgrade_queued: boolean;
+  record_count: number;
+  records_needed?: number;
+}
+
+// product_id is a UUID string, not a numeric id — every other product-scoped
+// call in this file takes a string id too.
+export async function getSeasonalPredictions(productId: string): Promise<SeasonalPrediction> {
+  return apiGet<SeasonalPrediction>(`/predictions/seasonal?product_id=${productId}`);
+}
+
+export async function triggerModelUpgrade(productId: string): Promise<TriggerUpgradeResponse> {
+  return apiPost<TriggerUpgradeResponse>("/predictions/trigger-upgrade", { product_id: productId });
 }
 
 /* ---------- production ---------- */
@@ -373,8 +478,21 @@ export async function getProductionTimeline() {
 
 /* ---------- advisor ---------- */
 
+export interface AdvisorFeedNode {
+  timeLabel: string;
+  nodeColor: string;
+  type: string;
+  title: string;
+  badge?: { label: string; variant: string };
+  description: string;
+  pills?: { label: string; variant: string }[];
+  aiAdvice?: string;
+  estimatedTime?: string;
+  workVolume?: string;
+}
+
 export async function getAdvisorFeed(artisanId: string) {
-  return apiGet<Record<string, unknown>>(`/advisor/feed?artisan_id=${artisanId}`);
+  return apiGet<AdvisorFeedNode[]>(`/advisor/feed?artisan_id=${artisanId}`);
 }
 
 /**

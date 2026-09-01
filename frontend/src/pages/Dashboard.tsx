@@ -32,6 +32,27 @@ import textileImg from "@/assets/craft-textile.jpg";
 import potteryImg from "@/assets/craft-pottery.jpg";
 import metalImg from "@/assets/craft-metal.jpg";
 
+/* ---------------- speech recognition (not in standard TS lib types) ---------------- */
+
+interface SpeechRecognitionLike {
+  lang: string;
+  interimResults: boolean;
+  maxAlternatives: number;
+  onresult: ((event: { results: { [i: number]: { [j: number]: { transcript: string } } } }) => void) | null;
+  onerror: (() => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+}
+
+type SpeechRecognitionCtor = new () => SpeechRecognitionLike;
+
+function getSpeechRecognitionCtor(): SpeechRecognitionCtor | undefined {
+  if (typeof window === "undefined") return undefined;
+  const w = window as unknown as { SpeechRecognition?: SpeechRecognitionCtor; webkitSpeechRecognition?: SpeechRecognitionCtor };
+  return w.SpeechRecognition || w.webkitSpeechRecognition;
+}
+
 /* ---------------- data ---------------- */
 
 const seedChat: { who: "you" | "ai"; text: string }[] = [
@@ -78,6 +99,7 @@ const Dashboard = () => {
 /* ---------------- chrome ---------------- */
 
 const Sidebar = () => {
+  const { user } = useAuth();
   const items = [
     { to: "/dashboard", icon: Home, label: "Home", hindi: "घर" },
     { to: "/trends", icon: TrendingUp, label: "Trends", hindi: "रुझान" },
@@ -116,9 +138,9 @@ const Sidebar = () => {
         ))}
       </nav>
       <div className="rounded-xl border border-border bg-card p-3 text-xs">
-        <div className="font-display text-sm">Khurja cluster</div>
-        <div className="text-muted-foreground font-data mt-0.5">142 active artisans</div>
-        <button className="mt-3 text-primary font-data text-xs hover:underline">switch cluster →</button>
+        <div className="font-display text-sm">{(user?.location as string) || "Your cluster"}</div>
+        <div className="text-muted-foreground font-data mt-0.5">{(user?.craft_type as string) || "Artisan"}</div>
+        <Link to="/mandi" className="mt-3 inline-block text-primary font-data text-xs hover:underline">compare mandi prices →</Link>
       </div>
     </aside>
   );
@@ -202,29 +224,46 @@ const NotificationsBell = () => {
   );
 };
 
-const Topbar = () => (
-  <div className="sticky top-0 z-20 backdrop-blur bg-background/85 border-b border-border px-5 lg:px-8 py-3.5 flex items-center justify-between gap-4">
-    <div className="flex items-center gap-3 flex-1 max-w-md">
-      <div className="relative flex-1">
-        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-        <input
-          placeholder="search materials, SKUs, festivals…"
-          className="w-full bg-card border border-border rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:border-primary/60 placeholder:text-muted-foreground"
-        />
+const Topbar = () => {
+  const { user } = useAuth();
+  const [search, setSearch] = useState("");
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!search.trim()) return;
+    toast.info("Search isn't wired up to real results yet — try Mandi, Trends, or Profile directly for now.");
+  };
+
+  return (
+    <div className="sticky top-0 z-20 backdrop-blur bg-background/85 border-b border-border px-5 lg:px-8 py-3.5 flex items-center justify-between gap-4">
+      <form onSubmit={handleSearch} className="flex items-center gap-3 flex-1 max-w-md">
+        <div className="relative flex-1">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="search materials, SKUs, festivals…"
+            className="w-full bg-card border border-border rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:border-primary/60 placeholder:text-muted-foreground"
+          />
+        </div>
+      </form>
+      <div className="flex items-center gap-3 text-xs text-muted-foreground font-data">
+        {user?.location ? <span className="hidden md:inline">{user.location as string}</span> : null}
+        <NotificationsBell />
+        <Link to="/settings" aria-label="Settings" className="w-9 h-9 rounded-lg border border-border bg-card grid place-items-center hover:border-primary/60">
+          <Settings size={14} />
+        </Link>
+        <Link
+          to="/profile"
+          aria-label="Profile"
+          className="w-9 h-9 rounded-full bg-secondary text-secondary-foreground grid place-items-center font-display hover:opacity-90 uppercase"
+        >
+          {(user?.full_name as string)?.charAt(0) || "?"}
+        </Link>
       </div>
     </div>
-    <div className="flex items-center gap-3 text-xs text-muted-foreground font-data">
-      <span className="hidden md:inline">Jaipur · 31°C</span>
-      <span className="hidden md:inline w-1 h-1 rounded-full bg-border-strong" />
-      <span className="text-forest hidden md:inline">mandi open</span>
-      <NotificationsBell />
-      <Link to="/settings" aria-label="Settings" className="w-9 h-9 rounded-lg border border-border bg-card grid place-items-center hover:border-primary/60">
-        <Settings size={14} />
-      </Link>
-      <Link to="/profile" aria-label="Profile" className="w-9 h-9 rounded-full bg-secondary text-secondary-foreground grid place-items-center font-display hover:opacity-90">र</Link>
-    </div>
-  </div>
-);
+  );
+};
 
 const Greeting = () => {
   const { user } = useAuth();
@@ -307,10 +346,10 @@ const PriorityCard = () => {
     );
   }
 
-  const title = data?.title || "Start 18 indigo dupattas before Friday";
-  const hindi_title = data?.hindi_title || "शुक्रवार से पहले 18 दुपट्टे शुरू करें";
+  const title = data?.title || "No urgent priority right now";
+  const hindi_title = data?.hindi_title || "अभी कोई ज़रूरी काम नहीं";
   const image_url = resolveImageUrl(data?.image_url as string) || textileImg;
-  const metrics = data?.metrics as string[] || ["+38% Diwali lift", "drying weather holds 4 days", "cotton at 90-day floor"];
+  const metrics = (data?.metrics as string[]) || ["Check back as festivals or stock levels change"];
 
   return (
     <div className="rounded-2xl border border-border-strong bg-card p-5 flex flex-col sm:flex-row gap-5"
@@ -373,15 +412,15 @@ const MandiWidget = () => {
     return parts?.length > 1 ? `/${parts[1]}` : "unit";
   };
 
-  const rows = data ? data.slice(0, 3).map((r: any) => ({
+  const rows = data ? data.slice(0, 3).map((r) => ({
     item: r.commodity,
     hindi: r.sub,
     unit: parseUnit(r.local_price),
     local: parseVal(r.local_price),
     surat: parseVal(r.surat_price),
     delhi: parseVal(r.delhi_price),
-    delta: r.action === "Buy" ? -2.1 : (r.action === "Wait" ? 1.5 : 0.8)
   })) : [];
+  const lastUpdated = new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
 
   return (
   <div className="rounded-2xl border border-border bg-card overflow-hidden">
@@ -391,7 +430,7 @@ const MandiWidget = () => {
         <div className="font-display text-xl mt-0.5">Three markets, one screen</div>
       </div>
       <div className="flex items-center gap-2 text-xs text-forest font-data">
-        <span className="w-1.5 h-1.5 rounded-full bg-forest animate-pulse" /> live · 04:18 am
+        <span className="w-1.5 h-1.5 rounded-full bg-forest animate-pulse" /> live · {lastUpdated}
       </div>
     </div>
     <div className="overflow-x-auto">
@@ -406,7 +445,7 @@ const MandiWidget = () => {
           </tr>
         </thead>
         <tbody>
-          {rows.map((r: any) => {
+          {rows.map((r) => {
             const min = Math.min(r.local, r.surat, r.delhi);
             const cell = (v: number) =>
               v === min
@@ -421,7 +460,7 @@ const MandiWidget = () => {
                 <td className={`py-3.5 px-3 text-right font-data ${cell(r.local)}`}>₹{r.local.toLocaleString()}</td>
                 <td className={`py-3.5 px-3 text-right font-data ${cell(r.surat)}`}>₹{r.surat.toLocaleString()}</td>
                 <td className={`py-3.5 px-3 text-right font-data ${cell(r.delhi)}`}>₹{r.delhi.toLocaleString()}</td>
-                <td className="py-3.5 px-5 text-right"><Delta v={r.delta} /></td>
+                <td className="py-3.5 px-5 text-right text-muted-foreground font-data text-xs">—</td>
               </tr>
             );
           })}
@@ -429,21 +468,10 @@ const MandiWidget = () => {
       </table>
     </div>
     <div className="p-4 bg-background-deep border-t border-border flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground font-data">
-      <span>Green = cheapest mandi today · SARIMA MAPE 7.2%</span>
-      <span className="text-forest">↓ Buy cotton this week — predicted floor</span>
+      <span>Green = cheapest mandi today</span>
+      <Link to="/mandi" className="text-primary hover:underline">See full comparison →</Link>
     </div>
   </div>
-  );
-};
-
-const Delta = ({ v }: { v: number }) => {
-  if (v === 0) return <span className="inline-flex items-center gap-1 text-muted-foreground font-data text-xs">— 0.0%</span>;
-  const up = v > 0;
-  return (
-    <span className={`inline-flex items-center gap-1 font-data text-xs ${up ? "text-destructive" : "text-forest"}`}>
-      {up ? <ArrowUp size={12} /> : <ArrowDown size={12} />}
-      {Math.abs(v).toFixed(1)}%
-    </span>
   );
 };
 
@@ -453,7 +481,7 @@ const StockLedger = () => {
     queryFn: getProducts,
   });
 
-  const rows = data && data.length > 0 ? data.map((p: any) => ({
+  const rows = data && data.length > 0 ? data.map((p) => ({
     sku: p.id ? p.id.toString().substring(0, 8).toUpperCase() : "SKU",
     name: p.name,
     hindi: p.category || "General",
@@ -471,10 +499,10 @@ const StockLedger = () => {
         <div className="text-[10px] uppercase tracking-wider text-primary font-data">Stock ledger · स्टॉक बही</div>
         <div className="font-display text-xl mt-0.5">What's on the shelf</div>
       </div>
-      <button className="text-xs font-data text-primary hover:underline">+ add product</button>
+      <Link to="/profile" className="text-xs font-data text-primary hover:underline">+ add product</Link>
     </div>
     <div className="divide-y divide-border">
-      {rows.slice(0, 5).map((s: any) => {
+      {rows.slice(0, 5).map((s) => {
         const pct = Math.min(100, (s.qty / Math.max(s.low * 2, 1)) * 100);
         const tone =
           s.status === "Out" ? "destructive" :
@@ -531,7 +559,7 @@ const ChatPanel = () => {
   const [isListening, setIsListening] = useState(false);
   const [voiceLang, setVoiceLang] = useState<"hi-IN" | "en-IN">("hi-IN");
   const scrollRef = useRef<HTMLDivElement>(null);
-  const recognitionRef = useRef<any>(null);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -542,10 +570,10 @@ const ChatPanel = () => {
     return () => recognitionRef.current?.stop();
   }, []);
 
-  const speechSupported = typeof window !== "undefined" && !!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
+  const speechSupported = typeof window !== "undefined" && !!(getSpeechRecognitionCtor());
 
   const toggleListening = () => {
-    const SpeechRecognitionCtor = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const SpeechRecognitionCtor = getSpeechRecognitionCtor();
     if (!SpeechRecognitionCtor) {
       toast.error("Voice input isn't supported in this browser. Try Chrome.");
       return;
@@ -559,7 +587,7 @@ const ChatPanel = () => {
     recognition.lang = voiceLang;
     recognition.interimResults = false;
     recognition.maxAlternatives = 1;
-    recognition.onresult = (event: any) => {
+    recognition.onresult = (event) => {
       const transcript = event.results[0][0].transcript;
       setInput((prev) => (prev ? `${prev} ${transcript}` : transcript));
     };
@@ -781,10 +809,10 @@ const FestivalNudge = () => {
       )}
       <div className="mt-4 flex items-end justify-between">
         <div>
-          <div className="font-data text-3xl text-primary">{data?.metrics?.[0] ?? "+38%"}</div>
+          <div className="font-data text-lg text-primary">{data?.metrics?.[0] ?? "Checking…"}</div>
           <div className="text-[10px] uppercase tracking-wider text-secondary-foreground/60">expected demand lift</div>
         </div>
-        <button className="text-xs font-data text-primary hover:underline">plan stock →</button>
+        <Link to="/profile" className="text-xs font-data text-primary hover:underline">plan stock →</Link>
       </div>
     </div>
   </div>

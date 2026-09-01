@@ -1,4 +1,4 @@
-import { TrendingUp, Sprout, Package, Wand2, BarChart3, Bell } from "lucide-react";
+import { TrendingUp, Sprout, Package, Wand2, BarChart3, Bell, type LucideIcon } from "lucide-react";
 
 const rows = [
   {
@@ -92,7 +92,7 @@ const LedgerRow = ({
   reverse,
 }: {
   no: string;
-  icon: any;
+  icon: LucideIcon;
   title: string;
   hindi: string;
   body: string;

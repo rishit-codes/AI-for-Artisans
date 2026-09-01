@@ -97,13 +97,13 @@ const Mandi = () => {
   // 4. Manual Scrape Trigger Mutation
   const scrapeMutation = useMutation({
     mutationFn: triggerMandiScrape,
-    onSuccess: (res: any) => {
+    onSuccess: (res) => {
       toast.success(`Scraped ${res.scraped_cities?.length || 5} mandis! Added ${res.log_count || 40} audit logs.`);
       queryClient.invalidateQueries({ queryKey: ["mandiArbitrage"] });
       queryClient.invalidateQueries({ queryKey: ["mandiScrapingLogs"] });
       queryClient.invalidateQueries({ queryKey: ["arbitrageCalculation"] });
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       toast.error(`Scraping error: ${err.message}`);
     }
   });
@@ -118,7 +118,7 @@ const Mandi = () => {
       toast.info("Downloading CSV file...");
       await exportCSVApi();
       toast.success("CSV file downloaded to your system!");
-    } catch (e: any) {
+    } catch {
       // Client-side fallback
       if (!displayRows || displayRows.length === 0) {
         toast.error("No mandi data available to export.");
@@ -148,8 +148,8 @@ const Mandi = () => {
         destination_city: calcDestination
       });
       toast.success("Sourcing Order Sheet (.csv) downloaded to your system!");
-    } catch (e: any) {
-      toast.error(e?.message || "Failed to download the sourcing sheet CSV.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to download the sourcing sheet CSV.");
     }
   };
 
@@ -167,8 +167,8 @@ const Mandi = () => {
         destination_city: calcDestination
       });
       toast.success("Sourcing Order Sheet (.pdf) downloaded to your system!");
-    } catch (e: any) {
-      toast.error(e?.message || "Failed to download the sourcing sheet PDF.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to download the sourcing sheet PDF.");
     }
   };
 
@@ -548,7 +548,7 @@ const Mandi = () => {
                 </div>
               </div>
               <button
-                onClick={() => toast("Quote request created! Connecting with " + s.name)}
+                onClick={() => toast.info("Direct supplier quotes aren't available yet.")}
                 className="mt-5 w-full text-sm py-2.5 rounded-full bg-secondary text-secondary-foreground hover:bg-foreground hover:text-background transition-colors"
               >
                 Request quote · भाव माँगें
@@ -711,13 +711,10 @@ const Mandi = () => {
               </button>
 
               <button
-                onClick={() => {
-                  toast.success("Sourcing sheet saved to co-op records!");
-                  setShowOrderSheetModal(false);
-                }}
+                onClick={() => setShowOrderSheetModal(false)}
                 className="flex items-center gap-2 text-xs px-4 py-2 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors font-medium"
               >
-                Confirm Sourcing Plan
+                Done
               </button>
             </div>
           </div>
