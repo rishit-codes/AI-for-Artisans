@@ -3,7 +3,16 @@ from datetime import datetime
 from typing import List, Optional
 from pydantic import BaseModel, ConfigDict
 
-from app.schemas.product import ProductRead
+class PublicProductCard(BaseModel):
+    """Deliberately narrow — the public Karigar card must never leak artisan_id,
+    stock_qty, is_listed, or timestamps the way the authenticated ProductRead does."""
+    id: uuid.UUID
+    name: str
+    material: Optional[str] = None
+    image_url: Optional[str] = None
+    price: float
+
+    model_config = ConfigDict(from_attributes=True)
 
 class PublicKarigarProfile(BaseModel):
     id: uuid.UUID
@@ -16,7 +25,7 @@ class PublicKarigarProfile(BaseModel):
     gi_year: Optional[str] = None
     languages: Optional[str] = None
     member_since: int
-    products: List[ProductRead] = []
+    products: List[PublicProductCard] = []
 
     model_config = ConfigDict(from_attributes=True)
 

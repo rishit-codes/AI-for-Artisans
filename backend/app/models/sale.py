@@ -13,6 +13,7 @@ class Sale(Base):
     product_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("products.id", ondelete="SET NULL"), nullable=True, index=True)
     quantity: Mapped[int] = mapped_column(Integer, nullable=False)
     price_per_unit: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
+    unit_cost: Mapped[float | None] = mapped_column(Numeric(10, 2))
     channel: Mapped[str | None] = mapped_column(String(100))
     sale_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     notes: Mapped[str | None] = mapped_column(Text)

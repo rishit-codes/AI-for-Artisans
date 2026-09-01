@@ -16,13 +16,19 @@ from reportlab.lib.units import mm
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 
 from app.db.session import get_db
+from app.api.dependencies import get_current_user
 from app.schemas.material import CommodityRead, MandiComparisonRead
 from app.crud.material import list_commodities, get_mandi_comparison
 from app.services.commodity_fetcher import update_commodity_prices
 from app.services.mandi_scraper import fetch_mandi_prices_async
 from app.models.mandi_log import MandiScrapingLog, MandiPrice
 
-router = APIRouter()
+# Every route below reads or triggers spend against shared, rate-limited resources
+# (Groq/Alpha Vantage quota, outbound scrapes to agmarknet.gov.in, DB writes) — none
+# of them are meant to be reachable pre-login, and nothing in the frontend calls them
+# from an unauthenticated page. Enforced once here rather than per-route so nothing
+# can be added later and accidentally left open.
+router = APIRouter(dependencies=[Depends(get_current_user)])
 logger = logging.getLogger(__name__)
 
 class ArbitrageCalcRequest(BaseModel):

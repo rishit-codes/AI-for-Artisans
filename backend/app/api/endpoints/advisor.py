@@ -1,5 +1,14 @@
 import json
+import re
 import logging
+def _extract_json(text: str) -> dict:
+    """Extract the first JSON object from a model response, stripping markdown fences."""
+    text = re.sub(r"```(?:json)?\s*", "", text).strip().rstrip("`").strip()
+    match = re.search(r"(\{.*\})", text, re.DOTALL)
+    if match:
+        return json.loads(match.group(1))
+    return json.loads(text)
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -79,7 +88,7 @@ async def stream_groq_response(messages: List[Dict[str, Any]], current_user: Use
     
     try:
         completion = await client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model="openai/gpt-oss-120b",
             messages=[
                 {"role": "system", "content": system_prompt},
                 *messages
@@ -115,7 +124,8 @@ async def chat_with_advisor(
 
 @router.get("/feed")
 async def get_advisor_feed(
-    artisan_id: Optional[str] = None, 
+    artisan_id: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -184,14 +194,13 @@ Each of the 3 objects must be structured identically to this schema, using appro
         client = AsyncGroq(api_key=api_key)
         
         completion = await client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model="openai/gpt-oss-120b",
             messages=[{"role": "user", "content": prompt}],
-            response_format={"type": "json_object"},
             temperature=0.7,
         )
         
         response_text = completion.choices[0].message.content
-        data = json.loads(response_text)
+        data = _extract_json(response_text)
         return data.get("feed", [])
         
     except Exception as e:

@@ -187,9 +187,15 @@ const badgeStyles = {
 const Trends = () => {
   const [tab, setTab] = useState<Tab>("All trends");
   const [loading, setLoading] = useState(true);
-  const [bookmarks, setBookmarks] = useState<number[]>(() => {
+  // Bookmarks store the full trend object, not just its id — the feed is regenerated
+  // fresh every cache cycle (~4 min), so an id-only bookmark would be orphaned the moment
+  // the backend rotates in a new batch. Storing the whole card keeps "Saved" stable.
+  const [bookmarks, setBookmarks] = useState<Trend[]>(() => {
     try { return JSON.parse(localStorage.getItem("bookmarkedTrends") || "[]"); } catch { return []; }
   });
+  useEffect(() => {
+    localStorage.setItem("bookmarkedTrends", JSON.stringify(bookmarks));
+  }, [bookmarks]);
 
   const { data: rawTrends, isLoading: isTrendsLoading } = useQuery({
     queryKey: ["trends", tab === "Saved" ? "All Trends" : tab],
@@ -209,7 +215,7 @@ const Trends = () => {
   const filtered = useMemo(() => {
     const base = mappedTrends;
     if (tab === "All trends") return base;
-    if (tab === "Saved") return base.filter((t) => bookmarks.includes(t.id));
+    if (tab === "Saved") return bookmarks;
     return base.filter(
       (t) =>
         t.category === tab ||
@@ -232,7 +238,7 @@ const Trends = () => {
           className="w-full lg:max-w-[680px] flex-1 space-y-5"
         >
           <FilterBar tab={tab} setTab={setTab} />
-          {isTrendsLoading ? (
+          {tab !== "Saved" && isTrendsLoading ? (
             <>
               <SkeletonCard />
               <SkeletonCard />
@@ -246,11 +252,14 @@ const Trends = () => {
                 key={t.id}
                 trend={t}
                 index={i}
-                bookmarked={bookmarks.includes(t.id)}
+                bookmarked={bookmarks.some((b) => b.id === t.id || (b.title === t.title && b.author === t.author))}
                 onToggleBookmark={() =>
-                  setBookmarks((b) =>
-                    b.includes(t.id) ? b.filter((x) => x !== t.id) : [...b, t.id],
-                  )
+                  setBookmarks((b) => {
+                    const already = b.some((x) => x.id === t.id || (x.title === t.title && x.author === t.author));
+                    return already
+                      ? b.filter((x) => !(x.id === t.id || (x.title === t.title && x.author === t.author)))
+                      : [...b, t];
+                  })
                 }
               />
             ))
