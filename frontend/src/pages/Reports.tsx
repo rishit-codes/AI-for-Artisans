@@ -3,24 +3,35 @@ import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   Download, FileText, TrendingUp, IndianRupee, Calendar,
-  Package2, ShoppingBag, AlertCircle, CheckCircle2, Clock,
+  Package2, ShoppingBag, AlertCircle, Clock,
   BarChart2, Loader2, Plus, FileSpreadsheet,
 } from "lucide-react";
 import AppShell from "@/components/site/AppShell";
 import {
   getGstSummary, downloadGstSummaryCsv, downloadGstSummaryPdf, getPurchaseHistory, recordPurchase, PurchaseCreatePayload,
-  getReportsSummary,
+  getReportsSummary, getProducts, recordSale, SaleCreatePayload,
 } from "@/lib/api";
 
 /* ─── data ─── */
 
-const gstTimeline = [
-  { date: "20 Mar", label: "GSTR-3B filed", status: "done" },
-  { date: "11 Apr", label: "GSTR-1 filed", status: "done" },
-  { date: "20 Apr", label: "GSTR-3B filed", status: "done" },
-  { date: "11 May", label: "GSTR-1 due", status: "upcoming" },
-  { date: "20 May", label: "GSTR-3B due", status: "upcoming" },
-];
+// The app has no way to know whether an artisan actually filed a past GSTR — there's no
+// filing-status field anywhere in the backend. Rather than claim past filings that may
+// never have happened, this only ever shows genuinely-computed upcoming due dates.
+const upcomingGstTimeline = (): { date: string; label: string }[] => {
+  const now = new Date();
+  const out: { date: string; label: string; sortKey: number }[] = [];
+  for (let m = 0; m < 3; m++) {
+    const gstr1 = new Date(now.getFullYear(), now.getMonth() + m, 11);
+    const gstr3b = new Date(now.getFullYear(), now.getMonth() + m, 20);
+    out.push({ date: gstr1.toLocaleDateString("en-IN", { day: "numeric", month: "short" }), label: "GSTR-1 due", sortKey: gstr1.getTime() });
+    out.push({ date: gstr3b.toLocaleDateString("en-IN", { day: "numeric", month: "short" }), label: "GSTR-3B due", sortKey: gstr3b.getTime() });
+  }
+  return out
+    .filter((r) => r.sortKey >= now.setHours(0, 0, 0, 0))
+    .sort((a, b) => a.sortKey - b.sortKey)
+    .slice(0, 4)
+    .map(({ date, label }) => ({ date, label }));
+};
 
 const inr = (n: number) => `₹${n.toLocaleString("en-IN")}`;
 
@@ -54,6 +65,7 @@ const Reports = () => {
   const [activeTab, setActiveTab] = useState<"overview" | "categories" | "gst">("overview");
   const [gstPeriod, setGstPeriod] = useState<"this_month" | "last_month">("this_month");
   const [purchaseForm, setPurchaseForm] = useState({ material_name: "", amount: "", gst_rate: "5", purchase_date: new Date().toISOString().slice(0, 10), notes: "" });
+  const [saleForm, setSaleForm] = useState({ product_id: "", quantity: "1", price_per_unit: "", unit_cost: "", channel: "", sale_date: new Date().toISOString().slice(0, 10) });
 
   const queryClient = useQueryClient();
   const { from: periodFrom, to: periodTo, label: periodLabel } = getPeriodRange(gstPeriod);
@@ -97,6 +109,49 @@ const Reports = () => {
     queryKey: ["purchaseHistory", periodFrom, periodTo],
     queryFn: () => getPurchaseHistory(periodFrom, periodTo),
   });
+
+  const { data: products } = useQuery({
+    queryKey: ["products"],
+    queryFn: getProducts,
+  });
+
+  const saleMutation = useMutation({
+    mutationFn: (payload: SaleCreatePayload) => recordSale(payload),
+    onSuccess: (res) => {
+      toast.success(
+        res.profit_is_estimated
+          ? `Sale logged — ${inr(res.total_amount)} revenue. Add a cost per unit next time for real profit.`
+          : `Sale logged — ${inr(res.profit)} profit.`
+      );
+      queryClient.invalidateQueries({ queryKey: ["reportsSummary"] });
+      queryClient.invalidateQueries({ queryKey: ["gstSummary"] });
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      setSaleForm((f) => ({ ...f, quantity: "1", price_per_unit: "", unit_cost: "", channel: "" }));
+    },
+    onError: (e: any) => toast.error(e?.message || "Failed to log sale."),
+  });
+
+  const handleLogSale = (e: React.FormEvent) => {
+    e.preventDefault();
+    const quantity = parseInt(saleForm.quantity, 10);
+    const price = parseFloat(saleForm.price_per_unit);
+    if (!saleForm.product_id) {
+      toast.error("Pick which product sold.");
+      return;
+    }
+    if (!quantity || quantity <= 0 || !price || price <= 0) {
+      toast.error("Enter a valid quantity and price.");
+      return;
+    }
+    saleMutation.mutate({
+      product_id: saleForm.product_id,
+      quantity,
+      price_per_unit: price,
+      unit_cost: saleForm.unit_cost.trim() ? parseFloat(saleForm.unit_cost) : undefined,
+      channel: saleForm.channel.trim() || undefined,
+      sale_date: saleForm.sale_date,
+    });
+  };
 
   const purchaseMutation = useMutation({
     mutationFn: (payload: PurchaseCreatePayload) => recordPurchase(payload),
@@ -189,6 +244,7 @@ const Reports = () => {
       </div>
 
       {activeTab === "overview" && (
+        <div className="space-y-6">
         <div className="grid md:grid-cols-3 gap-6">
           {/* Bar chart */}
           <div className="md:col-span-2 rounded-2xl border border-border bg-card p-6">
@@ -315,6 +371,78 @@ const Reports = () => {
             </div>
           </div>
         </div>
+
+        {/* Log a sale */}
+        <div className="rounded-2xl border border-border bg-card p-6">
+          <div className="font-display text-xl mb-1">Log a sale</div>
+          <div className="text-xs text-muted-foreground mb-4">
+            Every sale here is what drives your revenue, profit and GST numbers above — nothing shows up until you log it.
+          </div>
+          <form onSubmit={handleLogSale} className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <select
+              value={saleForm.product_id}
+              onChange={(e) => setSaleForm((f) => ({ ...f, product_id: e.target.value }))}
+              className="col-span-2 bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary/60"
+            >
+              <option value="">Which product sold?</option>
+              {(products || []).map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+            <input
+              type="number"
+              min="1"
+              value={saleForm.quantity}
+              onChange={(e) => setSaleForm((f) => ({ ...f, quantity: e.target.value }))}
+              placeholder="Quantity"
+              className="bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary/60"
+            />
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={saleForm.price_per_unit}
+              onChange={(e) => setSaleForm((f) => ({ ...f, price_per_unit: e.target.value }))}
+              placeholder="Price / unit (₹)"
+              className="bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary/60"
+            />
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={saleForm.unit_cost}
+              onChange={(e) => setSaleForm((f) => ({ ...f, unit_cost: e.target.value }))}
+              placeholder="Cost / unit (₹) — optional"
+              className="bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary/60"
+            />
+            <input
+              value={saleForm.channel}
+              onChange={(e) => setSaleForm((f) => ({ ...f, channel: e.target.value }))}
+              placeholder="Channel (e.g. Instagram) — optional"
+              className="bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary/60"
+            />
+            <input
+              type="date"
+              value={saleForm.sale_date}
+              onChange={(e) => setSaleForm((f) => ({ ...f, sale_date: e.target.value }))}
+              className="bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary/60"
+            />
+            <button
+              type="submit"
+              disabled={saleMutation.isPending}
+              className="col-span-2 md:col-span-1 text-xs px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:opacity-90 flex items-center justify-center gap-1.5 disabled:opacity-50"
+            >
+              {saleMutation.isPending ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}
+              Log sale
+            </button>
+          </form>
+          {!saleForm.unit_cost && (
+            <div className="text-[10px] text-muted-foreground mt-3 italic">
+              Without a cost per unit, profit shown for this sale will equal revenue — it's not a real margin.
+            </div>
+          )}
+        </div>
+        </div>
       )}
 
       {activeTab === "categories" && (
@@ -380,27 +508,23 @@ const Reports = () => {
       {activeTab === "gst" && (
         <div className="grid md:grid-cols-2 gap-6">
           <div className="rounded-2xl border border-border bg-card p-6">
-            <div className="font-display text-xl mb-1">GST compliance timeline</div>
-            <div className="text-xs font-hindi text-muted-foreground mb-6">जीएसटी अनुपालन — Q1 2026</div>
+            <div className="font-display text-xl mb-1">Upcoming GST due dates</div>
+            <div className="text-xs font-hindi text-muted-foreground mb-1">जीएसटी अनुपालन — आगामी तारीखें</div>
+            <div className="text-[10px] text-muted-foreground mb-6">
+              Standard due dates for small taxpayers (11th / 20th). This app doesn't track whether you've actually filed —
+              treat it as a reminder calendar, not a filing record.
+            </div>
             <div className="relative pl-6">
               <div className="absolute left-2 top-1 bottom-1 w-px bg-border" />
-              {gstTimeline.map((g, i) => (
+              {upcomingGstTimeline().map((g, i) => (
                 <div key={i} className="relative pb-5 last:pb-0 flex items-start gap-4">
-                  <div className={`absolute -left-[18px] top-0.5 w-3.5 h-3.5 rounded-full ring-4 ring-card flex items-center justify-center ${
-                    g.status === "done" ? "bg-forest" : "bg-primary"
-                  }`}>
-                    {g.status === "done"
-                      ? <CheckCircle2 size={8} className="text-white" />
-                      : <Clock size={8} className="text-primary-foreground" />}
+                  <div className="absolute -left-[18px] top-0.5 w-3.5 h-3.5 rounded-full ring-4 ring-card flex items-center justify-center bg-primary">
+                    <Clock size={8} className="text-primary-foreground" />
                   </div>
                   <div>
                     <div className="text-[10px] uppercase tracking-wider font-data text-muted-foreground">{g.date}</div>
                     <div className="text-sm mt-0.5">{g.label}</div>
-                    <div className={`text-[10px] mt-0.5 font-data font-semibold ${
-                      g.status === "done" ? "text-forest" : "text-primary"
-                    }`}>
-                      {g.status === "done" ? "Completed ✓" : "Upcoming"}
-                    </div>
+                    <div className="text-[10px] mt-0.5 font-data font-semibold text-primary">Upcoming</div>
                   </div>
                 </div>
               ))}

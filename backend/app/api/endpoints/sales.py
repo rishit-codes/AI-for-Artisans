@@ -131,25 +131,36 @@ async def record_sale(
         product.stock_qty = 0
     
     total_amount = float(data.quantity) * data.price_per_unit
-    
+
+    if data.unit_cost is not None:
+        profit = float(data.quantity) * (data.price_per_unit - data.unit_cost)
+        profit_is_estimated = False
+    else:
+        # No cost basis given — profit can't be computed for real, so fall back
+        # to revenue rather than silently inventing a margin.
+        profit = total_amount
+        profit_is_estimated = True
+
     new_sale = Sale(
         user_id=current_user.id,
         product_id=data.product_id,
         quantity=data.quantity,
         price_per_unit=data.price_per_unit,
+        unit_cost=data.unit_cost,
         channel=data.channel,
         sale_date=data.sale_date,
         notes=data.notes
     )
-    
+
     db.add(new_sale)
     await db.commit()
     await db.refresh(new_sale)
-    
+
     return SaleResponse(
         id=new_sale.id,
         total_amount=total_amount,
-        profit=total_amount,
+        profit=profit,
+        profit_is_estimated=profit_is_estimated,
         updated_stock=product.stock_qty
     )
 

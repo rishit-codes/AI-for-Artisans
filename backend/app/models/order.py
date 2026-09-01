@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 from typing import Optional
-from sqlalchemy import String, ForeignKey, DateTime, Numeric, func, text
+from sqlalchemy import String, ForeignKey, DateTime, Numeric, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -13,7 +13,7 @@ class Order(Base):
 
     __tablename__ = "orders"
 
-    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, server_default=text("gen_random_uuid()"))
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     artisan_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     product_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         ForeignKey("products.id", ondelete="SET NULL"),

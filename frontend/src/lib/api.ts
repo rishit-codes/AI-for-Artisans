@@ -460,6 +460,30 @@ export async function recordPurchase(payload: PurchaseCreatePayload): Promise<Pu
   return apiPost<Purchase>("/purchases/record", payload);
 }
 
+/* ---------- sales ---------- */
+
+export interface SaleCreatePayload {
+  product_id: string;
+  quantity: number;
+  price_per_unit: number;
+  unit_cost?: number;
+  channel?: string;
+  sale_date: string;
+  notes?: string;
+}
+
+export interface SaleResponse {
+  id: string;
+  total_amount: number;
+  profit: number;
+  profit_is_estimated: boolean;
+  updated_stock: number;
+}
+
+export async function recordSale(payload: SaleCreatePayload): Promise<SaleResponse> {
+  return apiPost<SaleResponse>("/sales/record", payload);
+}
+
 /* ---------- GST filing helper ---------- */
 
 export interface GstCategoryBreakdown {

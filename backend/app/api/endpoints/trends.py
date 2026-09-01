@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Query, Depends
 import logging
 import json
+import re
 from groq import AsyncGroq
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -8,12 +9,25 @@ import httpx
 from datetime import datetime, timedelta
 import random
 
+def _extract_json(text: str) -> dict:
+    """Extract the first JSON object from a model response, stripping markdown fences."""
+    # Strip ```json ... ``` or ``` ... ``` fences
+    text = re.sub(r"```(?:json)?\s*", "", text).strip().rstrip("`").strip()
+    # Find the first { ... } block
+    match = re.search(r"(\{.*\})", text, re.DOTALL)
+    if match:
+        return json.loads(match.group(1))
+    return json.loads(text)
+
 from app.db.session import get_db
+from app.api.dependencies import get_current_user
 from app.models.material import Material
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
-router = APIRouter()
+# Every route here spends Groq/Alpha Vantage/pytrends quota on each uncached call —
+# not meant to be reachable pre-login, and nothing public-facing calls into it.
+router = APIRouter(dependencies=[Depends(get_current_user)])
 
 AVAILABLE_IMAGES = [
     "/images/loom_weaving.png",
@@ -222,14 +236,13 @@ Each object must follow this strict schema exactly:
         client = AsyncGroq(api_key=api_key)
 
         completion = await client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model="openai/gpt-oss-120b",
             messages=[{"role": "user", "content": prompt}],
-            response_format={"type": "json_object"},
             temperature=0.9,
         )
 
         response_text = completion.choices[0].message.content
-        data = json.loads(response_text)
+        data = _extract_json(response_text)
         trends = data.get("trends", [])
 
         # Unique, batch-stable ids (not small 1-9 ints) so React keys and
@@ -285,14 +298,13 @@ Evaluate the costs. Provide a purely objective JSON object with key "ai_suggesti
         client = AsyncGroq(api_key=api_key)
         
         completion = await client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model="openai/gpt-oss-120b",
             messages=[{"role": "user", "content": prompt}],
-            response_format={"type": "json_object"},
             temperature=0.7,
         )
         
         response_text = completion.choices[0].message.content
-        data = json.loads(response_text)
+        data = _extract_json(response_text)
         ai_suggestion = data.get("ai_suggestion", {})
         
         return {

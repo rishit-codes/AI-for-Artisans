@@ -239,11 +239,21 @@ async def fetch_mandi_prices_async(db: AsyncSession) -> Dict[str, Any]:
             )
             db.add(mandi_rec)
         else:
-            mandi_rec.varanasi_price = city_prices["Varanasi"]
+            prev_varanasi = float(mandi_rec.varanasi_price)
+            new_varanasi = city_prices["Varanasi"]
+            delta_7d = round((new_varanasi - prev_varanasi) / prev_varanasi * 100, 1) if prev_varanasi else 0.0
+
+            mandi_rec.varanasi_price = new_varanasi
             mandi_rec.surat_price = city_prices["Surat"]
             mandi_rec.delhi_price = city_prices["Delhi"]
             mandi_rec.jaipur_price = city_prices["Jaipur"]
             mandi_rec.mumbai_price = city_prices["Mumbai"]
+            mandi_rec.delta_7d = delta_7d
+            mandi_rec.sparkline_points = generate_sparkline_series(new_varanasi, delta_7d, item_name)
+            mandi_rec.supply_status = comm["supply"]
+            mandi_rec.hindi_name = comm["hindi"]
+            mandi_rec.category = comm["category"]
+            mandi_rec.unit = comm["unit"]
             mandi_rec.updated_at = now_utc
 
     # Sync into Material table for core system integration

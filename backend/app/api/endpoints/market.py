@@ -6,10 +6,11 @@ from sqlalchemy import select, func, desc
 from datetime import datetime, timedelta, timezone
 
 from app.db.session import get_db
+from app.api.dependencies import get_current_user
 from app.models.market_signal import MarketSignal
 from app.services.festivals import get_days_to_next_festival
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(get_current_user)])
 logger = logging.getLogger(__name__)
 
 NICHE_CATEGORIES = {
