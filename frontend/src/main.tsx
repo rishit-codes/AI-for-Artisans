@@ -2,12 +2,15 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import { AuthProvider } from "./hooks/use-auth.tsx";
+import { CartProvider } from "./hooks/use-cart.tsx";
 import "./index.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <AuthProvider>
-      <App />
+      <CartProvider>
+        <App />
+      </CartProvider>
     </AuthProvider>
   </StrictMode>,
 );

@@ -6,7 +6,7 @@ from app.db.session import get_db
 from app.api.dependencies import get_current_user
 from app.models.user import User
 from app.schemas.order import OrderCreate, OrderRead, OrderUpdate
-from app.crud.order import list_orders, create_order, update_order_status, get_order
+from app.crud.order import list_orders, create_order, update_order as update_order_crud, get_order, InvalidOrderTransition
 
 router = APIRouter()
 
@@ -33,15 +33,18 @@ async def place_order(
 
 
 @router.patch("/{order_id}", response_model=OrderRead)
-async def update_order(
+async def patch_order(
     order_id: uuid.UUID,
     updates: OrderUpdate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Update an order's status."""
+    """Update an order's status/carrier/tracking number."""
     order = await get_order(db, order_id)
     if not order or order.artisan_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
-    updated = await update_order_status(db, order, updates.status)
+    try:
+        updated = await update_order_crud(db, order, updates)
+    except InvalidOrderTransition as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
     return updated

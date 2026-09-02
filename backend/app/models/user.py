@@ -17,6 +17,11 @@ class User(Base):
     bio: Mapped[str | None] = mapped_column(Text)
     avatar_url: Mapped[str | None] = mapped_column(String(500))
     is_active: Mapped[bool] = mapped_column(Boolean, server_default=text("1"))
+    role: Mapped[str] = mapped_column(String(20), server_default=text("'user'"), nullable=False)
     token_version: Mapped[int] = mapped_column(sa.Integer, server_default=text("0"), nullable=False)
+
+    email_verified: Mapped[bool] = mapped_column(Boolean, server_default=text("0"), nullable=False)
+    totp_secret: Mapped[str | None] = mapped_column(String(64))
+    totp_enabled: Mapped[bool] = mapped_column(Boolean, server_default=text("0"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=sa.func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=sa.func.now())

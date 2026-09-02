@@ -187,19 +187,21 @@ async def fetch_mandi_prices_async(db: AsyncSession) -> Dict[str, Any]:
         
         # Calculate scraped / calibrated rates per city
         city_prices = {}
+        any_live_match = False
         for city in ["Varanasi", "Surat", "Delhi", "Jaipur", "Mumbai"]:
             res_meta = scraping_results.get(city, {"status_code": 200, "elapsed_ms": 180.0, "rates": {}})
             scraped_rates = res_meta.get("rates", {})
-            
+
             # Use scraped rate if matching commodity name found, else base price + slight market jitter
             if item_name in scraped_rates:
                 final_price = float(scraped_rates[item_name])
+                any_live_match = True
             else:
                 jitter = random.uniform(-0.015, 0.015)
                 final_price = round(base_dict[city] * (1.0 + jitter), 2)
-                
+
             city_prices[city] = final_price
-            
+
             # Create audit log record
             log_id = str(uuid.uuid4())
             log_row = MandiScrapingLog(
@@ -214,6 +216,8 @@ async def fetch_mandi_prices_async(db: AsyncSession) -> Dict[str, Any]:
             )
             db.add(log_row)
             log_entries.append(log_row)
+
+        data_source = "live" if any_live_match else "estimated"
 
         # Upsert into MandiPrice table
         query = select(MandiPrice).where(MandiPrice.commodity_name == item_name)
@@ -235,6 +239,7 @@ async def fetch_mandi_prices_async(db: AsyncSession) -> Dict[str, Any]:
                 delta_7d=delta_7d,
                 sparkline_points=generate_sparkline_series(city_prices["Varanasi"], delta_7d, item_name),
                 supply_status=comm["supply"],
+                data_source=data_source,
                 updated_at=now_utc
             )
             db.add(mandi_rec)
@@ -251,6 +256,7 @@ async def fetch_mandi_prices_async(db: AsyncSession) -> Dict[str, Any]:
             mandi_rec.delta_7d = delta_7d
             mandi_rec.sparkline_points = generate_sparkline_series(new_varanasi, delta_7d, item_name)
             mandi_rec.supply_status = comm["supply"]
+            mandi_rec.data_source = data_source
             mandi_rec.hindi_name = comm["hindi"]
             mandi_rec.category = comm["category"]
             mandi_rec.unit = comm["unit"]

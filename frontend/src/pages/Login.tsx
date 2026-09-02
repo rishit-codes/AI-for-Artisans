@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Eye, EyeOff, Loader2, Sparkles } from "lucide-react";
+import { Eye, EyeOff, Loader2, Sparkles, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+import { requestPasswordReset } from "@/lib/api";
+import { toast } from "sonner";
 
 const CRAFT_TYPES = [
   "Textiles",
@@ -18,13 +20,17 @@ const CRAFT_TYPES = [
 const Login = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { login, register } = useAuth();
+  const { login, loginWith2FA, register } = useAuth();
   const from = (location.state as { from?: string })?.from || "/dashboard";
 
-  const [mode, setMode] = useState<"login" | "register">("login");
+  const [mode, setMode] = useState<"login" | "register" | "forgot">("login");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [pendingToken, setPendingToken] = useState<string | null>(null);
+  const [twoFaCode, setTwoFaCode] = useState("");
+  const [resetSent, setResetSent] = useState(false);
 
   const [form, setForm] = useState({
     email: "",
@@ -32,6 +38,7 @@ const Login = () => {
     full_name: "",
     craft_type: "Textiles",
     location: "",
+    website: "", // honeypot — real users never see or fill this field; see backend RegisterRequest.website
   });
 
   const patch = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
@@ -45,6 +52,10 @@ const Login = () => {
     try {
       if (mode === "login") {
         const res = await login(form.email, form.password);
+        if (res.requires2fa && res.pendingToken) {
+          setPendingToken(res.pendingToken);
+          return;
+        }
         if (!res.success) throw new Error(res.error || "Login failed");
       } else {
         if (!form.full_name.trim()) throw new Error("Please enter your name");
@@ -55,10 +66,42 @@ const Login = () => {
           full_name: form.full_name,
           craft_type: form.craft_type,
           location: form.location,
+          website: form.website,
         });
         if (!res.success) throw new Error(res.error || "Registration failed");
       }
       navigate(from, { replace: true });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleTwoFaSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pendingToken) return;
+    setError(null);
+    setLoading(true);
+    try {
+      const res = await loginWith2FA(pendingToken, twoFaCode);
+      if (!res.success) throw new Error(res.error || "Incorrect code");
+      navigate(from, { replace: true });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Incorrect code");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForgotSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+    try {
+      await requestPasswordReset(form.email);
+      setResetSent(true);
+      toast.success("If that email is registered, a reset link has been sent.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
@@ -95,6 +138,85 @@ const Login = () => {
           transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
           className="rounded-2xl border border-border bg-card p-7 shadow-paper"
         >
+          {pendingToken ? (
+            <form onSubmit={handleTwoFaSubmit} className="space-y-4">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <ShieldCheck size={16} className="text-primary" /> Two-factor authentication
+              </div>
+              <p className="text-xs text-muted-foreground">Enter the 6-digit code from your authenticator app.</p>
+              <Field label="Authentication code">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  placeholder="000000"
+                  value={twoFaCode}
+                  onChange={(e) => setTwoFaCode(e.target.value.replace(/\D/g, ""))}
+                  required
+                  autoFocus
+                  className="input-base tracking-[0.3em] text-center font-data text-lg"
+                />
+              </Field>
+              {error && <div className="text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2">{error}</div>}
+              <button
+                type="submit"
+                disabled={loading || twoFaCode.length !== 6}
+                className="w-full py-3 rounded-full bg-primary text-primary-foreground font-medium text-sm hover:opacity-90 transition-opacity disabled:opacity-60 flex items-center justify-center gap-2"
+              >
+                {loading && <Loader2 size={16} className="animate-spin" />} Verify
+              </button>
+              <button
+                type="button"
+                onClick={() => { setPendingToken(null); setTwoFaCode(""); setError(null); }}
+                className="w-full text-xs text-muted-foreground hover:text-foreground"
+              >
+                ← Back to sign in
+              </button>
+            </form>
+          ) : mode === "forgot" ? (
+            resetSent ? (
+              <div className="text-center space-y-3 py-2">
+                <p className="text-sm">If that email is registered, a reset link has been sent.</p>
+                <button
+                  type="button"
+                  onClick={() => { setMode("login"); setResetSent(false); }}
+                  className="text-xs text-primary hover:underline"
+                >
+                  ← Back to sign in
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleForgotSubmit} className="space-y-4">
+                <p className="text-xs text-muted-foreground">Enter your account email and we'll send a password reset link.</p>
+                <Field label="Email address">
+                  <input
+                    type="email"
+                    placeholder="you@example.com"
+                    value={form.email}
+                    onChange={patch("email")}
+                    required
+                    className="input-base"
+                  />
+                </Field>
+                {error && <div className="text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2">{error}</div>}
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-3 rounded-full bg-primary text-primary-foreground font-medium text-sm hover:opacity-90 transition-opacity disabled:opacity-60 flex items-center justify-center gap-2"
+                >
+                  {loading && <Loader2 size={16} className="animate-spin" />} Send reset link
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMode("login")}
+                  className="w-full text-xs text-muted-foreground hover:text-foreground"
+                >
+                  ← Back to sign in
+                </button>
+              </form>
+            )
+          ) : (
+          <>
           {/* Toggle */}
           <div className="flex bg-background border border-border rounded-full p-1 mb-6">
             {(["login", "register"] as const).map((m) => (
@@ -158,6 +280,23 @@ const Login = () => {
                       />
                     </Field>
                   </div>
+                  {/* Honeypot — off-screen, not display:none (some bots skip that), so
+                      naive form-filling bots still populate it while sighted humans and
+                      screen readers never encounter it. Any value here fails registration
+                      server-side (RegisterRequest.website). */}
+                  <div
+                    style={{ position: "absolute", width: 1, height: 1, padding: 0, margin: -1, overflow: "hidden", clip: "rect(0,0,0,0)", whiteSpace: "nowrap", border: 0 }}
+                    aria-hidden="true"
+                  >
+                    <input
+                      type="text"
+                      name="website"
+                      tabIndex={-1}
+                      autoComplete="off"
+                      value={form.website}
+                      onChange={patch("website")}
+                    />
+                  </div>
                 </>
               )}
 
@@ -194,6 +333,15 @@ const Login = () => {
                     {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
                 </div>
+                {mode === "login" && (
+                  <button
+                    type="button"
+                    onClick={() => { setMode("forgot"); setError(null); }}
+                    className="text-xs text-primary hover:underline"
+                  >
+                    Forgot password?
+                  </button>
+                )}
               </Field>
 
               {/* Error */}
@@ -248,6 +396,8 @@ const Login = () => {
               )}
             </motion.form>
           </AnimatePresence>
+          </>
+          )}
         </motion.div>
 
         <p className="text-center text-xs text-muted-foreground mt-5">

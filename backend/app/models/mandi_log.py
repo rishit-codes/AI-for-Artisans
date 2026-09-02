@@ -40,3 +40,8 @@ class MandiPrice(Base):
     sparkline_points = Column(Text, default="")  # JSON array of 7 daily prices, oldest first
     supply_status = Column(String(20), default="stable")  # high, tight, stable
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    # "live" if agmarknet.gov.in returned a matching commodity-name row in the
+    # last scrape cycle, "estimated" if it fell back to a calibrated base price
+    # + small jitter (agmarknet tracks raw agricultural produce, not most craft
+    # inputs like zari thread or lac, so most commodities are honestly estimated).
+    data_source = Column(String(20), default="estimated")

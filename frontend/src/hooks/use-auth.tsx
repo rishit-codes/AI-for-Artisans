@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
-import { loginApi, registerApi, logoutAllDevicesApi, type LoginResponse } from "@/lib/api";
+import { loginApi, registerApi, logoutAllDevicesApi, twoFaLoginApi, type TokenResponse } from "@/lib/api";
 
 /* ---------- types ---------- */
 
@@ -14,7 +14,8 @@ interface AuthContextValue {
   user: AuthUser | null;
   token: string | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  login: (email: string, password: string) => Promise<{ success: boolean; error?: string; requires2fa?: boolean; pendingToken?: string }>;
+  loginWith2FA: (pendingToken: string, code: string) => Promise<{ success: boolean; error?: string }>;
   register: (userData: Record<string, unknown>) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   logoutAllDevices: () => Promise<void>;
@@ -58,7 +59,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => window.removeEventListener("auth:unauthorized", onUnauthorized);
   }, []);
 
-  const persist = (data: LoginResponse) => {
+  const persist = (data: TokenResponse) => {
     setToken(data.access_token);
     setUser(data.user as AuthUser);
     localStorage.setItem("token", data.access_token);
@@ -68,10 +69,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const login = useCallback(async (email: string, password: string) => {
     try {
       const data = await loginApi(email, password);
-      persist(data);
+      if (data.requires_2fa && data.pending_token) {
+        return { success: false, requires2fa: true, pendingToken: data.pending_token };
+      }
+      if (!data.access_token || !data.user) {
+        return { success: false, error: "Unexpected login response" };
+      }
+      persist({ access_token: data.access_token, token_type: data.token_type || "bearer", user: data.user });
       return { success: true };
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Login failed";
+      return { success: false, error: message };
+    }
+  }, []);
+
+  const loginWith2FA = useCallback(async (pendingToken: string, code: string) => {
+    try {
+      const data = await twoFaLoginApi(pendingToken, code);
+      persist(data);
+      return { success: true };
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Incorrect code";
       return { success: false, error: message };
     }
   }, []);
@@ -114,7 +132,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, logout, logoutAllDevices, updateUser }}>
+    <AuthContext.Provider value={{ user, token, loading, login, loginWith2FA, register, logout, logoutAllDevices, updateUser }}>
       {!loading && children}
     </AuthContext.Provider>
   );

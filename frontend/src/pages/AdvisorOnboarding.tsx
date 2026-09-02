@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, ArrowRight, Check, Compass, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Input } from "@/components/ui/input";
 import AppShell from "@/components/site/AppShell";
-import { CLUSTERS } from "@/data/advisorRecommendations";
+import { useAuth } from "@/hooks/use-auth";
 import { AdvisorProfile, Goal, Skill, useAdvisor } from "@/hooks/use-advisor";
 import { toast } from "sonner";
 
@@ -25,50 +25,58 @@ const GOALS: { id: Goal; label: string; hindi: string }[] = [
 
 const AdvisorOnboarding = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { setProfile, profile } = useAdvisor();
   const [step, setStep] = useState(0);
+  const [saving, setSaving] = useState(false);
 
   const [draft, setDraft] = useState<Partial<AdvisorProfile>>(profile ?? {
-    cluster: undefined, skill: "beginner", equipment: 1, yearsPracticing: 1, capacity: 20, goal: "income",
+    skill: "beginner", equipment: 1, yearsPracticing: 1, capacity: 20, goal: "income",
   });
 
-  const cluster = CLUSTERS.find((c) => c.id === draft.cluster);
+  const craftType = (user?.craft_type as string) || "your craft";
 
-  const next = () => setStep((s) => Math.min(2, s + 1));
+  const next = () => setStep((s) => Math.min(1, s + 1));
   const back = () => setStep((s) => Math.max(0, s - 1));
 
-  const finish = () => {
-    if (!draft.cluster || !draft.skill || !draft.goal) return;
-    setProfile({
-      cluster: draft.cluster,
-      skill: draft.skill,
-      equipment: draft.equipment ?? 1,
-      yearsPracticing: draft.yearsPracticing ?? 1,
-      capacity: draft.capacity ?? 20,
-      goal: draft.goal,
-    });
-    toast.success("Your first plan is ready");
-    navigate("/advisor");
+  const finish = async () => {
+    if (!draft.skill || !draft.goal) return;
+    setSaving(true);
+    try {
+      await setProfile({
+        skill: draft.skill,
+        equipment: draft.equipment ?? 1,
+        yearsPracticing: draft.yearsPracticing ?? 1,
+        capacity: draft.capacity ?? 20,
+        goal: draft.goal,
+      });
+      toast.success("Your first plan is ready");
+      navigate("/advisor");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to save your advisor setup.");
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const canAdvance = step === 0 ? !!draft.cluster : step === 1 ? !!draft.skill && (draft.equipment ?? 0) > 0 : !!draft.goal && (draft.capacity ?? 0) > 0;
+  const canAdvance = step === 0 ? !!draft.skill && (draft.equipment ?? 0) > 0 : !!draft.goal && (draft.capacity ?? 0) > 0;
 
   return (
     <AppShell
       title="Set up your Advisor"
       hindi="शुरुआत करें"
-      subtitle="Three quick steps. We'll tailor every batch recommendation to your craft, capacity and goals."
+      subtitle={`Two quick steps. We'll tailor every batch recommendation to your ${craftType.toLowerCase()} products, capacity and goals.`}
     >
       <div className="max-w-3xl mx-auto w-full">
         {/* Stepper */}
         <div className="flex items-center gap-3 mb-6">
-          {["Cluster & craft", "Skill & setup", "Capacity & goal"].map((label, i) => (
+          {["Skill & setup", "Capacity & goal"].map((label, i) => (
             <div key={label} className="flex items-center gap-2 flex-1">
               <div className={`w-7 h-7 rounded-full grid place-items-center text-xs font-data border ${i <= step ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
                 {i < step ? <Check size={13} /> : i + 1}
               </div>
               <div className={`text-xs ${i === step ? "text-foreground" : "text-muted-foreground"}`}>{label}</div>
-              {i < 2 && <div className="flex-1 h-px bg-border" />}
+              {i < 1 && <div className="flex-1 h-px bg-border" />}
             </div>
           ))}
         </div>
@@ -76,27 +84,9 @@ const AdvisorOnboarding = () => {
         <div className="rounded-2xl border border-border bg-background p-6 lg:p-8 min-h-[420px] flex flex-col">
           <AnimatePresence mode="wait">
             {step === 0 && (
-              <motion.div key="s0" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }} className="flex-1">
-                <Header icon={<Compass size={16} />} title="Which cluster do you belong to?" hindi="आपका क्लस्टर" />
-                <div className="grid sm:grid-cols-2 gap-3 mt-5">
-                  {CLUSTERS.map((c) => (
-                    <button
-                      key={c.id}
-                      onClick={() => setDraft({ ...draft, cluster: c.id })}
-                      className={`text-left rounded-xl border p-4 transition ${draft.cluster === c.id ? "border-primary bg-primary/5" : "border-border hover:border-primary/40"}`}
-                    >
-                      <div className="font-display text-lg leading-tight">{c.label}</div>
-                      <div className="text-xs text-muted-foreground font-hindi mt-0.5">{c.hindi}</div>
-                      <div className="text-xs text-muted-foreground mt-2">{c.craft}</div>
-                    </button>
-                  ))}
-                </div>
-              </motion.div>
-            )}
-
-            {step === 1 && (
               <motion.div key="s1" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }} className="flex-1">
                 <Header title="Skill & setup" hindi="कौशल और साधन" />
+                <p className="text-xs text-muted-foreground mt-1">Recommendations will be built from your listed {craftType.toLowerCase()} products.</p>
                 <div className="space-y-3 mt-5">
                   {SKILLS.map((s) => (
                     <button
@@ -114,7 +104,7 @@ const AdvisorOnboarding = () => {
                 </div>
                 <div className="grid sm:grid-cols-2 gap-4 mt-6">
                   <div>
-                    <label className="text-xs uppercase tracking-wider text-muted-foreground font-data">Number of {cluster?.equipment ?? "tools"}</label>
+                    <label className="text-xs uppercase tracking-wider text-muted-foreground font-data">Number of tools/looms</label>
                     <Input
                       type="number" min={1} max={50}
                       value={draft.equipment ?? 1}
@@ -135,7 +125,7 @@ const AdvisorOnboarding = () => {
               </motion.div>
             )}
 
-            {step === 2 && (
+            {step === 1 && (
               <motion.div key="s2" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }} className="flex-1">
                 <Header icon={<Sparkles size={16} />} title="Capacity & goal" hindi="क्षमता और लक्ष्य" />
                 <div className="mt-5">
@@ -176,10 +166,12 @@ const AdvisorOnboarding = () => {
                 <Link to="/advisor" className="text-xs text-muted-foreground hover:text-foreground">Skip — keep current plan</Link>
               )}
             </div>
-            {step < 2 ? (
+            {step < 1 ? (
               <Button onClick={next} disabled={!canAdvance}>Next <ArrowRight size={14} className="ml-1" /></Button>
             ) : (
-              <Button onClick={finish} disabled={!canAdvance}>Generate my first plan <Sparkles size={14} className="ml-1" /></Button>
+              <Button onClick={finish} disabled={!canAdvance || saving}>
+                {saving ? "Saving…" : "Generate my first plan"} <Sparkles size={14} className="ml-1" />
+              </Button>
             )}
           </div>
         </div>

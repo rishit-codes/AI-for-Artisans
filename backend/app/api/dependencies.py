@@ -7,7 +7,7 @@ import uuid
 
 from app.db.session import get_db
 from app.core.config import settings
-from app.core.exceptions import InvalidCredentialsError, ArtisanNotFoundError
+from app.core.exceptions import InvalidCredentialsError, ArtisanNotFoundError, ArtisanForbiddenError
 from app.models.user import User
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login", auto_error=False)
@@ -39,6 +39,9 @@ async def get_current_user(
     if user is None:
         raise InvalidCredentialsError()
 
+    if not user.is_active:
+        raise ArtisanForbiddenError(detail="This account has been suspended. Contact support.")
+
     # A stale token_version means this token was issued before the user last hit
     # "sign out of all devices" — reject it even though the JWT signature itself
     # is still valid and unexpired.
@@ -46,3 +49,10 @@ async def get_current_user(
         raise InvalidCredentialsError(detail="Session has been signed out. Please log in again.")
 
     return user
+
+
+async def require_admin(current_user: User = Depends(get_current_user)) -> User:
+    """Gate for /admin/* routes — a valid, logged-in user is not enough."""
+    if current_user.role != "admin":
+        raise ArtisanForbiddenError(detail="Admin access required")
+    return current_user

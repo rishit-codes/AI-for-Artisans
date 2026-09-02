@@ -2,14 +2,14 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  AlertTriangle, Calendar as CalendarIcon, Check, ChevronDown, Compass,
-  IndianRupee, Package2, Plus, Settings2, Share2, Sparkles, TrendingUp, X,
+  AlertTriangle, Calendar as CalendarIcon, Check, ChevronDown,
+  Package2, Plus, Settings2, Share2, Sparkles, TrendingUp,
 } from "lucide-react";
 import AppShell from "@/components/site/AppShell";
+import { useAuth } from "@/hooks/use-auth";
 import { useAdvisor } from "@/hooks/use-advisor";
-import { CLUSTERS, CLUSTER_BENCHMARKS, RECOMMENDATIONS } from "@/data/advisorRecommendations";
 import { useQuery } from "@tanstack/react-query";
-import { getAdvisorFeed, type AdvisorFeedNode } from "@/lib/api";
+import { getAdvisorFeed, type AdvisorFeedNode, type AdvisorRecommendation } from "@/lib/api";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
@@ -20,14 +20,20 @@ const inr = (n: number) => `₹${n.toLocaleString("en-IN")}`;
 
 const Advisor = () => {
   const navigate = useNavigate();
-  const { profile, capacity, setCapacityOverride, recommendations, plan, addToPlan, removeFromPlan, clearProfile } = useAdvisor();
+  const { user } = useAuth();
+  const {
+    profile, capacity, setCapacityOverride, recommendations, materials, recentPace,
+    isRecommendationsLoading, plan, addToPlan, removeFromPlan, clearProfile,
+  } = useAdvisor();
   const [expanded, setExpanded] = useState<string | null>(null);
 
+  const craftType = (user?.craft_type as string) || "textile";
+
   const { data: feedData, isLoading: isFeedLoading } = useQuery({
-    queryKey: ["advisorFeed", profile?.cluster],
+    queryKey: ["advisorFeed", craftType],
     queryFn: async (): Promise<AdvisorFeedNode[]> => {
       if (!profile) return [];
-      return getAdvisorFeed(profile.cluster);
+      return getAdvisorFeed(craftType);
     },
     enabled: !!profile,
   });
@@ -36,57 +42,36 @@ const Advisor = () => {
     if (!profile) navigate("/advisor/onboarding", { replace: true });
   }, [profile, navigate]);
 
-  const cluster = profile ? CLUSTERS.find((c) => c.id === profile.cluster)! : null;
-  const benchmark = profile ? CLUSTER_BENCHMARKS[profile.cluster] : null;
-
   const planSummary = useMemo(() => {
-    const items = plan.map((p) => {
-      const rec = RECOMMENDATIONS.find((r) => r.id === p.recId)!;
-      return { ...p, rec };
-    });
-    const units = items.reduce((s, i) => s + i.quantity, 0);
-    const revenue = items.reduce((s, i) => s + i.quantity * i.rec.unitRevenue, 0);
-    const cost = items.reduce((s, i) => s + i.quantity * i.rec.unitMaterialCost, 0);
+    const units = plan.reduce((s, i) => s + i.quantity, 0);
+    const revenue = plan.reduce((s, i) => s + i.quantity * i.unit_revenue, 0);
+    const cost = plan.reduce((s, i) => s + i.quantity * (i.unit_cost ?? 0), 0);
     const margin = revenue ? Math.round(((revenue - cost) / revenue) * 100) : 0;
-    const festivals = Array.from(new Set(items.map((i) => i.rec.festival)));
-    return { items, units, revenue, cost, margin, festivals };
+    return { units, revenue, cost, margin };
   }, [plan]);
 
   const overcommit = capacity > 0 && planSummary.units > capacity * 4;
 
-  const materialsList = useMemo(() => {
-    const map = new Map<string, { name: string; mandi: string; unit: string; quantity: number; cost: number }>();
-    planSummary.items.forEach(({ rec, quantity }) => {
-      rec.materials.forEach((m) => {
-        const key = `${m.name}@${m.mandi}`;
-        const prev = map.get(key) ?? { name: m.name, mandi: m.mandi, unit: m.unit, quantity: 0, cost: 0 };
-        prev.quantity += m.perUnit * quantity;
-        prev.cost += m.perUnit * quantity * m.pricePerUnit;
-        map.set(key, prev);
-      });
-    });
-    return Array.from(map.values()).sort((a, b) => b.cost - a.cost);
-  }, [planSummary]);
+  const nextFestival = recommendations.find((r) => r.festival)?.festival;
+  const nextFestivalDays = recommendations.find((r) => r.festival)?.festival_days_away;
+  const risingMaterials = materials.filter((m) => m.trend === "up");
 
-  const materialsTotal = materialsList.reduce((s, m) => s + m.cost, 0);
-
-  if (!profile || !cluster || !benchmark) return null;
+  if (!profile) return null;
 
   return (
     <AppShell
       title="Production Advisor"
       hindi="उत्पादन सलाहकार"
-      subtitle="What to make, how much, and when — tuned to your cluster, capacity and the festival calendar."
+      subtitle="What to make, how much, and when — tuned to your craft, capacity and the festival calendar."
     >
       {/* Context strip */}
       <motion.div
         initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
         className="rounded-2xl border border-border bg-card/40 p-4 lg:p-5 flex flex-wrap items-center gap-2 lg:gap-4"
       >
-        <Chip icon={<Compass size={13} />} label={cluster.label} hindi={cluster.hindi} />
-        <Chip label={cluster.craft} />
+        <Chip label={craftType} className="capitalize" />
         <Chip label={profile.skill} className="capitalize" />
-        <Chip label={`${profile.equipment} ${cluster.equipment}`} />
+        <Chip label={`${profile.equipment} tools/looms`} />
         <Chip label={`${capacity} units / week`} />
         <Chip label={profile.goal} className="capitalize" />
         <Link to="/advisor/onboarding" className="ml-auto text-xs font-data text-primary hover:underline inline-flex items-center gap-1">
@@ -103,7 +88,9 @@ const Advisor = () => {
                 <div className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground font-data">Weekly capacity</div>
                 <div className="font-display text-2xl mt-1">{capacity} units / week</div>
               </div>
-              <div className="text-xs text-muted-foreground font-data">Cluster avg: {benchmark.avgUnitsPerWeek} u/w</div>
+              {recentPace && recentPace.weeks_of_history > 0 && (
+                <div className="text-xs text-muted-foreground font-data">Your recent pace: {recentPace.avg_units_per_week} u/w</div>
+              )}
             </div>
             <Slider
               defaultValue={[capacity]}
@@ -112,7 +99,7 @@ const Advisor = () => {
               className="mt-5"
             />
             <p className="text-xs text-muted-foreground mt-3">
-              Adjust to rescale every recommendation, materials list, and your monthly plan in real time.
+              Adjust to rescale suggested batch sizes across your recommendations.
             </p>
           </section>
 
@@ -166,33 +153,52 @@ const Advisor = () => {
 
           {/* Recommendations */}
           <section>
-            <SectionHeader title="This week's batches" hindi="इस सप्ताह की बुनाई" subtitle="Top 3 picks for your cluster, festival proximity and capacity." />
+            <SectionHeader title="This week's batches" hindi="इस सप्ताह की बुनाई" subtitle="Top picks from your own listed products, ranked by real festival proximity and forecasted demand." />
+            {isRecommendationsLoading ? (
+              <div className="flex items-center justify-center py-10 bg-card/40 rounded-2xl border border-border mt-4">
+                <Loader2 className="animate-spin text-primary" />
+                <span className="ml-2 text-sm text-muted-foreground font-data">Building your recommendations...</span>
+              </div>
+            ) : recommendations.length === 0 ? (
+              <div className="text-sm text-muted-foreground p-5 rounded-2xl border border-border bg-card/40 mt-4">
+                No listed products yet — <Link to="/profile" className="text-primary hover:underline">add a product</Link> to get personalized batch recommendations.
+              </div>
+            ) : (
             <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4 mt-4">
               <AnimatePresence>
                 {recommendations.slice(0, 3).map((rec, i) => {
-                  const inPlan = !!plan.find((p) => p.recId === rec.id);
-                  const isOpen = expanded === rec.id;
+                  const inPlan = !!plan.find((p) => p.product_id === rec.product_id);
+                  const isOpen = expanded === rec.product_id;
+                  const margin = rec.unit_cost != null
+                    ? Math.round(((rec.unit_revenue - rec.unit_cost) / rec.unit_revenue) * 100)
+                    : null;
                   return (
                     <motion.div
-                      key={rec.id}
+                      key={rec.product_id}
                       initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: i * 0.06 }}
                       className="rounded-2xl border border-border bg-background p-5 flex flex-col gap-3"
                     >
                       <div className="flex items-start gap-3">
-                        <div className="w-12 h-12 rounded-xl bg-secondary/30 grid place-items-center text-2xl">{rec.thumb}</div>
-                        <div className="min-w-0 flex-1">
-                          <div className="font-display text-lg leading-tight">{rec.product}</div>
-                          <div className="text-xs text-muted-foreground font-hindi">{rec.hindi}</div>
+                        <div className="w-12 h-12 rounded-xl bg-secondary/30 overflow-hidden shrink-0 grid place-items-center">
+                          {rec.image_url ? (
+                            <img src={rec.image_url} alt={rec.product_name} className="w-full h-full object-cover" />
+                          ) : (
+                            <Package2 size={18} className="text-secondary-foreground/60" />
+                          )}
                         </div>
-                        <Badge variant="secondary" className="font-data text-[10px]">{rec.festival}</Badge>
+                        <div className="min-w-0 flex-1">
+                          <div className="font-display text-lg leading-tight">{rec.product_name}</div>
+                          {rec.material && <div className="text-xs text-muted-foreground">{rec.material}</div>}
+                        </div>
+                        {rec.festival && <Badge variant="secondary" className="font-data text-[10px]">{rec.festival}</Badge>}
                       </div>
 
                       <div className="flex items-end justify-between gap-3 pt-1">
                         <div>
                           <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-data">Suggested batch</div>
-                          <div className="font-display text-3xl leading-none mt-1">{rec.baseBatch}</div>
-                          <div className="text-[11px] text-muted-foreground mt-0.5">units · {rec.leadDays}d lead</div>
+                          <div className="font-display text-3xl leading-none mt-1">{rec.suggested_batch}</div>
+                          <div className="text-[11px] text-muted-foreground mt-0.5">units</div>
                         </div>
                         <div className="text-right">
                           <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-data">Confidence</div>
@@ -204,13 +210,13 @@ const Advisor = () => {
                       </div>
 
                       <div className="grid grid-cols-3 gap-2 text-[11px] font-data">
-                        <Stat label="Cost/unit" value={inr(rec.unitMaterialCost)} />
-                        <Stat label="Revenue/unit" value={inr(rec.unitRevenue)} />
-                        <Stat label="Margin" value={`${Math.round(((rec.unitRevenue - rec.unitMaterialCost) / rec.unitRevenue) * 100)}%`} />
+                        <Stat label="Cost/unit" value={rec.unit_cost != null ? inr(rec.unit_cost) : "Not logged"} />
+                        <Stat label="Revenue/unit" value={inr(rec.unit_revenue)} />
+                        <Stat label="Margin" value={margin != null ? `${margin}%` : "—"} />
                       </div>
 
                       <button
-                        onClick={() => setExpanded(isOpen ? null : rec.id)}
+                        onClick={() => setExpanded(isOpen ? null : rec.product_id)}
                         className="text-xs text-primary inline-flex items-center gap-1 hover:underline self-start"
                       >
                         Why this? <ChevronDown size={12} className={`transition-transform ${isOpen ? "rotate-180" : ""}`} />
@@ -232,13 +238,17 @@ const Advisor = () => {
                           variant={inPlan ? "secondary" : "default"}
                           className="flex-1"
                           onClick={() => {
-                            if (inPlan) { removeFromPlan(rec.id); toast("Removed from plan"); }
-                            else { addToPlan(rec.id); toast.success(`${rec.product} added to plan`); }
+                            if (inPlan) {
+                              const item = plan.find((p) => p.product_id === rec.product_id);
+                              if (item) { removeFromPlan(item.id); toast("Removed from plan"); }
+                            } else {
+                              addToPlan(rec); toast.success(`${rec.product_name} added to plan`);
+                            }
                           }}
                         >
                           {inPlan ? <><Check size={14} className="mr-1" /> In plan</> : <><Plus size={14} className="mr-1" /> Add to plan</>}
                         </Button>
-                        <Button size="sm" variant="ghost" onClick={() => toast("Cluster sharing coming soon!")}>
+                        <Button size="sm" variant="ghost" onClick={() => toast.info("Sharing isn't available yet.")}>
                           <Share2 size={14} />
                         </Button>
                       </div>
@@ -247,6 +257,7 @@ const Advisor = () => {
                 })}
               </AnimatePresence>
             </div>
+            )}
           </section>
 
           {/* Calendar */}
@@ -255,7 +266,7 @@ const Advisor = () => {
             <div className="rounded-2xl border border-border bg-card/40 p-4 mt-4">
               <div className="grid grid-cols-4 gap-3">
                 {[1, 2, 3, 4].map((week) => {
-                  const items = planSummary.items.filter((i) => i.week === week);
+                  const items = plan.filter((i) => i.week === week);
                   return (
                     <div key={week} className="rounded-xl border border-border bg-background p-3 min-h-[140px] flex flex-col">
                       <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-data">Week {week}</div>
@@ -264,19 +275,17 @@ const Advisor = () => {
                         {items.length === 0 && (
                           <div className="text-xs text-muted-foreground/60 italic">Open</div>
                         )}
-                        {items.map(({ rec, quantity, recId }) => (
+                        {items.map((item) => (
                           <motion.div
-                            key={recId}
+                            key={item.id}
                             whileHover={{ y: -2 }}
                             className="rounded-lg bg-secondary/20 border border-secondary/30 p-2 text-xs"
                           >
                             <div className="flex items-center gap-1.5">
-                              <span>{rec.thumb}</span>
-                              <span className="font-medium truncate">{rec.product}</span>
+                              <span className="font-medium truncate">{item.product_name}</span>
                             </div>
                             <div className="flex items-center justify-between mt-1 text-[10px] text-muted-foreground font-data">
-                              <span>{quantity} units</span>
-                              <span>{rec.festival}</span>
+                              <span>{item.quantity} units</span>
                             </div>
                           </motion.div>
                         ))}
@@ -285,7 +294,7 @@ const Advisor = () => {
                   );
                 })}
               </div>
-              {planSummary.items.length === 0 && (
+              {plan.length === 0 && (
                 <p className="text-xs text-muted-foreground mt-3">Add batches above to populate your monthly plan.</p>
               )}
             </div>
@@ -293,30 +302,29 @@ const Advisor = () => {
 
           {/* Materials list */}
           <section>
-            <SectionHeader title="Materials shopping list" hindi="कच्चा माल सूची" subtitle="Aggregated across every batch in your plan, grouped by mandi." icon={<Package2 size={14} />} />
+            <SectionHeader title="Raw materials for your craft" hindi="कच्चा माल" subtitle="Live mandi prices for the materials most relevant to your craft." icon={<Package2 size={14} />} />
             <div className="rounded-2xl border border-border bg-card/40 mt-4 overflow-hidden">
-              {materialsList.length === 0 ? (
-                <p className="text-sm text-muted-foreground p-5">Your shopping list will appear once you add batches to the plan.</p>
+              {materials.length === 0 ? (
+                <p className="text-sm text-muted-foreground p-5">No mandi price data available for your craft yet — check the <Link to="/mandi" className="text-primary hover:underline">Mandi page</Link>.</p>
               ) : (
                 <>
                   <div className="grid grid-cols-12 px-5 py-3 text-[10px] uppercase tracking-wider text-muted-foreground font-data border-b border-border">
                     <div className="col-span-5">Material</div>
-                    <div className="col-span-3">Mandi</div>
-                    <div className="col-span-2 text-right">Quantity</div>
-                    <div className="col-span-2 text-right">Est. cost</div>
+                    <div className="col-span-3">Best mandi</div>
+                    <div className="col-span-2 text-right">Trend</div>
+                    <div className="col-span-2 text-right">Action</div>
                   </div>
-                  {materialsList.map((m, idx) => (
-                    <div key={idx} className="grid grid-cols-12 px-5 py-3 text-sm border-b border-border last:border-b-0">
-                      <div className="col-span-5">{m.name}</div>
-                      <div className="col-span-3"><Link to="/mandi" className="text-primary hover:underline">{m.mandi}</Link></div>
-                      <div className="col-span-2 text-right font-data">{m.quantity.toFixed(2)} {m.unit}</div>
-                      <div className="col-span-2 text-right font-data">{inr(Math.round(m.cost))}</div>
-                    </div>
-                  ))}
-                  <div className="grid grid-cols-12 px-5 py-3 bg-secondary/10 text-sm font-medium">
-                    <div className="col-span-10">Total estimated material spend</div>
-                    <div className="col-span-2 text-right font-data">{inr(Math.round(materialsTotal))}</div>
-                  </div>
+                  {materials.map((m, idx) => {
+                    const bestCity = m.local_best ? `Local (${m.local_price})` : m.surat_best ? `Surat (${m.surat_price})` : m.delhi_best ? `Delhi (${m.delhi_price})` : "—";
+                    return (
+                      <div key={idx} className="grid grid-cols-12 px-5 py-3 text-sm border-b border-border last:border-b-0">
+                        <div className="col-span-5">{m.commodity}</div>
+                        <div className="col-span-3"><Link to="/mandi" className="text-primary hover:underline">{bestCity}</Link></div>
+                        <div className="col-span-2 text-right font-data capitalize">{m.trend || "—"}</div>
+                        <div className="col-span-2 text-right font-data">{m.action || "—"}</div>
+                      </div>
+                    );
+                  })}
                 </>
               )}
             </div>
@@ -334,37 +342,40 @@ const Advisor = () => {
             <div className="mt-4 space-y-3">
               <SummaryRow label="Units planned" value={`${planSummary.units}`} />
               <SummaryRow label="Est. revenue" value={inr(planSummary.revenue)} accent />
-              <SummaryRow label="Est. margin" value={`${planSummary.margin}%`} />
+              <SummaryRow label="Est. margin" value={planSummary.cost > 0 ? `${planSummary.margin}%` : "—"} />
             </div>
-            <div className="mt-4 pt-4 border-t border-border">
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-data mb-2">Festival coverage</div>
-              <div className="flex flex-wrap gap-1.5">
-                {planSummary.festivals.length === 0 && <span className="text-xs text-muted-foreground italic">No batches yet</span>}
-                {planSummary.festivals.map((f) => (
-                  <Badge key={f} variant="outline" className="font-data text-[10px]">{f}</Badge>
-                ))}
+            {nextFestival && (
+              <div className="mt-4 pt-4 border-t border-border">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-data mb-2">Next festival</div>
+                <Badge variant="outline" className="font-data text-[10px]">{nextFestival} · {nextFestivalDays}d away</Badge>
               </div>
-            </div>
+            )}
           </div>
 
           <div className="rounded-2xl border border-border bg-card/40 p-5">
             <div className="flex items-center gap-2">
               <TrendingUp size={14} className="text-primary" />
-              <span className="font-display text-base">Cluster benchmark</span>
+              <span className="font-display text-base">Your recent pace</span>
             </div>
-            <p className="text-xs text-muted-foreground mt-2">
-              Artisans in <span className="text-foreground font-medium">{cluster.label}</span> are averaging
-            </p>
-            <div className="grid grid-cols-2 gap-3 mt-3">
-              <div className="rounded-lg bg-background p-3 border border-border">
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-data">Units / week</div>
-                <div className="font-display text-2xl mt-1">{benchmark.avgUnitsPerWeek}</div>
-              </div>
-              <div className="rounded-lg bg-background p-3 border border-border">
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-data">Revenue / mo</div>
-                <div className="font-display text-2xl mt-1">{inr(benchmark.avgRevenue)}</div>
-              </div>
-            </div>
+            {recentPace && recentPace.weeks_of_history > 0 ? (
+              <>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Based on your own sales over the last {recentPace.weeks_of_history} weeks
+                </p>
+                <div className="grid grid-cols-2 gap-3 mt-3">
+                  <div className="rounded-lg bg-background p-3 border border-border">
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-data">Units / week</div>
+                    <div className="font-display text-2xl mt-1">{recentPace.avg_units_per_week}</div>
+                  </div>
+                  <div className="rounded-lg bg-background p-3 border border-border">
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-data">Revenue / mo</div>
+                    <div className="font-display text-2xl mt-1">{inr(recentPace.avg_revenue_per_month)}</div>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <p className="text-xs text-muted-foreground mt-2">Log a few sales in Reports to see your own pace here.</p>
+            )}
           </div>
 
           <div className="rounded-2xl border border-border bg-card/40 p-5">
@@ -376,10 +387,14 @@ const Advisor = () => {
               {overcommit && (
                 <RiskItem tone="destructive" text={`Plan exceeds 4-week capacity by ${planSummary.units - capacity * 4} units. Trim a batch or raise capacity.`} />
               )}
-              <RiskItem tone="primary" text="Surat cotton +6.4% expected next 2 weeks — buy raw stock now if cotton-based." />
-              <RiskItem tone="muted" text="Diwali demand window closes T-19 days. Brass diya queries will cool after." />
-              {!overcommit && planSummary.items.length > 0 && (
-                <RiskItem tone="muted" text="No capacity conflicts detected." />
+              {risingMaterials.map((m) => (
+                <RiskItem key={m.commodity} tone="primary" text={`${m.commodity} is trending up — buy raw stock now if you use it.`} />
+              ))}
+              {nextFestival && nextFestivalDays != null && (
+                <RiskItem tone="muted" text={`${nextFestival} demand window closes in ${nextFestivalDays} days.`} />
+              )}
+              {!overcommit && risingMaterials.length === 0 && !nextFestival && (
+                <RiskItem tone="muted" text="No risk flags right now." />
               )}
             </ul>
           </div>

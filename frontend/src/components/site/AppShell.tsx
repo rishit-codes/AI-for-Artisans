@@ -1,10 +1,11 @@
 import { Link, NavLink, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, Bell, CalendarClock, Compass, Home, LineChart, ListTodo, Search, Settings, Store, TrendingUp, User } from "lucide-react";
+import { AlertTriangle, Bell, CalendarClock, Compass, Home, LineChart, ListTodo, Search, Settings, ShieldCheck, ShoppingBag, ShoppingCart, Store, TrendingDown, TrendingUp, User } from "lucide-react";
 import { ReactNode, useState, type FormEvent } from "react";
 import { toast } from "sonner";
-import { getDashboardPriority, getDashboardSummary } from "@/lib/api";
+import { getDashboardPriority, getDashboardSummary, getMandiPrices } from "@/lib/api";
 import { useAuth } from "@/hooks/use-auth";
+import { useCart } from "@/hooks/use-cart";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 interface DashboardSummary {
@@ -17,7 +18,29 @@ interface DashboardPriority {
   festival_date?: string;
 }
 
+interface NotificationPrefs {
+  orders: boolean;
+  mandi: boolean;
+  festival: boolean;
+}
+
+// Settings > Notifications persists these to the same bio JSON blob every
+// other preference on this page uses — read it back here so a toggle
+// actually changes what the bell shows, app-wide.
+export const parseNotificationPrefs = (bio: unknown): NotificationPrefs => {
+  const defaults: NotificationPrefs = { orders: true, mandi: true, festival: true };
+  if (typeof bio !== "string" || !bio) return defaults;
+  try {
+    const parsed = JSON.parse(bio);
+    return { ...defaults, ...(parsed.notificationPrefs || {}) };
+  } catch {
+    return defaults;
+  }
+};
+
 const NotificationsBell = () => {
+  const { user } = useAuth();
+  const notifPrefs = parseNotificationPrefs(user?.bio);
   const { data: summary } = useQuery({
     queryKey: ["dashboardSummary"],
     queryFn: getDashboardSummary,
@@ -25,6 +48,11 @@ const NotificationsBell = () => {
   const { data: priority } = useQuery({
     queryKey: ["dashboardPriority"],
     queryFn: getDashboardPriority,
+  });
+  const { data: mandiMaterials } = useQuery({
+    queryKey: ["mandiPrices", (user?.craft_type as string) || "Textiles"],
+    queryFn: () => getMandiPrices((user?.craft_type as string) || "Textiles"),
+    enabled: notifPrefs.mandi,
   });
 
   const { low_stock_items: lowStockItems } = (summary || {}) as DashboardSummary;
@@ -35,21 +63,32 @@ const NotificationsBell = () => {
     : null;
 
   const notifications: { icon: typeof Bell; tone: string; text: string }[] = [];
-  (lowStockItems || []).slice(0, 3).forEach((item) => {
-    notifications.push({
-      icon: AlertTriangle,
-      tone: "text-destructive",
-      text: `Low stock: ${item.name} — ${item.stock_qty} left`,
+  if (notifPrefs.orders) {
+    (lowStockItems || []).slice(0, 3).forEach((item) => {
+      notifications.push({
+        icon: AlertTriangle,
+        tone: "text-destructive",
+        text: `Low stock: ${item.name} — ${item.stock_qty} left`,
+      });
     });
-  });
+  }
   if (priorityTitle) {
     notifications.push({ icon: ListTodo, tone: "text-primary", text: priorityTitle });
   }
-  if (festival && daysToFestival !== null) {
+  if (notifPrefs.festival && festival && daysToFestival !== null) {
     notifications.push({
       icon: CalendarClock,
       tone: "text-secondary",
       text: `${festival} is ${daysToFestival} day${daysToFestival === 1 ? "" : "s"} away — start prepping stock`,
+    });
+  }
+  if (notifPrefs.mandi) {
+    (mandiMaterials || []).filter((m) => m.action?.toLowerCase().includes("save") || m.local_best).slice(0, 2).forEach((m) => {
+      notifications.push({
+        icon: TrendingDown,
+        tone: "text-forest",
+        text: `${m.commodity}: ${m.action || "best local rate"}`,
+      });
     });
   }
 
@@ -82,14 +121,27 @@ const NotificationsBell = () => {
   );
 };
 
+const CartBadge = () => {
+  const { totalItems } = useCart();
+  if (totalItems === 0) return null;
+  return (
+    <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-primary text-primary-foreground text-[9px] font-data grid place-items-center">
+      {totalItems > 9 ? "9+" : totalItems}
+    </span>
+  );
+};
+
 const nav = [
   { to: "/dashboard", icon: Home, label: "Home", hindi: "घर" },
   { to: "/trends", icon: TrendingUp, label: "Trends", hindi: "रुझान" },
   { to: "/mandi", icon: Store, label: "Mandi", hindi: "मंडी" },
+  { to: "/marketplace", icon: ShoppingBag, label: "Marketplace", hindi: "बाज़ार" },
   { to: "/advisor", icon: Compass, label: "Advisor", hindi: "सलाहकार" },
   { to: "/reports", icon: LineChart, label: "Reports", hindi: "रिपोर्ट" },
   { to: "/profile", icon: User, label: "Profile", hindi: "प्रोफ़ाइल" },
 ];
+
+const adminNavItem = { to: "/admin", icon: ShieldCheck, label: "Admin", hindi: "व्यवस्थापक" };
 
 export const AppShell = ({
   children,
@@ -122,7 +174,7 @@ export const AppShell = ({
             </div>
           </Link>
           <nav className="flex-1 space-y-1">
-            {nav.map((it) => {
+            {(user?.role === "admin" ? [...nav, adminNavItem] : nav).map((it) => {
               const active = pathname === it.to;
               return (
                 <Link
@@ -163,6 +215,10 @@ export const AppShell = ({
                 />
               </form>
               <NotificationsBell />
+              <NavLink to="/cart" className="relative p-2 rounded-full hover:bg-muted" aria-label="Cart">
+                <ShoppingCart size={16} />
+                <CartBadge />
+              </NavLink>
               <NavLink to="/settings" className="p-2 rounded-full hover:bg-muted" aria-label="Settings"><Settings size={16} /></NavLink>
               <NavLink to="/profile" className="w-9 h-9 rounded-full bg-secondary text-secondary-foreground grid place-items-center text-sm font-display hover:opacity-90">
                 {(user?.full_name as string)?.charAt(0)?.toUpperCase() || "?"}

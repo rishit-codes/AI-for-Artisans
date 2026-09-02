@@ -1,6 +1,5 @@
 import io
 import uuid
-from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from PIL import Image
@@ -8,14 +7,9 @@ from PIL import Image
 from app.db.session import get_db
 from app.api.dependencies import get_current_user
 from app.models.user import User
+from app.services.storage import get_storage_backend
 
 router = APIRouter()
-
-UPLOAD_ROOT = Path(__file__).resolve().parents[3] / "uploads"
-AVATAR_DIR = UPLOAD_ROOT / "avatars"
-PRODUCT_DIR = UPLOAD_ROOT / "products"
-AVATAR_DIR.mkdir(parents=True, exist_ok=True)
-PRODUCT_DIR.mkdir(parents=True, exist_ok=True)
 
 ALLOWED_CONTENT_TYPES = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}
 MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
@@ -44,9 +38,7 @@ async def upload_avatar(
     """Upload/replace the current artisan's profile photo."""
     contents, ext = await _validate_image(file)
     filename = f"{current_user.id}.{ext}"
-    (AVATAR_DIR / filename).write_bytes(contents)
-
-    avatar_url = f"/uploads/avatars/{filename}"
+    avatar_url = get_storage_backend().save("avatars", filename, contents)
     current_user.avatar_url = avatar_url
     db.add(current_user)
     await db.commit()
@@ -64,6 +56,6 @@ async def upload_product_image(
     """
     contents, ext = await _validate_image(file)
     filename = f"{uuid.uuid4()}.{ext}"
-    (PRODUCT_DIR / filename).write_bytes(contents)
+    image_url = get_storage_backend().save("products", filename, contents)
 
-    return {"image_url": f"/uploads/products/{filename}"}
+    return {"image_url": image_url}

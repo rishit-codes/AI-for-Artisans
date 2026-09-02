@@ -1,94 +1,100 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Cluster, RECOMMENDATIONS, Recommendation } from "@/data/advisorRecommendations";
+import { useCallback, useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/use-auth";
+import {
+  updateProfile, getAdvisorRecommendations, getPlan, addPlanItem, removePlanItem,
+  AdvisorRecommendation, PlanItem,
+} from "@/lib/api";
 
 export type Skill = "beginner" | "intermediate" | "established";
 export type Goal = "income" | "festival" | "export" | "learning";
 
 export type AdvisorProfile = {
-  cluster: Cluster;
   skill: Skill;
   equipment: number;
   yearsPracticing: number;
-  capacity: number; // units/week
+  capacity: number;
   goal: Goal;
 };
 
-const PROFILE_KEY = "advisor.profile";
-const PLAN_KEY = "advisor.plan";
+interface ParsedBio {
+  advisorProfile?: AdvisorProfile;
+  [key: string]: unknown;
+}
 
-export type PlannedBatch = { recId: string; week: number; quantity: number };
-
-const readJSON = <T,>(key: string, fallback: T): T => {
-  if (typeof window === "undefined") return fallback;
+const parseBio = (bio: unknown): ParsedBio => {
+  if (typeof bio !== "string" || !bio) return {};
   try {
-    const raw = localStorage.getItem(key);
-    return raw ? (JSON.parse(raw) as T) : fallback;
+    return JSON.parse(bio) as ParsedBio;
   } catch {
-    return fallback;
+    return {};
   }
 };
 
 export const useAdvisor = () => {
-  const [profile, setProfileState] = useState<AdvisorProfile | null>(() => readJSON<AdvisorProfile | null>(PROFILE_KEY, null));
-  const [plan, setPlanState] = useState<PlannedBatch[]>(() => readJSON<PlannedBatch[]>(PLAN_KEY, []));
+  const { user, updateUser } = useAuth();
+  const queryClient = useQueryClient();
   const [capacityOverride, setCapacityOverride] = useState<number | null>(null);
 
-  useEffect(() => {
-    if (profile) localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
-  }, [profile]);
-  useEffect(() => {
-    localStorage.setItem(PLAN_KEY, JSON.stringify(plan));
-  }, [plan]);
+  const parsedBio = parseBio(user?.bio);
+  const profile: AdvisorProfile | null = parsedBio.advisorProfile ?? null;
+  const capacity = capacityOverride ?? profile?.capacity ?? 20;
 
-  const setProfile = useCallback((p: AdvisorProfile) => setProfileState(p), []);
-  const clearProfile = useCallback(() => {
-    localStorage.removeItem(PROFILE_KEY);
-    localStorage.removeItem(PLAN_KEY);
-    setProfileState(null);
-    setPlanState([]);
-  }, []);
+  const setProfile = useCallback(async (p: AdvisorProfile) => {
+    const newBio = JSON.stringify({ ...parsedBio, advisorProfile: p });
+    await updateProfile({ bio: newBio });
+    updateUser({ bio: newBio });
+    queryClient.invalidateQueries({ queryKey: ["advisorRecommendations"] });
+  }, [parsedBio, updateUser, queryClient]);
 
-  const capacity = capacityOverride ?? profile?.capacity ?? 30;
+  const clearProfile = useCallback(async () => {
+    const { advisorProfile: _drop, ...rest } = parsedBio;
+    const newBio = JSON.stringify(rest);
+    await updateProfile({ bio: newBio });
+    updateUser({ bio: newBio });
+  }, [parsedBio, updateUser]);
 
-  const recommendations = useMemo<Recommendation[]>(() => {
-    if (!profile) return [];
-    const all = RECOMMENDATIONS.filter((r) => r.cluster === profile.cluster);
-    // Score by confidence + trend + skill fit
-    const scored = all
-      .map((r) => {
-        let score = r.confidence + r.trend * 0.5;
-        if (profile.skill === "beginner" && r.leadDays > 12) score -= 20;
-        if (profile.goal === "festival" && r.festival !== "Year-round") score += 8;
-        if (profile.goal === "export" && r.festival === "Export-Holiday") score += 14;
-        return { r, score };
-      })
-      .sort((a, b) => b.score - a.score)
-      .map((s) => s.r);
-    // Scale batch sizes to capacity
-    return scored.map((rec) => ({
-      ...rec,
-      baseBatch: Math.max(2, Math.round((rec.baseBatch * capacity) / 30)),
-    }));
-  }, [profile, capacity]);
+  const { data: recommendationsData, isLoading: isRecommendationsLoading } = useQuery({
+    queryKey: ["advisorRecommendations", capacity],
+    queryFn: () => getAdvisorRecommendations(capacity),
+    enabled: !!profile,
+  });
 
-  const addToPlan = useCallback((recId: string) => {
-    setPlanState((prev) => {
-      if (prev.find((p) => p.recId === recId)) return prev;
-      const week = (prev.length % 4) + 1;
-      const rec = RECOMMENDATIONS.find((r) => r.id === recId);
-      const quantity = rec ? Math.max(2, Math.round((rec.baseBatch * capacity) / 30)) : 10;
-      return [...prev, { recId, week, quantity }];
-    });
-  }, [capacity]);
+  const { data: plan = [], isLoading: isPlanLoading } = useQuery({
+    queryKey: ["advisorPlan"],
+    queryFn: getPlan,
+    enabled: !!profile,
+  });
 
-  const removeFromPlan = useCallback((recId: string) => {
-    setPlanState((prev) => prev.filter((p) => p.recId !== recId));
-  }, []);
+  const addMutation = useMutation({
+    mutationFn: (item: { product_id: string; quantity: number; week: number }) => addPlanItem(item),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["advisorPlan"] }),
+  });
+
+  const removeMutation = useMutation({
+    mutationFn: (itemId: string) => removePlanItem(itemId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["advisorPlan"] }),
+  });
+
+  const addToPlan = useCallback((rec: AdvisorRecommendation) => {
+    if (plan.find((p) => p.product_id === rec.product_id)) return;
+    const week = (plan.length % 4) + 1;
+    addMutation.mutate({ product_id: rec.product_id, quantity: rec.suggested_batch, week });
+  }, [plan, addMutation]);
+
+  const removeFromPlan = useCallback((itemId: string) => {
+    removeMutation.mutate(itemId);
+  }, [removeMutation]);
 
   return {
     profile, setProfile, clearProfile,
     capacity, setCapacityOverride,
-    recommendations,
-    plan, addToPlan, removeFromPlan,
+    recommendations: (recommendationsData?.recommendations ?? []) as AdvisorRecommendation[],
+    materials: recommendationsData?.materials ?? [],
+    recentPace: recommendationsData?.recent_pace ?? null,
+    isRecommendationsLoading,
+    plan: plan as PlanItem[],
+    isPlanLoading,
+    addToPlan, removeFromPlan,
   };
 };

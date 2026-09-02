@@ -15,6 +15,17 @@ from app.main import app
 from app.db.session import get_db
 from app.models.user import Base
 from app.core.config import settings
+from app.core.limiter import limiter
+
+@pytest.fixture(autouse=True)
+def _reset_rate_limiter():
+    """slowapi's Limiter keeps its counters in-process, in-memory — without
+    this, running the full suite exhausts /auth/register's 5/minute and
+    /auth/login's 10/minute budget partway through and every later test that
+    logs in via the auth_headers fixture fails with a 429, not a real bug."""
+    limiter.reset()
+    yield
+    limiter.reset()
 
 # Test DB URL is configurable and docker-aware.
 if os.getenv("TEST_DATABASE_URL"):

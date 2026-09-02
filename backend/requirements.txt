@@ -102,3 +102,5 @@ uvicorn==0.41.0
 watchfiles==1.1.1
 websockets==16.0
 yarl==1.23.0
+pyotp==2.10.0
+qrcode==8.2

@@ -38,6 +38,9 @@ class UserRead(BaseModel):
     bio: Optional[str] = None
     avatar_url: Optional[str] = None
     is_active: bool
+    role: str
+    email_verified: bool = False
+    totp_enabled: bool = False
     created_at: datetime
     updated_at: datetime
 

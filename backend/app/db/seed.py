@@ -21,6 +21,10 @@ async def seed_database():
             return  # Already seeded
 
         # ── User (Auth V2 schema fallback) ──────────────
+        # role="admin" so the one seeded dev/demo account can reach /admin
+        # locally without a separate promotion step. Real signups always
+        # default to role="user" — nothing in the registration flow accepts
+        # a role from the caller.
         user_id = uuid.UUID("48ca70ea-7851-4a3d-bb92-13b29229237a")
         user = User(
             id=user_id,
@@ -29,6 +33,7 @@ async def seed_database():
             hashed_password=get_password_hash("password123"),
             craft_type="Textiles",
             location="Jaipur, India",
+            role="admin",
             bio=(
                 "I am a third-generation master weaver based in the heart of Jaipur, "
                 "Rajasthan. My family has been dedicated to the intricate art of "

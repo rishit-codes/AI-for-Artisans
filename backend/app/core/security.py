@@ -16,6 +16,15 @@ def create_access_token(subject: str | int, token_version: int = 0) -> str:
     encoded_jwt = jwt.encode(to_encode, settings.JWT_SECRET_KEY, algorithm="HS256")
     return encoded_jwt
 
+def create_pending_2fa_token(subject: str | int) -> str:
+    """Issued instead of a real access token when the password check passes
+    but the account has 2FA enabled — short-lived and marked `pending_2fa` so
+    it can't be used as a normal bearer token; /auth/2fa/login exchanges it
+    (plus a valid TOTP code) for the real access token."""
+    expire = datetime.now(timezone.utc) + timedelta(minutes=5)
+    to_encode = {"exp": expire, "iat": datetime.now(timezone.utc), "sub": str(subject), "pending_2fa": True}
+    return jwt.encode(to_encode, settings.JWT_SECRET_KEY, algorithm="HS256")
+
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
