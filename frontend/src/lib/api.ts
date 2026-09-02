@@ -69,10 +69,28 @@ export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
   return handleResponse<T>(res);
 }
 
+export async function apiPatch<T>(path: string, body?: unknown): Promise<T> {
+  const res = await fetch(`${BASE_URL}${path}`, {
+    method: "PATCH",
+    headers: authHeaders(),
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  return handleResponse<T>(res);
+}
+
 /* ---------- auth ---------- */
 
 export interface LoginResponse {
+  access_token?: string;
+  token_type?: string;
+  user?: Record<string, unknown>;
+  requires_2fa?: boolean;
+  pending_token?: string;
+}
+
+export interface TokenResponse {
   access_token: string;
+  token_type: string;
   user: Record<string, unknown>;
 }
 
@@ -80,12 +98,66 @@ export async function loginApi(email: string, password: string): Promise<LoginRe
   return apiPost<LoginResponse>("/auth/login/json", { email, password });
 }
 
-export async function registerApi(userData: Record<string, unknown>): Promise<LoginResponse> {
-  return apiPost<LoginResponse>("/auth/register", userData);
+export async function registerApi(userData: Record<string, unknown>): Promise<TokenResponse> {
+  return apiPost<TokenResponse>("/auth/register", userData);
+}
+
+export async function twoFaLoginApi(pendingToken: string, code: string): Promise<TokenResponse> {
+  return apiPost<TokenResponse>("/auth/2fa/login", { pending_token: pendingToken, code });
+}
+
+export interface TwoFASetupResponse {
+  secret: string;
+  otpauth_uri: string;
+  qr_code_data_uri: string;
+}
+
+export async function setup2FA(): Promise<TwoFASetupResponse> {
+  return apiPost<TwoFASetupResponse>("/auth/2fa/setup");
+}
+
+export async function verify2FASetup(code: string): Promise<void> {
+  await apiPost<void>("/auth/2fa/verify", { code });
+}
+
+export async function disable2FA(password: string): Promise<void> {
+  await apiPost<void>("/auth/2fa/disable", { password });
+}
+
+export async function requestEmailVerification(): Promise<void> {
+  await apiPost<void>("/auth/verify-email/request");
+}
+
+export async function confirmEmailVerification(token: string): Promise<void> {
+  const res = await fetch(`${BASE_URL}/auth/verify-email/${token}`, { method: "GET" });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(body.detail || `HTTP ${res.status}`);
+  }
+}
+
+export async function requestPasswordReset(email: string): Promise<void> {
+  await apiPost<void>("/auth/password-reset/request", { email });
+}
+
+export async function confirmPasswordReset(token: string, newPassword: string): Promise<void> {
+  await apiPost<void>("/auth/password-reset/confirm", { token, new_password: newPassword });
 }
 
 export async function logoutAllDevicesApi(): Promise<void> {
   await apiPost<void>("/auth/logout-all");
+}
+
+export async function deleteAccountApi(password: string): Promise<void> {
+  const res = await fetch(`${BASE_URL}/auth/me`, {
+    method: "DELETE",
+    headers: authHeaders(),
+    body: JSON.stringify({ password }),
+  });
+  if (!res.ok && res.status !== 204) {
+    const body = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(body.detail || `HTTP ${res.status}`);
+  }
 }
 
 export async function updateProfile(userData: Record<string, unknown>): Promise<Record<string, unknown>> {
@@ -99,6 +171,140 @@ export async function updateProfile(userData: Record<string, unknown>): Promise<
     throw new Error(body.detail || `HTTP ${res.status}`);
   }
   return res.json() as Promise<Record<string, unknown>>;
+}
+
+/* ---------- tasks ---------- */
+
+export interface Task {
+  id: string;
+  user_id: string;
+  title: string;
+  source?: string;
+  status: "pending" | "done" | "snoozed";
+  due_date?: string;
+  snoozed_until?: string;
+  created_at: string;
+}
+
+export interface TaskCreatePayload {
+  title: string;
+  source?: string;
+  due_date?: string;
+  status?: "pending" | "done" | "snoozed";
+}
+
+export interface TaskUpdatePayload {
+  status?: "pending" | "done" | "snoozed";
+  snoozed_until?: string;
+}
+
+export async function getTasks(status?: string) {
+  const qs = status ? `?status=${encodeURIComponent(status)}` : "";
+  return apiGet<Task[]>(`/tasks${qs}`);
+}
+
+export async function createTask(data: TaskCreatePayload) {
+  return apiPost<Task>("/tasks", data);
+}
+
+export async function updateTask(taskId: string, data: TaskUpdatePayload) {
+  return apiPatch<Task>(`/tasks/${taskId}`, data);
+}
+
+export async function deleteTask(taskId: string): Promise<void> {
+  const res = await fetch(`${BASE_URL}/tasks/${taskId}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  if (!res.ok && res.status !== 204) {
+    const body = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(body.detail || `HTTP ${res.status}`);
+  }
+}
+
+/* ---------- advisor recommendations (real, per-artisan) ---------- */
+
+export interface AdvisorRecommendation {
+  product_id: string;
+  product_name: string;
+  material?: string;
+  image_url?: string;
+  unit_revenue: number;
+  unit_cost?: number;
+  suggested_batch: number;
+  confidence: number;
+  trend_pct?: number;
+  festival?: string;
+  festival_days_away?: number;
+  rationale: string;
+  model_version: string;
+  has_enough_data: boolean;
+}
+
+export interface AdvisorMaterial {
+  commodity: string;
+  sub?: string;
+  local_price?: string;
+  local_best: boolean;
+  surat_price?: string;
+  surat_best: boolean;
+  delhi_price?: string;
+  delhi_best: boolean;
+  trend?: string;
+  action?: string;
+}
+
+export interface AdvisorRecentPace {
+  avg_units_per_week: number;
+  avg_revenue_per_month: number;
+  weeks_of_history: number;
+}
+
+export interface AdvisorRecommendationsResponse {
+  recommendations: AdvisorRecommendation[];
+  materials: AdvisorMaterial[];
+  recent_pace: AdvisorRecentPace;
+}
+
+export async function getAdvisorRecommendations(capacity?: number) {
+  const qs = capacity ? `?capacity=${capacity}` : "";
+  return apiGet<AdvisorRecommendationsResponse>(`/advisor/recommendations${qs}`);
+}
+
+export interface PlanItem {
+  id: string;
+  product_id: string;
+  product_name: string;
+  image_url?: string;
+  quantity: number;
+  week: number;
+  unit_revenue: number;
+  unit_cost?: number;
+}
+
+export interface PlanItemCreatePayload {
+  product_id: string;
+  quantity: number;
+  week: number;
+}
+
+export async function getPlan() {
+  return apiGet<PlanItem[]>("/advisor/plan");
+}
+
+export async function addPlanItem(data: PlanItemCreatePayload) {
+  return apiPost<PlanItem>("/advisor/plan", data);
+}
+
+export async function removePlanItem(itemId: string): Promise<void> {
+  const res = await fetch(`${BASE_URL}/advisor/plan/${itemId}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  if (!res.ok && res.status !== 204) {
+    const body = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(body.detail || `HTTP ${res.status}`);
+  }
 }
 
 /* ---------- dashboard ---------- */
@@ -172,16 +378,88 @@ export async function deleteProduct(id: string): Promise<void> {
 export interface Order {
   id: string;
   artisan_id: string;
+  buyer_id?: string | null;
   product_id: string | null;
   quantity: number;
   total_price: number;
   currency: string;
-  status: string;
+  status: "pending" | "confirmed" | "shipped" | "delivered" | "cancelled";
   created_at: string | null;
+  buyer_name?: string;
+  buyer_email?: string;
+  buyer_phone?: string;
+  shipping_address?: string;
+  shipping_city?: string;
+  shipping_state?: string;
+  shipping_pincode?: string;
+  carrier?: string;
+  tracking_number?: string;
+  shipped_at?: string;
+  delivered_at?: string;
+  payment_status: "pending" | "paid" | "failed";
+  payment_ref?: string;
+}
+
+export interface OrderUpdatePayload {
+  status?: Order["status"];
+  carrier?: string;
+  tracking_number?: string;
+}
+
+export async function updateOrder(orderId: string, data: OrderUpdatePayload) {
+  return apiPatch<Order>(`/orders/${orderId}`, data);
 }
 
 export async function getOrders(): Promise<Order[]> {
   return apiGet<Order[]>("/orders");
+}
+
+/* ---------- marketplace (buyer-side: browse, cart checkout, sandbox pay) ---------- */
+
+export interface MarketplaceProduct {
+  id: string;
+  artisan_id: string;
+  artisan_name: string;
+  artisan_craft_type?: string;
+  artisan_location?: string;
+  name: string;
+  material?: string;
+  description?: string;
+  category?: string;
+  image_url?: string;
+  price: number;
+  stock_qty: number;
+  created_at: string;
+}
+
+export interface MarketplaceOrderPayload {
+  product_id: string;
+  quantity: number;
+  shipping_address: string;
+  shipping_city: string;
+  shipping_state: string;
+  shipping_pincode: string;
+  buyer_phone?: string;
+}
+
+export async function getMarketplaceProducts(params?: { category?: string; search?: string }): Promise<MarketplaceProduct[]> {
+  const qs = new URLSearchParams();
+  if (params?.category) qs.set("category", params.category);
+  if (params?.search) qs.set("search", params.search);
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return apiGet<MarketplaceProduct[]>(`/marketplace/products${suffix}`);
+}
+
+export async function placeMarketplaceOrder(data: MarketplaceOrderPayload): Promise<Order> {
+  return apiPost<Order>("/marketplace/orders", data);
+}
+
+export async function payMarketplaceOrder(orderId: string): Promise<Order> {
+  return apiPost<Order>(`/marketplace/orders/${orderId}/pay`);
+}
+
+export async function getMyPurchases(): Promise<Order[]> {
+  return apiGet<Order[]>("/marketplace/orders");
 }
 
 /* ---------- uploads ---------- */
@@ -304,13 +582,12 @@ export async function getMandiArbitrage(localCity?: string) {
       supply: string;
       lowest_mandi: string;
       arbitrage_savings: string;
+      data_source: "live" | "estimated";
       updated_at: string;
     }>;
     suppliers: Array<{
-      name: string;
       item: string;
       lead: string;
-      trust: number;
       savings: string;
       mandi: string;
     }>;
@@ -692,6 +969,98 @@ export async function downloadGstSummaryCsv(fromDate?: string, toDate?: string) 
 
 export async function downloadGstSummaryPdf(fromDate?: string, toDate?: string) {
   await downloadGstFile("/gst/export-pdf", fromDate, toDate, "GST-Summary.pdf", "Failed to download the GST summary PDF.");
+}
+
+/* ---------- admin ---------- */
+
+export interface AdminUserRow {
+  id: string;
+  email: string;
+  full_name: string;
+  craft_type?: string;
+  location?: string;
+  role: string;
+  is_active: boolean;
+  gi_certified: boolean;
+  gi_year?: string;
+  product_count: number;
+  created_at: string;
+}
+
+export interface AdminUsersPage {
+  users: AdminUserRow[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface AdminUserUpdate {
+  is_active?: boolean;
+  role?: string;
+  gi_certified?: boolean;
+  gi_year?: string;
+}
+
+export interface CraftTypeCount {
+  craft_type: string;
+  count: number;
+}
+
+export interface AdminMetrics {
+  total_users: number;
+  active_users: number;
+  suspended_users: number;
+  admin_users: number;
+  signups_last_30_days: number;
+  total_products: number;
+  listed_products: number;
+  total_orders: number;
+  total_sales_value: number;
+  users_by_craft_type: CraftTypeCount[];
+}
+
+export async function getAdminMetrics() {
+  return apiGet<AdminMetrics>("/admin/metrics");
+}
+
+export async function getAdminUsers(search?: string, page = 1, pageSize = 20) {
+  const params = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
+  if (search) params.set("search", search);
+  return apiGet<AdminUsersPage>(`/admin/users?${params.toString()}`);
+}
+
+export async function updateAdminUser(userId: string, patch: AdminUserUpdate) {
+  return apiPatch<AdminUserRow>(`/admin/users/${userId}`, patch);
+}
+
+export interface BulkUserUpdatePayload {
+  user_ids: string[];
+  is_active?: boolean;
+  role?: string;
+}
+
+export interface BulkUpdateResult {
+  updated: number;
+  skipped: string[];
+}
+
+export async function bulkUpdateAdminUsers(data: BulkUserUpdatePayload) {
+  return apiPatch<BulkUpdateResult>("/admin/users/bulk", data);
+}
+
+export interface AuditLogEntry {
+  id: string;
+  admin_email: string;
+  target_email: string;
+  action: string;
+  details?: string;
+  created_at: string;
+}
+
+export async function getAuditLog(targetUserId?: string, limit = 100) {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (targetUserId) params.set("target_user_id", targetUserId);
+  return apiGet<AuditLogEntry[]>(`/admin/audit-log?${params.toString()}`);
 }
 
 export { BASE_URL };

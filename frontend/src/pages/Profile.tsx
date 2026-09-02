@@ -8,7 +8,8 @@ import {
   updateProfile, uploadAvatar, uploadProductImage, resolveImageUrl,
   getProducts, createProduct, updateProduct, deleteProduct,
   getSeasonalPredictions, triggerModelUpgrade, getReportsSummary,
-  getOrders,
+  getOrders, updateOrder, OrderUpdatePayload,
+  getMyPurchases,
   Product, ProductWritePayload,
 } from "@/lib/api";
 import AppShell from "@/components/site/AppShell";
@@ -64,7 +65,7 @@ const inr = (n: number) => `₹${n.toLocaleString("en-IN")}`;
 const Profile = () => {
   const { user, updateUser } = useAuth();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<"overview" | "products" | "orders" | "channels">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "products" | "orders" | "purchases" | "channels">("overview");
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editSkills, setEditSkills] = useState("");
   const [editMilestones, setEditMilestones] = useState("");
@@ -114,6 +115,24 @@ const Profile = () => {
     queryFn: getOrders,
   });
 
+  const { data: purchasesList = [] } = useQuery({
+    queryKey: ["myPurchases"],
+    queryFn: getMyPurchases,
+  });
+
+  const [shippingFormOrderId, setShippingFormOrderId] = useState<string | null>(null);
+  const [carrierInput, setCarrierInput] = useState("");
+  const [trackingInput, setTrackingInput] = useState("");
+
+  const orderMutation = useMutation({
+    mutationFn: ({ id, patch }: { id: string; patch: OrderUpdatePayload }) => updateOrder(id, patch),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      toast.success("Order updated.");
+    },
+    onError: (e: Error) => toast.error(e.message || "Failed to update order."),
+  });
+
   // Revenue/profit here come from the real sales ledger — same endpoint Reports
   // uses — instead of a number hardcoded to one demo account.
   const { data: reportsSummary } = useQuery({
@@ -130,7 +149,7 @@ const Profile = () => {
   const giYear = parsedBio.giYear || "";
 
   const statusTone = (s: string) =>
-    s === "fulfilled" ? "text-forest bg-forest/10" : s === "cancelled" ? "text-destructive bg-destructive/10" : "text-primary bg-primary/10";
+    s === "delivered" ? "text-forest bg-forest/10" : s === "cancelled" ? "text-destructive bg-destructive/10" : "text-primary bg-primary/10";
 
   const handleEditOpen = () => {
     setEditSkills(skillsList.map((s) => `${s.name},${s.level}`).join("\n"));
@@ -267,7 +286,7 @@ const Profile = () => {
 
       {/* Tab nav */}
       <div className="flex gap-1 p-1 bg-card border border-border rounded-full w-fit">
-        {(["overview", "products", "orders", "channels"] as const).map((t) => (
+        {(["overview", "products", "orders", "purchases", "channels"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setActiveTab(t)}
@@ -469,24 +488,83 @@ const Profile = () => {
             <div className="divide-y divide-border">
               {ordersList.map((o) => {
                 const product = productsList.find((p) => p.id === o.product_id);
+                const isShippingForm = shippingFormOrderId === o.id;
+                const nextStatus: Record<string, string> = { pending: "confirmed", confirmed: "shipped", shipped: "delivered" };
+                const nextLabel: Record<string, string> = { pending: "Confirm", confirmed: "Mark shipped", shipped: "Mark delivered" };
                 return (
-                  <div key={o.id} className="px-5 py-4 flex items-center gap-4 hover:bg-background transition-colors">
-                    <div className="w-10 h-10 rounded-lg bg-secondary/10 text-secondary grid place-items-center font-data text-xs shrink-0">
-                      {o.id.slice(0, 2).toUpperCase()}
+                  <div key={o.id} className="px-5 py-4 hover:bg-background transition-colors">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-lg bg-secondary/10 text-secondary grid place-items-center font-data text-xs shrink-0">
+                        {o.id.slice(0, 2).toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium truncate">{product ? `${product.name} × ${o.quantity}` : `Order × ${o.quantity}`}</div>
+                        {o.buyer_name && <div className="text-xs text-muted-foreground truncate">{o.buyer_name}{o.shipping_city ? ` · ${o.shipping_city}` : ""}</div>}
+                        {o.tracking_number && <div className="text-[10px] text-muted-foreground font-data">{o.carrier} · {o.tracking_number}</div>}
+                      </div>
+                      <div className="hidden sm:block text-xs font-data text-muted-foreground">
+                        {o.created_at ? new Date(o.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "—"}
+                      </div>
+                      <span className={`text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-full font-data font-bold ${statusTone(o.status)}`}>
+                        {o.status}
+                      </span>
+                      <div className="text-right">
+                        <div className="font-data text-sm font-semibold">{inr(Number(o.total_price))}</div>
+                        <div className="text-[10px] text-muted-foreground font-data">#{o.id.slice(0, 8)}</div>
+                      </div>
+                      {nextStatus[o.status] && (
+                        <button
+                          onClick={() => {
+                            if (nextStatus[o.status] === "shipped") {
+                              setShippingFormOrderId(isShippingForm ? null : o.id);
+                            } else {
+                              orderMutation.mutate({ id: o.id, patch: { status: nextStatus[o.status] as OrderUpdatePayload["status"] } });
+                            }
+                          }}
+                          disabled={orderMutation.isPending}
+                          className="shrink-0 text-xs px-3 py-1.5 rounded-full border border-border hover:bg-muted disabled:opacity-40"
+                        >
+                          {nextLabel[o.status]}
+                        </button>
+                      )}
+                      {(o.status === "pending" || o.status === "confirmed") && (
+                        <button
+                          onClick={() => orderMutation.mutate({ id: o.id, patch: { status: "cancelled" } })}
+                          disabled={orderMutation.isPending}
+                          className="shrink-0 text-xs px-3 py-1.5 rounded-full border border-destructive/30 text-destructive hover:bg-destructive/10 disabled:opacity-40"
+                        >
+                          Cancel
+                        </button>
+                      )}
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium truncate">{product ? `${product.name} × ${o.quantity}` : `Order × ${o.quantity}`}</div>
-                    </div>
-                    <div className="hidden sm:block text-xs font-data text-muted-foreground">
-                      {o.created_at ? new Date(o.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "—"}
-                    </div>
-                    <span className={`text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-full font-data font-bold ${statusTone(o.status)}`}>
-                      {o.status}
-                    </span>
-                    <div className="text-right">
-                      <div className="font-data text-sm font-semibold">{inr(Number(o.total_price))}</div>
-                      <div className="text-[10px] text-muted-foreground font-data">#{o.id.slice(0, 8)}</div>
-                    </div>
+                    {isShippingForm && (
+                      <div className="mt-3 ml-14 flex flex-wrap items-center gap-2">
+                        <input
+                          value={carrierInput}
+                          onChange={(e) => setCarrierInput(e.target.value)}
+                          placeholder="Carrier (e.g. India Post)"
+                          className="text-xs px-3 py-2 rounded-lg border border-border bg-background"
+                        />
+                        <input
+                          value={trackingInput}
+                          onChange={(e) => setTrackingInput(e.target.value)}
+                          placeholder="Tracking number"
+                          className="text-xs px-3 py-2 rounded-lg border border-border bg-background"
+                        />
+                        <button
+                          onClick={() => {
+                            orderMutation.mutate({ id: o.id, patch: { status: "shipped", carrier: carrierInput || undefined, tracking_number: trackingInput || undefined } });
+                            setShippingFormOrderId(null);
+                            setCarrierInput("");
+                            setTrackingInput("");
+                          }}
+                          disabled={orderMutation.isPending}
+                          className="text-xs px-3 py-2 rounded-full bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-40"
+                        >
+                          Confirm shipped
+                        </button>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -495,6 +573,56 @@ const Profile = () => {
           <div className="px-5 py-3 border-t border-border flex items-center justify-between text-xs font-data text-muted-foreground">
             <span>Total shown: {inr(ordersList.reduce((s, o) => s + Number(o.total_price), 0))}</span>
           </div>
+        </div>
+      )}
+
+      {activeTab === "purchases" && (
+        <div className="rounded-2xl border border-border bg-card overflow-hidden">
+          <div className="px-5 py-4 border-b border-border flex items-baseline justify-between">
+            <div>
+              <div className="font-display text-xl">Your purchases</div>
+              <div className="text-xs font-hindi text-muted-foreground">आपकी खरीदारी — मार्केटप्लेस से</div>
+            </div>
+            <div className="flex items-center gap-2 text-xs font-data text-muted-foreground">
+              <ShoppingBag size={13} />
+              {purchasesList.length} shown
+            </div>
+          </div>
+          {purchasesList.length === 0 ? (
+            <div className="p-8 text-center text-muted-foreground italic">
+              No purchases yet. <Link to="/marketplace" className="text-primary hover:underline">Browse the marketplace</Link>.
+            </div>
+          ) : (
+            <div className="divide-y divide-border">
+              {purchasesList.map((o) => (
+                <div key={o.id} className="px-5 py-4 flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-lg bg-secondary/10 text-secondary grid place-items-center font-data text-xs shrink-0">
+                    {o.id.slice(0, 2).toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium truncate">Order × {o.quantity}</div>
+                    <Link to={`/karigar/${o.artisan_id}`} className="text-xs text-muted-foreground hover:text-foreground truncate">
+                      View seller{o.shipping_city ? ` · ships to ${o.shipping_city}` : ""}
+                    </Link>
+                    {o.tracking_number && <div className="text-[10px] text-muted-foreground font-data">{o.carrier} · {o.tracking_number}</div>}
+                  </div>
+                  <div className="hidden sm:block text-xs font-data text-muted-foreground">
+                    {o.created_at ? new Date(o.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "—"}
+                  </div>
+                  <span className={`text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-full font-data font-bold ${statusTone(o.status)}`}>
+                    {o.status}
+                  </span>
+                  <span className={`text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-full font-data font-bold ${o.payment_status === "paid" ? "text-forest bg-forest/10" : "text-muted-foreground bg-muted"}`}>
+                    {o.payment_status}
+                  </span>
+                  <div className="text-right w-20">
+                    <div className="font-data text-sm font-semibold">{inr(Number(o.total_price))}</div>
+                    <div className="text-[10px] text-muted-foreground font-data">#{o.id.slice(0, 8)}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

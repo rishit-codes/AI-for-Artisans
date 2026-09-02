@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from . import auth, users, products, dashboard, advisor, orders, sales, predictions, market, trends, production, materials, purchases, gst, uploads
+from . import auth, users, products, dashboard, advisor, orders, sales, predictions, market, trends, production, materials, purchases, gst, uploads, admin, tasks, marketplace, ws
 
 api_router = APIRouter()
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
@@ -17,3 +17,7 @@ api_router.include_router(materials.router, prefix="/materials", tags=["material
 api_router.include_router(purchases.router, prefix="/purchases", tags=["purchases"])
 api_router.include_router(gst.router, prefix="/gst", tags=["gst"])
 api_router.include_router(uploads.router, prefix="/upload", tags=["uploads"])
+api_router.include_router(admin.router, prefix="/admin", tags=["admin"])
+api_router.include_router(tasks.router, prefix="/tasks", tags=["tasks"])
+api_router.include_router(marketplace.router, prefix="/marketplace", tags=["marketplace"])
+api_router.include_router(ws.router, prefix="/ws", tags=["websocket"])

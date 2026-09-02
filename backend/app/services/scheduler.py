@@ -1,18 +1,48 @@
 import logging
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-# from app.ml.demand_forecasting import DemandForecaster 
-# (In a real app we'd fetch all users, loop, and retrain. Here we will mock the job scaffolding)
 
 logger = logging.getLogger(__name__)
 
 scheduler = AsyncIOScheduler()
 
 async def retrain_demand_forecaster():
-    """Job 1: retrain DemandForecaster for all active users"""
+    """Job 1: retrain SARIMAX (sarima_v1) models for every product with enough
+    sales history — mirrors weekly_deepar_retrain's real, per-row, error-isolated
+    pattern instead of the previous no-op stub."""
     logger.info("Scheduler: Retraining DemandForecaster models starting...")
-    # Mocking retraining logic since full db session injection for background isn't strictly requested in prompt details
-    # In production, we would use a local async session maker to fetch users and retrain.
-    logger.info("Scheduler: Retraining DemandForecaster models complete.")
+    from app.db.session import AsyncSessionLocal
+    from sqlalchemy import select, func
+    from app.models.sale import Sale
+    from app.models.user import User
+    from app.ml.demand_forecasting import DemandForecaster, CATEGORY_PRIOR_THRESHOLD
+
+    try:
+        async with AsyncSessionLocal() as db:
+            # Same threshold predict() uses to decide a product is on the SARIMAX
+            # tier rather than the category-prior fallback — only those are worth
+            # a scheduled retrain.
+            query = (
+                select(Sale.user_id, Sale.product_id, User.craft_type)
+                .join(User, User.id == Sale.user_id)
+                .group_by(Sale.user_id, Sale.product_id, User.craft_type)
+                .having(func.count(Sale.id) >= CATEGORY_PRIOR_THRESHOLD)
+            )
+            res = await db.execute(query)
+            eligible = res.all()
+
+            retrained, failed = 0, 0
+            for user_id, product_id, craft_type in eligible:
+                try:
+                    forecaster = DemandForecaster(user_id, product_id, craft_type or "textile", db)
+                    await forecaster.train()
+                    retrained += 1
+                except Exception as e:
+                    failed += 1
+                    logger.error(f"SARIMAX retrain failed for {user_id}/{product_id}: {e}")
+
+            logger.info(f"Scheduler: Retraining DemandForecaster models complete. {retrained} retrained, {failed} failed.")
+    except Exception as e:
+        logger.error(f"SARIMAX retrain wrapper failed: {e}")
 
 async def fetch_market_signals():
     """Job 2: fetch pytrends -> market_signals table"""

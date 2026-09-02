@@ -79,6 +79,24 @@
   }
 }
 
+/* Real, working settings toggles — applied via data-attributes on <html> from
+   Settings > Appearance / Language. Each is a safe, additive CSS rule rather
+   than a full re-theme, since only one real color palette exists in this app. */
+html[data-larger-text="true"] {
+  font-size: 112.5%;
+}
+html[data-reduce-motion="true"] *,
+html[data-reduce-motion="true"] *::before,
+html[data-reduce-motion="true"] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+html[data-hide-hindi="true"] .font-hindi {
+  display: none;
+}
+
 @layer utilities {
   .text-balance { text-wrap: balance; }
   .grain {

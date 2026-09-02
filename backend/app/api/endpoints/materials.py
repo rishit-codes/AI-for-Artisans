@@ -6,7 +6,7 @@ from typing import List, Optional
 from datetime import datetime, timezone
 import random
 from pydantic import BaseModel
-from fastapi import APIRouter, Depends, Query, HTTPException, Response
+from fastapi import APIRouter, Depends, Query, HTTPException, Response, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
 from reportlab.lib import colors
@@ -22,6 +22,7 @@ from app.crud.material import list_commodities, get_mandi_comparison
 from app.services.commodity_fetcher import update_commodity_prices
 from app.services.mandi_scraper import fetch_mandi_prices_async
 from app.models.mandi_log import MandiScrapingLog, MandiPrice
+from app.core.limiter import limiter
 
 # Every route below reads or triggers spend against shared, rate-limited resources
 # (Groq/Alpha Vantage quota, outbound scrapes to agmarknet.gov.in, DB writes) — none
@@ -133,17 +134,19 @@ async def get_mandi_arbitrage(
             "supply": r.supply_status,
             "lowest_mandi": lowest_city,
             "arbitrage_savings": f"₹{int(savings)}{r.unit}" if savings > 0 else "Best Local Rate",
+            "data_source": r.data_source,
             "updated_at": r.updated_at.isoformat() if r.updated_at else None
         })
 
+        # "Sourcing options": the real price comparison and a freight-rule-based
+        # lead-time estimate. Deliberately no supplier name or trust rating here —
+        # there's no real supplier directory backing either of those.
         if savings > 0:
             suppliers.append({
-                "name": f"{lowest_city} Wholesale Craft Co-op",
                 "item": r.commodity_name,
+                "mandi": lowest_city,
                 "lead": FREIGHT_RULES.get(lowest_city, {}).get("lead_days", "2-3 days"),
-                "trust": 4.8,
                 "savings": f"Save ₹{int(savings)}{r.unit} (-{round((savings / local_price) * 100, 1)}%)",
-                "mandi": lowest_city
             })
 
     return {
@@ -456,13 +459,15 @@ async def get_mandi_scraping_logs(
     ]
 
 @router.post("/sync")
-async def sync_live_commodities(db: AsyncSession = Depends(get_db)):
+@limiter.limit("5/minute")
+async def sync_live_commodities(request: Request, db: AsyncSession = Depends(get_db)):
     """Manually trigger fetching live commodity prices from Alpha Vantage."""
     await update_commodity_prices(db)
     return {"status": "success", "message": "Live commodity prices successfully synced from Alpha Vantage"}
 
 @router.post("/trigger-mandi-scrape")
-async def trigger_mandi_scrape(db: AsyncSession = Depends(get_db)):
+@limiter.limit("3/minute")
+async def trigger_mandi_scrape(request: Request, db: AsyncSession = Depends(get_db)):
     """Manually trigger Agmarknet 5-city mandi scraper and audit logger."""
     result = await fetch_mandi_prices_async(db)
     return result

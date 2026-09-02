@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Query, Depends
+from fastapi import APIRouter, Query, Depends, Request
 import logging
 import json
 import re
@@ -23,6 +23,7 @@ from app.db.session import get_db
 from app.api.dependencies import get_current_user
 from app.models.material import Material
 from app.core.config import settings
+from app.core.limiter import limiter
 
 logger = logging.getLogger(__name__)
 # Every route here spends Groq/Alpha Vantage/pytrends quota on each uncached call —
@@ -174,7 +175,9 @@ async def fetch_unsplash_image(query: str) -> str:
     return random.choice(AVAILABLE_IMAGES)
 
 @router.get("")
+@limiter.limit("20/minute")
 async def get_trends(
+    request: Request,
     tab: str = Query("All Trends", description="Filter tab"),
     db: AsyncSession = Depends(get_db)
 ):
@@ -275,7 +278,8 @@ Each object must follow this strict schema exactly:
         return []
 
 @router.get("/intelligence")
-async def get_intelligence(db: AsyncSession = Depends(get_db)):
+@limiter.limit("15/minute")
+async def get_intelligence(request: Request, db: AsyncSession = Depends(get_db)):
     """
     AI suggestion + raw material forecast sidebar data generated via LLM & Live Alpha Vantage API.
     """

@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect } from "react";
 import { Link, NavLink } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { getDashboardSummary, getProducts, getMandiPrices, advisorChatStream, getDashboardPriority, resolveImageUrl } from "@/lib/api";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getDashboardSummary, getProducts, getMandiPrices, advisorChatStream, getDashboardPriority, resolveImageUrl, getTasks, createTask, updateTask, Task } from "@/lib/api";
 import { useAuth } from "@/hooks/use-auth";
+import { parseNotificationPrefs } from "@/components/site/AppShell";
 import { toast } from "sonner";
 import {
   AlertTriangle,
@@ -21,8 +22,13 @@ import {
   MicOff,
   Send,
   Settings,
+  ShieldCheck,
   Sparkles,
+  Check,
+  Circle,
+  Clock,
   Store,
+  TrendingDown,
   TrendingUp,
   User,
   Search,
@@ -76,6 +82,7 @@ const Dashboard = () => {
             <div className="grid xl:grid-cols-3 gap-6">
               <div className="xl:col-span-2 space-y-6">
                 <PriorityCard />
+                <TasksPanel />
                 <MandiWidget />
                 <StockLedger />
               </div>
@@ -107,6 +114,7 @@ const Sidebar = () => {
     { to: "/advisor", icon: Compass, label: "Advisor", hindi: "सलाहकार" },
     { to: "/reports", icon: LineChart, label: "Reports", hindi: "रिपोर्ट" },
     { to: "/profile", icon: User, label: "Profile", hindi: "प्रोफ़ाइल" },
+    ...(user?.role === "admin" ? [{ to: "/admin", icon: ShieldCheck, label: "Admin", hindi: "व्यवस्थापक" }] : []),
   ];
   return (
     <aside className="hidden lg:flex flex-col bg-background border-r border-border p-5 sticky top-0 h-screen">
@@ -157,6 +165,8 @@ interface DashboardPriority {
 }
 
 const NotificationsBell = () => {
+  const { user } = useAuth();
+  const notifPrefs = parseNotificationPrefs(user?.bio);
   const { data: summary } = useQuery({
     queryKey: ["dashboardSummary"],
     queryFn: getDashboardSummary,
@@ -164,6 +174,11 @@ const NotificationsBell = () => {
   const { data: priority } = useQuery({
     queryKey: ["dashboardPriority"],
     queryFn: getDashboardPriority,
+  });
+  const { data: mandiMaterials } = useQuery({
+    queryKey: ["mandiPrices", (user?.craft_type as string) || "Textiles"],
+    queryFn: () => getMandiPrices((user?.craft_type as string) || "Textiles"),
+    enabled: notifPrefs.mandi,
   });
 
   const { low_stock_items: lowStockItems } = (summary || {}) as DashboardSummary;
@@ -174,21 +189,32 @@ const NotificationsBell = () => {
     : null;
 
   const notifications: { icon: typeof Bell; tone: string; text: string }[] = [];
-  (lowStockItems || []).slice(0, 3).forEach((item) => {
-    notifications.push({
-      icon: AlertTriangle,
-      tone: "text-destructive",
-      text: `Low stock: ${item.name} — ${item.stock_qty} left`,
+  if (notifPrefs.orders) {
+    (lowStockItems || []).slice(0, 3).forEach((item) => {
+      notifications.push({
+        icon: AlertTriangle,
+        tone: "text-destructive",
+        text: `Low stock: ${item.name} — ${item.stock_qty} left`,
+      });
     });
-  });
+  }
   if (priorityTitle) {
     notifications.push({ icon: ListTodo, tone: "text-primary", text: priorityTitle });
   }
-  if (festival && daysToFestival !== null) {
+  if (notifPrefs.festival && festival && daysToFestival !== null) {
     notifications.push({
       icon: CalendarClock,
       tone: "text-secondary",
       text: `${festival} is ${daysToFestival} day${daysToFestival === 1 ? "" : "s"} away — start prepping stock`,
+    });
+  }
+  if (notifPrefs.mandi) {
+    (mandiMaterials || []).filter((m) => m.action?.toLowerCase().includes("save") || m.local_best).slice(0, 2).forEach((m) => {
+      notifications.push({
+        icon: TrendingDown,
+        tone: "text-forest",
+        text: `${m.commodity}: ${m.action || "best local rate"}`,
+      });
     });
   }
 
@@ -319,9 +345,37 @@ const KPIRow = () => {
 };
 
 const PriorityCard = () => {
+  const queryClient = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ["dashboardPriority"],
     queryFn: getDashboardPriority,
+  });
+
+  const addMutation = useMutation({
+    mutationFn: (title: string) => createTask({ title, source: "dashboard_priority" }),
+    onSuccess: () => {
+      toast.success("Added to today's tasks.");
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+    },
+    onError: (e: Error) => toast.error(e.message || "Failed to add task."),
+  });
+
+  const snoozeMutation = useMutation({
+    mutationFn: (title: string) => {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      return createTask({
+        title,
+        source: "dashboard_priority",
+        status: "snoozed",
+        due_date: tomorrow.toISOString().slice(0, 10),
+      });
+    },
+    onSuccess: () => {
+      toast.success("Snoozed until tomorrow.");
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+    },
+    onError: (e: Error) => toast.error(e.message || "Failed to snooze."),
   });
 
   if (isLoading) {
@@ -377,18 +431,66 @@ const PriorityCard = () => {
         </div>
       <div className="mt-auto pt-4 flex gap-2">
           <button
-            onClick={() => toast("Added to today's plan! Check your calendar.")}
-            className="rounded-full bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:opacity-90"
+            onClick={() => addMutation.mutate(title as string)}
+            disabled={!data?.title || addMutation.isPending}
+            className="rounded-full bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             Add to today
           </button>
           <button
-            onClick={() => toast("Snoozed until tomorrow.")}
-            className="rounded-full border border-border px-4 py-2 text-sm hover:bg-background"
+            onClick={() => snoozeMutation.mutate(title as string)}
+            disabled={!data?.title || snoozeMutation.isPending}
+            className="rounded-full border border-border px-4 py-2 text-sm hover:bg-background disabled:opacity-40 disabled:cursor-not-allowed"
           >
             Snooze
           </button>
         </div>
+      </div>
+    </div>
+  );
+};
+
+const TasksPanel = () => {
+  const queryClient = useQueryClient();
+  const { data: tasks = [] } = useQuery({
+    queryKey: ["tasks"],
+    queryFn: () => getTasks(),
+  });
+
+  const doneMutation = useMutation({
+    mutationFn: (task: Task) => updateTask(task.id, { status: task.status === "done" ? "pending" : "done" }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["tasks"] }),
+    onError: (e: Error) => toast.error(e.message || "Failed to update task."),
+  });
+
+  const today = new Date().toISOString().slice(0, 10);
+  const relevant = tasks.filter((t) => t.status === "done" || t.due_date === today || t.status === "snoozed");
+  if (relevant.length === 0) return null;
+
+  const sorted = [...relevant].sort((a, b) => (a.status === "done" ? 1 : 0) - (b.status === "done" ? 1 : 0));
+
+  return (
+    <div className="rounded-2xl border border-border bg-card p-5">
+      <div className="text-[10px] uppercase tracking-wider text-primary font-data mb-3">Today's tasks · आज के काम</div>
+      <div className="space-y-2">
+        {sorted.map((t) => (
+          <div key={t.id} className="flex items-center gap-3 text-sm">
+            <button
+              onClick={() => doneMutation.mutate(t)}
+              disabled={doneMutation.isPending}
+              className={`shrink-0 ${t.status === "done" ? "text-forest" : "text-muted-foreground hover:text-foreground"}`}
+              aria-label={t.status === "done" ? "Mark as not done" : "Mark as done"}
+            >
+              {t.status === "done" ? <Check size={16} /> : <Circle size={16} />}
+            </button>
+            <span className={`flex-1 ${t.status === "done" ? "line-through text-muted-foreground" : ""}`}>{t.title}</span>
+            {t.status === "snoozed" && (
+              <span className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted-foreground font-data">
+                <Clock size={11} /> Snoozed
+              </span>
+            )}
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -420,17 +522,12 @@ const MandiWidget = () => {
     surat: parseVal(r.surat_price),
     delhi: parseVal(r.delhi_price),
   })) : [];
-  const lastUpdated = new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
-
   return (
   <div className="rounded-2xl border border-border bg-card overflow-hidden">
     <div className="px-5 py-4 border-b border-border flex items-center justify-between">
       <div>
         <div className="text-[10px] uppercase tracking-wider text-primary font-data">Mandi watch · मंडी भाव</div>
         <div className="font-display text-xl mt-0.5">Three markets, one screen</div>
-      </div>
-      <div className="flex items-center gap-2 text-xs text-forest font-data">
-        <span className="w-1.5 h-1.5 rounded-full bg-forest animate-pulse" /> live · {lastUpdated}
       </div>
     </div>
     <div className="overflow-x-auto">

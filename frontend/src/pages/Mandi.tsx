@@ -260,11 +260,11 @@ const Mandi = () => {
             <div className="px-5 py-4 border-b border-border flex items-baseline justify-between">
               <div>
                 <div className="font-display text-xl">5-City Comparative Mandi Arbitrage Matrix</div>
-                <div className="text-xs text-muted-foreground font-hindi">5 प्रमुख भारतीय मंडियों में कच्चे माल का रीयल-टाइम तुलनात्मक भाव</div>
+                <div className="text-xs text-muted-foreground font-hindi">5 प्रमुख भारतीय मंडियों में कच्चे माल का तुलनात्मक भाव</div>
               </div>
               <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground font-data flex items-center gap-1.5">
                 <CheckCircle2 size={12} className="text-emerald-500" />
-                Live Agmarknet Sync · 5 Cities
+                Agmarknet-checked · 5 Cities
               </div>
             </div>
 
@@ -290,7 +290,15 @@ const Mandi = () => {
                     return (
                       <tr key={r.item} className={`border-b border-border/60 ${i % 2 ? "bg-background-deep/40" : ""}`}>
                         <td className="px-5 py-3.5">
-                          <div className="font-medium">{r.item}</div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-medium">{r.item}</span>
+                            <span
+                              title={r.data_source === "live" ? "Matched a live agmarknet.gov.in listing this scrape cycle" : "Estimated — agmarknet doesn't carry this commodity, so this is a calibrated estimate, not a live scrape"}
+                              className={`text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded-full font-data shrink-0 ${r.data_source === "live" ? "bg-emerald-500/15 text-emerald-500" : "bg-muted text-muted-foreground"}`}
+                            >
+                              {r.data_source === "live" ? "Live" : "Est."}
+                            </span>
+                          </div>
                           <div className="text-xs font-hindi text-muted-foreground">{r.hindi}</div>
                         </td>
                         <td className="px-3 py-3.5 text-xs text-muted-foreground font-data">{r.unit}</td>
@@ -525,21 +533,23 @@ const Mandi = () => {
         </div>
       ) : tab === "suppliers" ? (
         <div className="grid md:grid-cols-2 gap-5">
+          {suppliers.length === 0 && (
+            <p className="text-sm text-muted-foreground p-5 rounded-2xl border border-dashed border-border md:col-span-2">
+              No sourcing opportunities right now — your local price is already the best across all 5 mandis.
+            </p>
+          )}
           {suppliers.map((s) => (
-            <div key={s.name + s.item} className="rounded-2xl border border-border bg-card p-6 hover:shadow-paper transition-shadow">
-              <div className="flex items-start justify-between">
-                <div>
-                  <div className="font-display text-xl">{s.name}</div>
-                  <div className="text-xs text-muted-foreground font-data mt-1">{s.item} · {s.mandi} Hub</div>
-                </div>
-                <div className="text-right">
-                  <div className="text-xs text-muted-foreground font-data">trust rating</div>
-                  <div className="font-display text-2xl text-emerald-500">{s.trust}</div>
-                </div>
+            <div key={s.item + s.mandi} className="rounded-2xl border border-border bg-card p-6 hover:shadow-paper transition-shadow">
+              <div>
+                <div className="font-display text-xl">{s.item}</div>
+                <div className="text-xs text-muted-foreground font-data mt-1">Best sourced from {s.mandi} mandi</div>
               </div>
+              <p className="text-xs text-muted-foreground mt-3">
+                There's no supplier directory yet — this is a price-comparison lead, not a vetted vendor listing.
+              </p>
               <div className="mt-5 grid grid-cols-2 gap-4 text-sm">
                 <div>
-                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-data">Lead time</div>
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-data">Est. lead time</div>
                   <div className="font-data flex items-center gap-1.5 mt-1"><Truck size={14} /> {s.lead}</div>
                 </div>
                 <div>

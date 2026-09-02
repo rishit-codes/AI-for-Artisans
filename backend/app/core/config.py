@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     FRONTEND_URL: str = "http://localhost:5173"
     UNSPLASH_API_KEY: str = ""
     ENVIRONMENT: str = "development"
+    STORAGE_BACKEND: str = "local"  # only "local" is implemented — see app.services.storage
     
     # Optional phase 3 configurations
     UPSTOX_API_KEY: str = ""

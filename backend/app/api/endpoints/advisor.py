@@ -1,5 +1,6 @@
 import json
 import re
+import uuid
 import logging
 def _extract_json(text: str) -> dict:
     """Extract the first JSON object from a model response, stripping markdown fences."""
@@ -9,20 +10,30 @@ def _extract_json(text: str) -> dict:
         return json.loads(match.group(1))
     return json.loads(text)
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
+from datetime import date, timedelta
 from groq import AsyncGroq
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 
 from app.api.dependencies import get_current_user
 from app.core.config import settings
+from app.core.limiter import limiter
 from app.models.user import User
 from app.models.material import Material
+from app.models.product import Product
+from app.models.sale import Sale
 from app.db.session import get_db
 from app.services.festivals import get_days_to_next_festival
+from app.crud.material import CRAFT_TYPE_TO_MATERIAL_CATEGORY
+from app.models.plan_item import PlanItem
+from app.schemas.advisor import (
+    RecommendationOut, MaterialForCraft, RecentPace, AdvisorRecommendationsResponse,
+    PlanItemCreate, PlanItemOut,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -106,16 +117,18 @@ async def stream_groq_response(messages: List[Dict[str, Any]], current_user: Use
         yield "I am sorry, I am having trouble connecting to the AI service."
 
 @router.post("/chat", response_class=StreamingResponse)
+@limiter.limit("20/minute")
 async def chat_with_advisor(
-    request: ChatRequest,
+    request: Request,
+    chat_request: ChatRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ) -> Any:
     # Build messages log
     messages = []
-    for msg in request.conversation_history:
+    for msg in chat_request.conversation_history:
         messages.append({"role": msg.role, "content": msg.content})
-    messages.append({"role": "user", "content": request.message})
+    messages.append({"role": "user", "content": chat_request.message})
 
     return StreamingResponse(
         stream_groq_response(messages, current_user, db),
@@ -123,7 +136,9 @@ async def chat_with_advisor(
     )
 
 @router.get("/feed")
+@limiter.limit("20/minute")
 async def get_advisor_feed(
+    request: Request,
     artisan_id: Optional[str] = None,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
@@ -138,8 +153,7 @@ async def get_advisor_feed(
         mat_str = context["materials"]
         weather_str = context["weather"]
 
-        # We can dynamically guess their craft via Artisan mapping, but we default to Textile/Weaver
-        craft_type = "textile"
+        craft_type = current_user.craft_type if current_user and current_user.craft_type else "textile"
         fest_info = get_days_to_next_festival(craft_type)
         days_to_festival = fest_info["days_away"] if fest_info else 30
         festival_name = fest_info["name"] if fest_info else "Upcoming Festival"
@@ -220,3 +234,202 @@ Each of the 3 objects must be structured identically to this schema, using appro
                 ]
             }
         ]
+
+
+@router.get("/recommendations", response_model=AdvisorRecommendationsResponse)
+async def get_advisor_recommendations(
+    capacity: Optional[int] = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Any:
+    """
+    Real, per-artisan production recommendations — grounded in the artisan's
+    own listed products, the same demand-forecasting engine /predictions uses,
+    the real festival calendar, and real logged sale costs. Replaces what used
+    to be a hardcoded static array unrelated to the signed-in artisan.
+    """
+    import json as _json
+    from app.ml.demand_forecasting import DemandForecaster
+
+    craft_type = current_user.craft_type or "textile"
+
+    bio: dict = {}
+    if current_user.bio:
+        try:
+            bio = _json.loads(current_user.bio)
+        except (_json.JSONDecodeError, TypeError):
+            bio = {}
+    if capacity is None:
+        capacity = int(bio.get("advisorProfile", {}).get("capacity") or 20)
+
+    products_res = await db.execute(
+        select(Product)
+        .where(Product.artisan_id == current_user.id, Product.is_listed == True)
+        .order_by(Product.created_at.desc())
+        .limit(6)
+    )
+    products = list(products_res.scalars().all())
+
+    next_fest = get_days_to_next_festival(craft_type)
+    trend_pct = round((next_fest["multiplier"] - 1) * 100) if next_fest and next_fest.get("multiplier") else None
+
+    recommendations: List[RecommendationOut] = []
+    for product in products:
+        forecaster = DemandForecaster(str(current_user.id), str(product.id), craft_type, db)
+        try:
+            forecast_result = await forecaster.predict(horizon_days=30)
+        except Exception as e:
+            logger.warning(f"Advisor recommendation forecast failed for product {product.id}: {e}")
+            forecast_result = {"forecast": [], "has_enough_data": False, "model_version": "category_prior_v1", "mape": None}
+
+        forecast_points = forecast_result.get("forecast") or []
+        suggested_batch = max(2, round(sum(p["demand"] for p in forecast_points[:14]))) if forecast_points else max(2, product.stock_qty // 4 or 2)
+
+        mape = forecast_result.get("mape")
+        if mape is not None:
+            confidence = max(30, min(95, round(100 - min(mape, 1.5) * 100)))
+        else:
+            confidence = 50  # category-prior tier — real, but based on category pattern, not enough of the artisan's own sales yet
+
+        cost_res = await db.execute(
+            select(func.avg(Sale.unit_cost)).where(Sale.product_id == product.id, Sale.unit_cost.is_not(None))
+        )
+        avg_unit_cost = cost_res.scalar()
+
+        rationale_parts = []
+        if next_fest:
+            rationale_parts.append(f"{next_fest['name']} is {next_fest['days_away']} days away")
+            if trend_pct:
+                rationale_parts.append(f"expected demand lift ~{trend_pct}% for {craft_type} around it")
+        if not forecast_result.get("has_enough_data", True):
+            rationale_parts.append("based on category pattern — log more sales for a personalized forecast")
+        rationale = "; ".join(rationale_parts).capitalize() + "." if rationale_parts else "Based on your current listing and stock level."
+
+        recommendations.append(RecommendationOut(
+            product_id=product.id,
+            product_name=product.name,
+            material=product.material,
+            image_url=product.image_url,
+            unit_revenue=float(product.price),
+            unit_cost=float(avg_unit_cost) if avg_unit_cost is not None else None,
+            suggested_batch=round(suggested_batch * capacity / 20),
+            confidence=confidence,
+            trend_pct=trend_pct,
+            festival=next_fest["name"] if next_fest else None,
+            festival_days_away=next_fest["days_away"] if next_fest else None,
+            rationale=rationale,
+            model_version=forecast_result.get("model_version", "category_prior_v1"),
+            has_enough_data=forecast_result.get("has_enough_data", False),
+        ))
+
+    recommendations.sort(key=lambda r: (r.trend_pct or 0) + r.confidence, reverse=True)
+
+    # Real raw-material prices relevant to this craft (same mandi data as /materials/mandi)
+    resolved_category = CRAFT_TYPE_TO_MATERIAL_CATEGORY.get(craft_type.strip().lower(), craft_type)
+    mat_res = await db.execute(select(Material).where(Material.category == resolved_category))
+    materials = [
+        MaterialForCraft(
+            commodity=m.commodity_full_name or m.name,
+            sub=m.sub_unit,
+            local_price=m.local_price,
+            local_best=bool(m.local_best),
+            surat_price=m.surat_price,
+            surat_best=bool(m.surat_best),
+            delhi_price=m.delhi_price,
+            delhi_best=bool(m.delhi_best),
+            trend=m.trend,
+            action=m.action,
+        )
+        for m in mat_res.scalars().all() if m.local_price
+    ]
+
+    # The artisan's own recent pace (last 90 days) — not a cross-artisan
+    # "cluster benchmark", since the platform doesn't have enough real users
+    # per craft to make that a meaningful number yet.
+    cutoff = date.today() - timedelta(days=90)
+    pace_res = await db.execute(
+        select(func.coalesce(func.sum(Sale.quantity), 0), func.coalesce(func.sum(Sale.quantity * Sale.price_per_unit), 0))
+        .where(Sale.user_id == current_user.id, Sale.sale_date >= cutoff)
+    )
+    total_units, total_revenue = pace_res.one()
+    recent_pace = RecentPace(
+        avg_units_per_week=round(float(total_units) / (90 / 7), 1),
+        avg_revenue_per_month=round(float(total_revenue) / 3, 2),
+        weeks_of_history=round(90 / 7) if total_units else 0,
+    )
+
+    return AdvisorRecommendationsResponse(
+        recommendations=recommendations,
+        materials=materials,
+        recent_pace=recent_pace,
+    )
+
+
+async def _plan_item_to_out(db: AsyncSession, item: PlanItem) -> PlanItemOut:
+    product_res = await db.execute(select(Product).where(Product.id == item.product_id))
+    product = product_res.scalar_one()
+    cost_res = await db.execute(
+        select(func.avg(Sale.unit_cost)).where(Sale.product_id == product.id, Sale.unit_cost.is_not(None))
+    )
+    avg_unit_cost = cost_res.scalar()
+    return PlanItemOut(
+        id=item.id,
+        product_id=product.id,
+        product_name=product.name,
+        image_url=product.image_url,
+        quantity=item.quantity,
+        week=item.week,
+        unit_revenue=float(product.price),
+        unit_cost=float(avg_unit_cost) if avg_unit_cost is not None else None,
+    )
+
+
+@router.get("/plan", response_model=List[PlanItemOut])
+async def get_plan(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Any:
+    res = await db.execute(select(PlanItem).where(PlanItem.user_id == current_user.id).order_by(PlanItem.week))
+    items = res.scalars().all()
+    return [await _plan_item_to_out(db, item) for item in items]
+
+
+@router.post("/plan", response_model=PlanItemOut, status_code=status.HTTP_201_CREATED)
+async def add_to_plan(
+    data: PlanItemCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Any:
+    product_res = await db.execute(
+        select(Product).where(Product.id == data.product_id, Product.artisan_id == current_user.id)
+    )
+    product = product_res.scalar_one_or_none()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    item = PlanItem(
+        user_id=current_user.id,
+        product_id=data.product_id,
+        quantity=max(1, data.quantity),
+        week=min(4, max(1, data.week)),
+    )
+    db.add(item)
+    await db.commit()
+    await db.refresh(item)
+    return await _plan_item_to_out(db, item)
+
+
+@router.delete("/plan/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_from_plan(
+    item_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    res = await db.execute(select(PlanItem).where(PlanItem.id == item_id))
+    item = res.scalar_one_or_none()
+    if not item:
+        raise HTTPException(status_code=404, detail="Plan item not found")
+    if item.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to remove this plan item")
+    await db.delete(item)
+    await db.commit()
