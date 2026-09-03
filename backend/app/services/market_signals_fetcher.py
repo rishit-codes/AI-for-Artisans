@@ -3,6 +3,7 @@ import asyncio
 from typing import Dict
 from datetime import datetime, date
 from sqlalchemy.ext.asyncio import AsyncSession
+from pytrends.request import TrendReq
 
 logger = logging.getLogger(__name__)
 
@@ -29,8 +30,7 @@ NICHE_KEYWORDS = {
 
 async def fetch_and_store_trends(category: str, niche: str, kw_list: list, db: AsyncSession) -> int:
     from app.models.market_signal import MarketSignal
-    from pytrends.request import TrendReq
-    
+
     rows_upserted = 0
     
     try:
@@ -60,25 +60,33 @@ async def fetch_and_store_trends(category: str, niche: str, kw_list: list, db: A
             
         for date_idx, row in df.iterrows():
             week_start = date_idx.date()
-            for kw in kw_list:
-                if kw in df.columns:
-                    val = float(row[kw]) / 100.0 # Normalize 0.0 - 1.0
-                    
-                    stmt = sql_insert(MarketSignal).values(
-                        signal_type='trend_score',
-                        key=niche,  # Now tracking the niche directly!
-                        value=val,
-                        source='pytrends',
-                        recorded_at=week_start
-                    )
-                    
-                    stmt = stmt.on_conflict_do_update(
-                        index_elements=['signal_type', 'key', 'recorded_at'],
-                        set_={'value': val}
-                    )
-                    
-                    await db.execute(stmt)
-                    rows_upserted += 1
+            # Each niche can have several keyword variants (e.g. "banarasi
+            # saree" and "banarasi silk" both feed "Banarasi Silk"), but the
+            # unique constraint below is (signal_type, key=niche,
+            # recorded_at) — one row per niche per date, not per keyword.
+            # Average the variants' scores instead of writing them one after
+            # another, which would just have each keyword silently overwrite
+            # the last one's value for that date.
+            values = [float(row[kw]) / 100.0 for kw in kw_list if kw in df.columns]  # Normalize 0.0 - 1.0
+            if not values:
+                continue
+            val = sum(values) / len(values)
+
+            stmt = sql_insert(MarketSignal).values(
+                signal_type='trend_score',
+                key=niche,
+                value=val,
+                source='pytrends',
+                recorded_at=week_start
+            )
+
+            stmt = stmt.on_conflict_do_update(
+                index_elements=['signal_type', 'key', 'recorded_at'],
+                set_={'value': val}
+            )
+
+            await db.execute(stmt)
+            rows_upserted += 1
                     
         await db.commit()
     except Exception as e:

@@ -1,5 +1,5 @@
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, date
 import holidays
 
 # Raksha Bandhan falls on Shravana Purnima (a lunar-calendar date) and is not
@@ -32,10 +32,18 @@ def get_indian_festivals_upcoming():
 
     festivals_list = []
 
-    for date, name in sorted(in_holidays.items()):
-        # Skip purely civic/observance holidays with no craft-shopping demand
-        if any(skip_word in name for skip_word in ["Republic Day", "Gandhi Jayanti"]):
+    for holiday_date, name in sorted(in_holidays.items()):
+        # The `holidays` package sometimes combines multiple observances that
+        # fall on the same date into one "A; B" string (e.g. Dussehra and
+        # Gandhi Jayanti both landing on 2025-10-02 as "Dussehra; Gandhi
+        # Jayanti") — drop only the civic-only component instead of
+        # discarding a real shopping festival just because it happens to
+        # coincide with one that year.
+        parts = [p.strip() for p in name.split(";")]
+        kept_parts = [p for p in parts if not any(skip_word in p for skip_word in ["Republic Day", "Gandhi Jayanti"])]
+        if not kept_parts:
             continue
+        name = "; ".join(kept_parts)
 
         multiplier = 2.0 # Default multiplier for typical festivals
         for key_holiday, mult in holiday_multipliers.items():
@@ -45,7 +53,7 @@ def get_indian_festivals_upcoming():
 
         festivals_list.append({
             "name": name,
-            "date": date.strftime("%Y-%m-%d"),
+            "date": holiday_date.strftime("%Y-%m-%d"),
             "multiplier": multiplier,
             # Dynamic crafts list; generalizing to standard crafts
             "crafts": ["textile", "home_decor_brassware", "pottery"]
@@ -68,12 +76,16 @@ def get_indian_festivals_upcoming():
 # Fallback cache variable
 FESTIVALS = get_indian_festivals_upcoming()
 
-def get_days_to_next_festival(craft_type: str) -> dict:
+def get_days_to_next_festival(craft_type: str, today: date | None = None) -> dict:
     """
     Returns: { name, date, days_away, multiplier }
     Logic: filter by craft_type, find earliest future date computationally.
+    `today` defaults to the real current date; tests pass an explicit date
+    instead of patching the whole `datetime` class, which used to leave
+    get_indian_festivals_upcoming()'s own datetime.now() call unmocked.
     """
-    today = datetime.now().date()
+    if today is None:
+        today = datetime.now().date()
     dynamic_festivals = get_indian_festivals_upcoming()
     
     upcoming = []

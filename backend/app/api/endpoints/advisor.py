@@ -147,21 +147,24 @@ async def get_advisor_feed(
     Generates a dynamic production feed (timeline) via Groq LLM JSON-Mode. 
     It incorporates live materials prices and festival proximities.
     """
+    # 1. Gather Context — real regardless of whether the LLM call below
+    # succeeds, so a failed generation can still fall back to something
+    # grounded in this artisan's actual weather/material/festival data
+    # instead of an unrelated fabricated tip.
+    context = await get_live_market_context(db)
+    mat_str = context["materials"]
+    weather_str = context["weather"]
+
+    craft_type = current_user.craft_type if current_user and current_user.craft_type else "textile"
+    fest_info = get_days_to_next_festival(craft_type)
+    days_to_festival = fest_info["days_away"] if fest_info else 30
+    festival_name = fest_info["name"] if fest_info else "Upcoming Festival"
+
+    import datetime
+    current_date = datetime.datetime.now().strftime("%B %d, %Y")
+    current_month = datetime.datetime.now().strftime("%B")
+
     try:
-        # 1. Gather Context
-        context = await get_live_market_context(db)
-        mat_str = context["materials"]
-        weather_str = context["weather"]
-
-        craft_type = current_user.craft_type if current_user and current_user.craft_type else "textile"
-        fest_info = get_days_to_next_festival(craft_type)
-        days_to_festival = fest_info["days_away"] if fest_info else 30
-        festival_name = fest_info["name"] if fest_info else "Upcoming Festival"
-
-        import datetime
-        current_date = datetime.datetime.now().strftime("%B %d, %Y")
-        current_month = datetime.datetime.now().strftime("%B")
-
         # 2. Build Intelligent Prompt
         prompt = f"""You are an expert AI logistics and production advisor for a rural Indian {craft_type} artisan.
 Today is {current_date}. Respond in the same language the user writes in (Hindi or English).
@@ -219,19 +222,18 @@ Each of the 3 objects must be structured identically to this schema, using appro
         
     except Exception as e:
         logger.error(f"Error generating dynamic advisor feed via Groq: {e}")
-        # Graceful fallback to static if API key is invalid or rate-limited
+        # The AI-written timeline failed — fall back to the same real weather/
+        # material/festival context the prompt would have used, honestly
+        # labeled as a fallback rather than presented as a personalized tip.
         return [
             {
                 "timeLabel": "TODAY",
                 "nodeColor": "icon-bg-blue",
-                "type": "weather",
-                "title": "Optimal Dyeing Conditions",
-                "badge": { "label": "Safe for Dyeing", "variant": "green" },
-                "description": "Humidity is low. Perfect for drying outdoor batches today.",
-                "pills": [
-                    { "label": "☀️ 32°C", "variant": "outline" },
-                    { "label": "💧 Low Humidity", "variant": "outline" }
-                ]
+                "type": "production",
+                "title": f"{festival_name} is {days_to_festival} days away",
+                "badge": {"label": "AI advisor unavailable", "variant": "amber"},
+                "description": f"Live weather: {weather_str}. Live material trends: {mat_str}",
+                "pills": [],
             }
         ]
 

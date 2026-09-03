@@ -1,13 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { getTrends, getTrendIntelligence, getMarketInsights } from "@/lib/api";
+import { Link } from "react-router-dom";
+import { getCommunityTrends, getTrendIntelligence, getMarketInsights, resolveImageUrl, CommunityTrendItem } from "@/lib/api";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Activity,
   Bookmark,
-  Heart,
-  MessageCircle,
+  MapPin,
   MoreVertical,
+  Package2,
   Search,
   SlidersHorizontal,
   Sparkles,
@@ -18,141 +19,13 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import AppShell from "@/components/site/AppShell";
-import textileImg from "@/assets/craft-textile.jpg";
-import potteryImg from "@/assets/craft-pottery.jpg";
-import metalImg from "@/assets/craft-metal.jpg";
-
-/* ---------------- mock data ---------------- */
-
-type Trend = {
-  id: number;
-  author: string;
-  title: string;
-  content: string;
-  timestamp: string;
-  hindi?: string;
-  image?: string;
-  tags: string[];
-  badge?: { label: string; tone: "primary" | "forest" | "secondary" | "destructive" };
-  likes: string;
-  comments: number;
-  category: "Textiles" | "Pottery" | "Home Decor" | "Metal";
-};
-
-const TRENDS: Trend[] = [
-  {
-    id: 1,
-    author: "Meera · Textile Insights",
-    hindi: "मीरा · कपड़ा सूचना",
-    title: "Peak demand in wedding silks",
-    content:
-      "Banarasi handlooms with festive reds are pulling +38% query volume on IndiaMart this fortnight. Surat cotton is down 4.2% — best buy window for the next 9 days.",
-    timestamp: "2 hours ago",
-    image: textileImg,
-    tags: ["WeddingSilk", "FloralMotif", "Textiles"],
-    badge: { label: "Trending now", tone: "primary" },
-    likes: "1,245",
-    comments: 89,
-    category: "Textiles",
-  },
-  {
-    id: 2,
-    author: "Ramesh · Khurja Pottery",
-    hindi: "रमेश · खुरजा कुम्हार",
-    title: "Karwa Chauth gifting bowls",
-    content:
-      "Glazed serving bowls in cobalt + ivory are moving fast in Delhi NCR. Cluster lead time 14 days — start a 60-unit batch this week to catch the festival window.",
-    timestamp: "5 hours ago",
-    image: potteryImg,
-    tags: ["Pottery", "Gifting", "Diwali"],
-    badge: { label: "+24% MoM", tone: "forest" },
-    likes: "842",
-    comments: 41,
-    category: "Pottery",
-  },
-  {
-    id: 3,
-    author: "Moradabad Metal Cluster",
-    hindi: "मुरादाबाद धातु",
-    title: "EU buyer queries up 22%",
-    content:
-      "Brass diya sets and engraved planters are seeing strong export pull from Germany and the Netherlands. Lock 4-week stock — indigo-finish lines are outperforming antique-finish 1.6x.",
-    timestamp: "Yesterday",
-    image: metalImg,
-    tags: ["Metal", "Export", "Diwali"],
-    badge: { label: "Export pull", tone: "secondary" },
-    likes: "1,612",
-    comments: 124,
-    category: "Metal",
-  },
-  {
-    id: 4,
-    author: "Aanya · Home Decor",
-    hindi: "आन्या · सजावट",
-    title: "Terracotta planters: urban balcony wave",
-    content:
-      "Searches for 'terracotta planter set of 3' on Meesho up 14% WoW. Pair listings with macramé hangers — bundles convert 1.9x better than single SKUs.",
-    timestamp: "Yesterday",
-    tags: ["HomeDecor", "Terracotta", "BalconyGarden"],
-    likes: "503",
-    comments: 27,
-    category: "Home Decor",
-  },
-  {
-    id: 5,
-    author: "Bagru Block-Print Co-op",
-    hindi: "बगरू छपाई",
-    title: "Risk: indigo dye supply tightening",
-    content:
-      "Bagru reports 6-day delays on natural indigo. Lock raw stock for the next 4 weeks; consider madder-red as a substitute for floral motif lines.",
-    timestamp: "2 days ago",
-    tags: ["RiskAlert", "Dye", "Textiles"],
-    badge: { label: "Risk", tone: "destructive" },
-    likes: "318",
-    comments: 52,
-    category: "Textiles",
-  },
-  {
-    id: 6,
-    author: "Jaipur Cluster Desk",
-    hindi: "जयपुर डेस्क",
-    title: "Festival lift: Diwali in 19 days",
-    content:
-      "Brass diya demand will lift +61% in 19 days. If your batch lead time is under 21 days, start 40 units this week. Pre-orders are already 2.3x last year's pace.",
-    timestamp: "3 days ago",
-    tags: ["Diwali", "Forecast", "Metal"],
-    badge: { label: "Forecast", tone: "primary" },
-    likes: "974",
-    comments: 68,
-    category: "Metal",
-  },
-];
-
-const NICHE_INSIGHTS = [
-  { niche: "Hand-block printed dupattas", confidence: 87, status: "capturing_market", momentum: "+12%", season: "Diwali" },
-  { niche: "Banarasi wedding silk", confidence: 81, status: "trending_up", momentum: "+9%", season: "Wedding" },
-  { niche: "Cobalt serving bowls", confidence: 74, status: "stable", momentum: "+2%", season: "None" },
-  { niche: "Antique brass planters", confidence: 58, status: "cooling_down", momentum: "-4%", season: "None" },
-];
-
-const MATERIAL_FORECAST = [
-  { name: "Cotton (Surat)", price: "₹6,093", status: "Price drop", trend: "5.2% ↘", down: true },
-  { name: "Copper", price: "₹7,09,750", status: "High cost alert", trend: "2.4% ↗", down: false },
-  { name: "Natural indigo", price: "₹1,840", status: "Supply tight", trend: "1.1% ↗", down: false },
-  { name: "Terracotta clay", price: "₹420", status: "Stable", trend: "0.3% ↗", down: false },
-];
-
-const AI_SUGGESTION = {
-  title: "Artisan AI suggestion",
-  subtitle: "Market optimization tip",
-  text: "Cotton prices dropped 5.2% in Surat this week — consider stocking 4 weeks of raw cotton before festival demand pushes prices back up. Pair with your wedding-silk SKUs for the Diwali pre-order window.",
-  action: "Calculate Potential Profit",
-};
 
 const TABS = ["All trends", "Home decor", "Textiles", "Pottery", "Saved"] as const;
 type Tab = (typeof TABS)[number];
 
 /* ---------------- helpers ---------------- */
+
+const inr = (n: number) => `₹${n.toLocaleString("en-IN")}`;
 
 const statusColor = (s: string) => {
   switch (s) {
@@ -179,77 +52,51 @@ const statusLabel = (s: string) => ({
   cooling_down: "Cooling down",
 }[s] || s);
 
-const badgeStyles = {
-  primary: "text-primary bg-primary/10 border-primary/20",
-  forest: "text-forest bg-forest/10 border-forest/20",
-  secondary: "text-secondary bg-secondary/10 border-secondary/20",
-  destructive: "text-destructive bg-destructive/10 border-destructive/20",
+// Loosely matches a real product's free-text category/craft_type against a tab —
+// real listings aren't constrained to a fixed enum the way the old LLM schema was.
+const matchesTab = (item: CommunityTrendItem, tab: Tab) => {
+  if (tab === "All trends" || tab === "Saved") return true;
+  const needle = tab.replace(" ", "").toLowerCase();
+  const haystack = `${item.category || ""} ${item.craft_type || ""}`.toLowerCase();
+  if (tab === "Home decor") return haystack.includes("home") || haystack.includes("decor");
+  return haystack.includes(needle);
 };
 
 /* ---------------- page ---------------- */
 
 const Trends = () => {
   const [tab, setTab] = useState<Tab>("All trends");
-  const [loading, setLoading] = useState(true);
-  // Bookmarks store the full trend object, not just its id — the feed is regenerated
-  // fresh every cache cycle (~4 min), so an id-only bookmark would be orphaned the moment
-  // the backend rotates in a new batch. Storing the whole card keeps "Saved" stable.
-  const [bookmarks, setBookmarks] = useState<Trend[]>(() => {
+  const [bookmarks, setBookmarks] = useState<CommunityTrendItem[]>(() => {
     try { return JSON.parse(localStorage.getItem("bookmarkedTrends") || "[]"); } catch { return []; }
   });
-  useEffect(() => {
-    localStorage.setItem("bookmarkedTrends", JSON.stringify(bookmarks));
-  }, [bookmarks]);
+  const setAndPersistBookmarks = (updater: (b: CommunityTrendItem[]) => CommunityTrendItem[]) => {
+    setBookmarks((b) => {
+      const next = updater(b);
+      localStorage.setItem("bookmarkedTrends", JSON.stringify(next));
+      return next;
+    });
+  };
 
-  const { data: rawTrends, isLoading: isTrendsLoading } = useQuery({
-    queryKey: ["trends", tab === "Saved" ? "All Trends" : tab],
-    queryFn: () => getTrends(tab === "Saved" ? "All Trends" : tab),
+  // staleTime: 0 + refetchOnMount: "always" — the backend reshuffles a fresh
+  // random sample on every call, so caching here would defeat the point;
+  // every visit to this page should show a different set of real listings.
+  const { data: items, isLoading } = useQuery({
+    queryKey: ["communityTrends"],
+    queryFn: getCommunityTrends,
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 
-  const mappedTrends = useMemo((): Trend[] => {
-    if (!rawTrends || rawTrends.length === 0) return TRENDS;
-    return rawTrends.map((t) => {
-      // Backend tags a post's craft with a "HomeDecor"/"Textiles"/"Pottery" tag
-      // (no dedicated category field), matching the LLM prompt's schema.
-      const categoryTag: Trend["category"] | undefined = t.tags.includes("HomeDecor")
-        ? "Home Decor"
-        : t.tags.includes("Textiles")
-        ? "Textiles"
-        : t.tags.includes("Pottery")
-        ? "Pottery"
-        : undefined;
-      return {
-        id: t.id,
-        author: t.author,
-        title: t.title,
-        content: t.content,
-        timestamp: t.timestamp,
-        image: t.image_url || textileImg,
-        tags: t.tags,
-        badge: t.performance_badge ? { label: t.performance_badge, tone: "primary" as const } : undefined,
-        likes: t.likes,
-        comments: t.comments,
-        category: categoryTag || "Textiles",
-      };
-    });
-  }, [rawTrends]);
-
   const filtered = useMemo(() => {
-    const base = mappedTrends;
-    if (tab === "All trends") return base;
     if (tab === "Saved") return bookmarks;
-    return base.filter(
-      (t) =>
-        t.category === tab ||
-        t.tags?.some((tag: string) => tag.toLowerCase() === tab.replace(" ", "").toLowerCase()),
-    );
-  }, [tab, bookmarks, mappedTrends]);
+    return (items || []).filter((t) => matchesTab(t, tab));
+  }, [tab, bookmarks, items]);
 
   return (
     <AppShell
       title="Trends ledger"
       hindi="रुझान · what India is buying"
-      subtitle="A social feed of demand, mandi prices and festival pull across 6 craft clusters. Refreshed every few minutes."
+      subtitle="Real, live listings from other artisans on the platform — a fresh random set every time you open this page."
     >
       <div className="flex flex-col lg:flex-row gap-8 xl:gap-14 items-start">
         {/* Feed column */}
@@ -260,7 +107,7 @@ const Trends = () => {
           className="w-full lg:max-w-[680px] flex-1 space-y-5"
         >
           <FilterBar tab={tab} setTab={setTab} />
-          {tab !== "Saved" && isTrendsLoading ? (
+          {tab !== "Saved" && isLoading ? (
             <>
               <SkeletonCard />
               <SkeletonCard />
@@ -274,13 +121,11 @@ const Trends = () => {
                 key={t.id}
                 trend={t}
                 index={i}
-                bookmarked={bookmarks.some((b) => b.id === t.id || (b.title === t.title && b.author === t.author))}
+                bookmarked={bookmarks.some((b) => b.id === t.id)}
                 onToggleBookmark={() =>
-                  setBookmarks((b) => {
-                    const already = b.some((x) => x.id === t.id || (x.title === t.title && x.author === t.author));
-                    return already
-                      ? b.filter((x) => !(x.id === t.id || (x.title === t.title && x.author === t.author)))
-                      : [...b, t];
+                  setAndPersistBookmarks((b) => {
+                    const already = b.some((x) => x.id === t.id);
+                    return already ? b.filter((x) => x.id !== t.id) : [...b, t];
                   })
                 }
               />
@@ -357,12 +202,18 @@ const TrendCard = ({
   bookmarked,
   onToggleBookmark,
 }: {
-  trend: Trend;
+  trend: CommunityTrendItem;
   index: number;
   bookmarked: boolean;
   onToggleBookmark: () => void;
 }) => {
-  const [liked, setLiked] = useState(false);
+  const listedText =
+    trend.days_listed === undefined || trend.days_listed === null
+      ? ""
+      : trend.days_listed === 0
+      ? "Listed today"
+      : `Listed ${trend.days_listed} day${trend.days_listed === 1 ? "" : "s"} ago`;
+
   return (
     <motion.article
       initial={{ opacity: 0, y: 16 }}
@@ -371,19 +222,21 @@ const TrendCard = ({
       className="rounded-3xl bg-card border border-border shadow-sm overflow-hidden"
     >
       <header className="flex items-center gap-3 p-4">
-        <div className="w-10 h-10 rounded-full bg-primary/15 text-primary grid place-items-center font-display text-base">
-          {trend.author.charAt(0)}
+        <div className="w-10 h-10 rounded-full bg-primary/15 text-primary grid place-items-center font-display text-base shrink-0">
+          {trend.author.charAt(0).toUpperCase()}
         </div>
         <div className="flex-1 min-w-0">
           <div className="text-[15px] font-semibold leading-tight truncate">{trend.author}</div>
           <div className="text-[12px] text-muted-foreground flex items-center gap-2">
-            <span>{trend.timestamp}</span>
-            {trend.hindi && <span className="font-hindi opacity-70">· {trend.hindi}</span>}
+            {listedText && <span>{listedText}</span>}
+            {trend.location && (
+              <span className="flex items-center gap-0.5"><MapPin size={10} />{trend.location}</span>
+            )}
           </div>
         </div>
-        {trend.badge && (
-          <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full border ${badgeStyles[trend.badge.tone]}`}>
-            {trend.badge.label}
+        {trend.craft_type && (
+          <span className="text-[11px] font-bold px-2.5 py-1 rounded-full border text-primary bg-primary/10 border-primary/20 capitalize">
+            {trend.craft_type}
           </span>
         )}
         <button
@@ -394,40 +247,31 @@ const TrendCard = ({
         </button>
       </header>
 
-      {trend.image && (
-        <div className="border-y border-border">
-          <img src={trend.image} alt={trend.title} className="w-full h-[320px] object-cover" />
-        </div>
-      )}
+      <div className="border-y border-border h-[320px] bg-muted grid place-items-center overflow-hidden">
+        {trend.image_url ? (
+          <img src={resolveImageUrl(trend.image_url)} alt={trend.product_name} className="w-full h-full object-cover" />
+        ) : (
+          <Package2 size={40} className="text-muted-foreground" />
+        )}
+      </div>
 
       <div className="p-5 space-y-3">
-        <h3 className="font-display text-xl leading-snug">{trend.title}</h3>
-        <p className="text-[13px] text-foreground/80 leading-relaxed">{trend.content}</p>
-        <div className="flex flex-wrap gap-2 pt-1">
-          {trend.tags.map((tag) => (
-            <span key={tag} className="text-[13px] font-semibold text-forest">
-              #{tag}
-            </span>
-          ))}
+        <div className="flex items-baseline justify-between gap-3">
+          <h3 className="font-display text-xl leading-snug">{trend.product_name}</h3>
+          <span className="font-data text-lg shrink-0">{inr(trend.price)}</span>
         </div>
+        {trend.material && <p className="text-[13px] text-foreground/80">{trend.material}</p>}
+        {trend.category && (
+          <span className="text-[13px] font-semibold text-forest">#{trend.category}</span>
+        )}
 
-        <div className="flex items-center gap-6 pt-3 border-t border-border">
-          <button
-            onClick={() => setLiked((v) => !v)}
-            className={`flex items-center gap-1.5 text-[13px] transition-colors ${
-              liked ? "text-destructive" : "text-muted-foreground hover:text-destructive"
-            }`}
+        <div className="flex items-center gap-4 pt-3 border-t border-border">
+          <Link
+            to={`/karigar/${trend.artisan_id}`}
+            className="text-[13px] font-medium text-primary hover:underline"
           >
-            <Heart size={16} fill={liked ? "currentColor" : "none"} />
-            <span className="font-data">{trend.likes}</span>
-          </button>
-          <button
-            onClick={() => toast.info("Comments aren't available yet.")}
-            className="flex items-center gap-1.5 text-[13px] text-muted-foreground hover:text-primary transition-colors"
-          >
-            <MessageCircle size={16} />
-            <span className="font-data">{trend.comments}</span>
-          </button>
+            View {trend.author}'s profile
+          </Link>
           <button
             onClick={onToggleBookmark}
             className={`flex items-center gap-1.5 text-[13px] ml-auto transition-colors ${
@@ -467,7 +311,7 @@ const EmptyState = ({ tab }: { tab: Tab }) => (
     <p className="text-sm text-muted-foreground mt-2">
       {tab === "Saved"
         ? "Bookmark a trend to see it here. Tap the Save button on any card."
-        : `No trends in ${tab} this week. Try another category.`}
+        : `No other artisans have listed products in ${tab} yet. Try another category, or check back later.`}
     </p>
   </div>
 );
@@ -493,15 +337,20 @@ const NicheInsightsCard = ({ currentTab }: { currentTab: Tab }) => {
     status: i.status,
     momentum: i.trend_momentum,
     season: i.upcoming_season,
-  })) || NICHE_INSIGHTS;
+  })) || [];
 
   return (
   <div className="rounded-2xl bg-card border border-border border-l-4 border-l-forest p-5 shadow-sm">
     <div className="flex items-center gap-2 mb-4">
       <Activity size={16} className="text-forest" />
-      <span className="font-display text-base">Textile insights</span>
-      <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-data ml-auto">live trends</span>
+      <span className="font-display text-base">Niche insights</span>
+      <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-data ml-auto">live signals</span>
     </div>
+    {insights.length === 0 ? (
+      <p className="text-[12px] text-muted-foreground italic">
+        Not enough market signal data yet for this category — check back once a few days of Google Trends data have been collected.
+      </p>
+    ) : (
     <div className="space-y-4">
       {insights.map((n, i) => (
         <motion.div
@@ -540,6 +389,7 @@ const NicheInsightsCard = ({ currentTab }: { currentTab: Tab }) => {
         </motion.div>
       ))}
     </div>
+    )}
     <p className="mt-4 text-[10px] italic text-muted-foreground font-data">
       Algorithm: (30d trend momentum × 0.6) + (festival proximity × 0.4)
     </p>
@@ -556,7 +406,7 @@ const AISuggestionCard = () => {
     queryFn: getTrendIntelligence,
     staleTime: 5 * 60 * 1000,
   });
-  const suggestion = data?.ai_suggestion || AI_SUGGESTION;
+  const suggestion = data?.ai_suggestion;
 
   return (
     <div className="rounded-2xl bg-secondary/5 border border-secondary/20 p-5 shadow-sm">
@@ -565,16 +415,22 @@ const AISuggestionCard = () => {
           <Sparkles size={18} />
         </div>
         <div>
-          <div className="text-sm font-display font-semibold">{suggestion.title || "Artisan AI suggestion"}</div>
-          <div className="text-[11px] text-secondary font-data">{suggestion.subtitle || "Market optimization tip"} · सुझाव</div>
+          <div className="text-sm font-display font-semibold">{suggestion?.title || "Artisan AI suggestion"}</div>
+          <div className="text-[11px] text-secondary font-data">{suggestion?.subtitle || "Market optimization tip"} · सुझाव</div>
         </div>
       </div>
-      <p className="text-[13px] leading-relaxed text-foreground/85">{suggestion.text}</p>
+      {suggestion?.text ? (
+        <p className="text-[13px] leading-relaxed text-foreground/85">{suggestion.text}</p>
+      ) : (
+        <p className="text-[13px] leading-relaxed text-muted-foreground italic">
+          The AI tip generator is unavailable right now — try again in a few minutes.
+        </p>
+      )}
       <button
         onClick={() => setOpen((v) => !v)}
         className="mt-4 w-full bg-card border border-secondary/30 text-secondary text-[13px] font-bold rounded-lg py-2.5 hover:bg-background transition-colors flex items-center justify-center gap-2"
       >
-        Calculate potential profit
+        Estimate real cost impact
         <ChevronRight size={14} className={`transition-transform ${open ? "rotate-90" : ""}`} />
       </button>
       <AnimatePresence initial={false}>
@@ -586,17 +442,18 @@ const AISuggestionCard = () => {
             transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
             className="overflow-hidden"
           >
-            <div className="mt-4 rounded-lg bg-card border-l-4 border-l-secondary p-4 space-y-2 text-[12px]">
-              <div className="font-semibold text-forest">Estimated margin impact: +12.4%</div>
-              <div className="flex justify-between text-muted-foreground font-data">
-                <span>Reduced base material cost</span><span>−₹4.20 / unit</span>
-              </div>
-              <div className="flex justify-between text-muted-foreground font-data">
-                <span>Bulk sourcing savings</span><span>−₹1.10 / unit</span>
-              </div>
-              <div className="pt-2 border-t border-border flex justify-between font-bold text-forest">
-                <span>Projected net added profit</span><span>₹12,450 / batch</span>
-              </div>
+            <div className="mt-4 rounded-lg bg-card border-l-4 border-l-secondary p-4 space-y-2 text-[12px] text-foreground/85">
+              <p>
+                This tip isn't tied to a specific product or quantity, so we can't honestly show a per-unit
+                margin breakdown here. For a real cost estimate against a specific material and destination city,
+                use the sourcing calculator on the Mandi page.
+              </p>
+              <Link
+                to="/mandi"
+                className="inline-flex items-center gap-1 text-secondary font-bold hover:underline pt-1"
+              >
+                Open Mandi cost calculator <ChevronRight size={12} />
+              </Link>
             </div>
           </motion.div>
         )}
@@ -615,12 +472,13 @@ const MaterialForecastCard = () => {
     staleTime: 5 * 60 * 1000,
   });
 
-  const rawList = data?.material_forecast || MATERIAL_FORECAST;
+  const rawList = data?.material_forecast || [];
   const mappedList = rawList.map((m) => ({
     name: m.name,
     price: m.price,
     status: m.status,
     trend: m.trend,
+    dataSource: m.data_source,
     down: m.trend.includes("↘") || m.trend.includes("-") || m.status.toLowerCase().includes("drop") || m.status === "Price Drop",
   }));
 
@@ -629,13 +487,18 @@ const MaterialForecastCard = () => {
     <div className="rounded-2xl bg-card border border-border p-5 shadow-sm">
       <div className="flex items-center justify-between mb-4">
         <span className="font-display text-base">Raw material forecast</span>
-        <button
-          onClick={() => setShowAll((v) => !v)}
-          className="text-[12px] text-secondary font-data hover:underline"
-        >
-          {showAll ? "Show less" : "View all"}
-        </button>
+        {mappedList.length > 2 && (
+          <button
+            onClick={() => setShowAll((v) => !v)}
+            className="text-[12px] text-secondary font-data hover:underline"
+          >
+            {showAll ? "Show less" : "View all"}
+          </button>
+        )}
       </div>
+      {list.length === 0 ? (
+        <p className="text-[12px] text-muted-foreground italic">No commodity data available right now.</p>
+      ) : (
       <div className="space-y-3">
         {list.map((m) => (
           <div key={m.name} className="flex items-center gap-3">
@@ -648,7 +511,15 @@ const MaterialForecastCard = () => {
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-baseline justify-between gap-2">
-                <span className="text-[13px] font-semibold truncate">{m.name}</span>
+                <span className="text-[13px] font-semibold truncate flex items-center gap-1.5">
+                  {m.name}
+                  <span
+                    title={m.dataSource === "live" ? "Live Alpha Vantage rate" : "Alpha Vantage rate-limited — calibrated estimate, not live"}
+                    className={`text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded-full font-data shrink-0 ${m.dataSource === "live" ? "bg-emerald-500/15 text-emerald-500" : "bg-muted text-muted-foreground"}`}
+                  >
+                    {m.dataSource === "live" ? "Live" : "Est."}
+                  </span>
+                </span>
                 <span className="text-sm font-data font-bold">{m.price}</span>
               </div>
               <div className="flex items-center justify-between gap-2 mt-0.5">
@@ -661,6 +532,7 @@ const MaterialForecastCard = () => {
           </div>
         ))}
       </div>
+      )}
     </div>
   );
 };

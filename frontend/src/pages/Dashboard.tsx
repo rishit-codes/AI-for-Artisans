@@ -1,16 +1,15 @@
 import { useState, useRef, useEffect } from "react";
 import { Link, NavLink } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getDashboardSummary, getProducts, getMandiPrices, advisorChatStream, getDashboardPriority, resolveImageUrl, getTasks, createTask, updateTask, Task } from "@/lib/api";
+import { getDashboardSummary, getProducts, getMandiPrices, advisorChatStream, getDashboardPriority, resolveImageUrl, getTasks, createTask, updateTask, Task, getCommunityTrends } from "@/lib/api";
 import { useAuth } from "@/hooks/use-auth";
+import { useCart } from "@/hooks/use-cart";
 import { parseNotificationPrefs } from "@/components/site/AppShell";
 import { toast } from "sonner";
 import {
   AlertTriangle,
   ArrowDown,
   ArrowUp,
-  ArrowUpRight,
-  ArrowDownRight,
   Bell,
   Bookmark,
   CalendarClock,
@@ -23,6 +22,8 @@ import {
   Send,
   Settings,
   ShieldCheck,
+  ShoppingBag,
+  ShoppingCart,
   Sparkles,
   Check,
   Circle,
@@ -60,12 +61,6 @@ function getSpeechRecognitionCtor(): SpeechRecognitionCtor | undefined {
 }
 
 /* ---------------- data ---------------- */
-
-const seedChat: { who: "you" | "ai"; text: string }[] = [
-  { who: "ai", text: "Namaste! I can see you have some products low on stock. Should I plan a batch for the upcoming festival?" },
-  { who: "you", text: "How many dupattas should I make this week?" },
-  { who: "ai", text: "Make 18 this week. Diwali demand will rise (+38%) and cotton is cheapest right now — ₹254/kg from Surat." },
-];
 
 /* ---------------- page ---------------- */
 
@@ -111,6 +106,7 @@ const Sidebar = () => {
     { to: "/dashboard", icon: Home, label: "Home", hindi: "घर" },
     { to: "/trends", icon: TrendingUp, label: "Trends", hindi: "रुझान" },
     { to: "/mandi", icon: Store, label: "Mandi", hindi: "मंडी" },
+    { to: "/marketplace", icon: ShoppingBag, label: "Marketplace", hindi: "बाज़ार" },
     { to: "/advisor", icon: Compass, label: "Advisor", hindi: "सलाहकार" },
     { to: "/reports", icon: LineChart, label: "Reports", hindi: "रिपोर्ट" },
     { to: "/profile", icon: User, label: "Profile", hindi: "प्रोफ़ाइल" },
@@ -250,6 +246,16 @@ const NotificationsBell = () => {
   );
 };
 
+const CartBadge = () => {
+  const { totalItems } = useCart();
+  if (totalItems === 0) return null;
+  return (
+    <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-primary text-primary-foreground text-[9px] font-data grid place-items-center">
+      {totalItems > 9 ? "9+" : totalItems}
+    </span>
+  );
+};
+
 const Topbar = () => {
   const { user } = useAuth();
   const [search, setSearch] = useState("");
@@ -276,6 +282,10 @@ const Topbar = () => {
       <div className="flex items-center gap-3 text-xs text-muted-foreground font-data">
         {user?.location ? <span className="hidden md:inline">{user.location as string}</span> : null}
         <NotificationsBell />
+        <Link to="/cart" aria-label="Cart" className="relative w-9 h-9 rounded-lg border border-border bg-card grid place-items-center hover:border-primary/60">
+          <ShoppingCart size={14} />
+          <CartBadge />
+        </Link>
         <Link to="/settings" aria-label="Settings" className="w-9 h-9 rounded-lg border border-border bg-card grid place-items-center hover:border-primary/60">
           <Settings size={14} />
         </Link>
@@ -646,9 +656,9 @@ const ChatPanel = () => {
   const [messages, setMessages] = useState<{ who: "you" | "ai"; text: string }[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
-      return saved ? JSON.parse(saved) : seedChat;
+      return saved ? JSON.parse(saved) : [];
     } catch {
-      return seedChat;
+      return [];
     }
   });
   const [input, setInput] = useState("");
@@ -771,6 +781,11 @@ const ChatPanel = () => {
       </div>
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3 bg-secondary/10">
+        {messages.length === 0 && !typing && (
+          <div className="text-center text-xs text-muted-foreground px-6 py-8">
+            Ask Saathi about materials, batch sizes, or upcoming festivals — try one of the prompts below, or type your own.
+          </div>
+        )}
         {messages.map((m, i) => (
           <div
             key={i}
@@ -849,35 +864,49 @@ const ChatPanel = () => {
   );
 };
 
-const TrendsCard = () => (
-  <div className="rounded-2xl border border-border bg-card p-5 space-y-3">
-    <div className="flex items-center justify-between">
-      <div>
-        <div className="text-[10px] uppercase tracking-wider text-primary font-data">Trends · रुझान</div>
-        <div className="font-display text-lg mt-0.5">This week's wind</div>
-      </div>
-      <Bookmark size={14} className="text-muted-foreground" />
-    </div>
-    <Trend up title="Peacock motifs" meta="+142% on Etsy" />
-    <Trend up title="Block-print indigo" meta="+58% Pinterest saves" />
-    <Trend title="Plain mirror-work" meta="−18% wholesale" />
-  </div>
-);
+const TrendsCard = () => {
+  // Same real, freshly-randomized feed the Trends page uses — a real other
+  // artisan's real live listing, never a fabricated "+142% on Etsy" style
+  // stat this app has no data to actually back.
+  const { data: items, isLoading } = useQuery({
+    queryKey: ["communityTrends"],
+    queryFn: getCommunityTrends,
+    staleTime: 0,
+    refetchOnMount: "always",
+  });
+  const top3 = (items || []).slice(0, 3);
 
-const Trend = ({ title, meta, up }: { title: string; meta: string; up?: boolean }) => (
-  <div className="flex items-center justify-between border-t border-border first:border-0 pt-3 first:pt-0">
-    <div>
-      <div className="font-medium text-sm">{title}</div>
-      <div className="text-xs text-muted-foreground font-data flex items-center gap-1 mt-0.5">
-        {up ? <ArrowUpRight size={12} className="text-forest" /> : <ArrowDownRight size={12} className="text-destructive" />}
-        {meta}
+  return (
+    <div className="rounded-2xl border border-border bg-card p-5 space-y-3">
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="text-[10px] uppercase tracking-wider text-primary font-data">Trends · रुझान</div>
+          <div className="font-display text-lg mt-0.5">Other artisans right now</div>
+        </div>
+        <Link to="/trends" aria-label="See all trends" className="text-muted-foreground hover:text-primary">
+          <Bookmark size={14} />
+        </Link>
+      </div>
+      {isLoading ? (
+        <div className="text-xs text-muted-foreground py-2">Loading…</div>
+      ) : top3.length === 0 ? (
+        <div className="text-xs text-muted-foreground py-2">No other artisans have listed products yet.</div>
+      ) : (
+        top3.map((t) => <CommunityTrendRow key={t.id} name={t.author} product={t.product_name} price={t.price} category={t.category} />)
+      )}
+    </div>
+  );
+};
+
+const CommunityTrendRow = ({ name, product, price, category }: { name: string; product: string; price: number; category?: string }) => (
+  <div className="flex items-center justify-between border-t border-border first:border-0 pt-3 first:pt-0 gap-3">
+    <div className="min-w-0">
+      <div className="font-medium text-sm truncate">{product}</div>
+      <div className="text-xs text-muted-foreground font-data flex items-center gap-1 mt-0.5 truncate">
+        by {name}{category ? ` · ${category}` : ""}
       </div>
     </div>
-    <span className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full font-data ${
-      up ? "bg-forest/10 text-forest" : "bg-destructive/10 text-destructive"
-    }`}>
-      {up ? "rising" : "falling"}
-    </span>
+    <span className="text-xs font-data font-semibold shrink-0">₹{price.toLocaleString("en-IN")}</span>
   </div>
 );
 

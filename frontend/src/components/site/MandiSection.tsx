@@ -49,12 +49,12 @@ const MandiSection = () => {
                style={{ boxShadow: "var(--shadow-paper)" }}>
             <div className="px-6 py-4 border-b border-border flex items-center justify-between">
               <div>
-                <div className="font-display text-xl">Today · 6 May 2026</div>
-                <div className="text-xs text-muted-foreground font-data">last sync 04:18 am IST</div>
+                <div className="font-display text-xl">Sample mandi comparison</div>
+                <div className="text-xs text-muted-foreground font-data">illustrative preview</div>
               </div>
               <div className="flex items-center gap-2 text-xs text-forest font-data">
                 <span className="w-1.5 h-1.5 rounded-full bg-forest animate-pulse" />
-                live
+                live preview
               </div>
             </div>
 
