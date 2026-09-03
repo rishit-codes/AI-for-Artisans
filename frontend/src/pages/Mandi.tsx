@@ -243,8 +243,18 @@ const Mandi = () => {
           {/* Hero stat strip */}
           <div className="grid sm:grid-cols-3 gap-4">
             {[
-              { l: "Cheapest Mandi Today", v: displayRows[0]?.item || "Cotton 40s", d: `${displayRows[0]?.lowest_mandi || "Surat"} · ${displayRows[0]?.arbitrage_savings || "Lowest Rate"}`, tone: "text-emerald-500" },
-              { l: "Max Arbitrage Margin", v: displayRows[1]?.item || "Indigo Dye", d: displayRows[1]?.arbitrage_savings || "Save ₹50/kg", tone: "text-amber-500" },
+              {
+                l: "Cheapest Mandi Today",
+                v: displayRows[0]?.item || (isArbitrageLoading ? "Loading…" : "No data yet"),
+                d: displayRows[0] ? `${displayRows[0].lowest_mandi} · ${displayRows[0].arbitrage_savings}` : "",
+                tone: "text-emerald-500",
+              },
+              {
+                l: "Max Arbitrage Margin",
+                v: displayRows[1]?.item || (isArbitrageLoading ? "Loading…" : "No data yet"),
+                d: displayRows[1]?.arbitrage_savings || "",
+                tone: "text-amber-500",
+              },
               { l: "Audit Verified Mandis", v: "5 Major Hubs", d: "Surat, Delhi, Jaipur, Varanasi, Mumbai", tone: "text-primary" },
             ].map((s) => (
               <div key={s.l} className="rounded-2xl border border-border bg-card p-5 shadow-sm">

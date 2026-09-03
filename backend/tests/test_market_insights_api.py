@@ -4,7 +4,7 @@ from httpx import AsyncClient
 from app.models.market_signal import MarketSignal
 
 @pytest.mark.asyncio
-async def test_market_insights_api(client: AsyncClient, db_session):
+async def test_market_insights_api(client: AsyncClient, db_session, auth_headers):
     # Insert mock market signal for Jaipur Blue Pottery
     ms1 = MarketSignal(
         signal_type="trend_score",
@@ -15,8 +15,8 @@ async def test_market_insights_api(client: AsyncClient, db_session):
     )
     db_session.add(ms1)
     await db_session.commit()
-    
-    response = await client.get("/market/insights?category=pottery")
+
+    response = await client.get("/market/insights?category=pottery", headers=auth_headers)
     assert response.status_code == 200
     data = response.json()
     
@@ -36,7 +36,7 @@ async def test_market_insights_api(client: AsyncClient, db_session):
     assert "upcoming_season" in first
 
 @pytest.mark.asyncio
-async def test_market_insights_invalid_category(client: AsyncClient):
-    response = await client.get("/market/insights?category=invalid_cat")
+async def test_market_insights_invalid_category(client: AsyncClient, auth_headers):
+    response = await client.get("/market/insights?category=invalid_cat", headers=auth_headers)
     assert response.status_code == 400
     assert "Invalid category" in response.json()["detail"]

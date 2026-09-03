@@ -485,21 +485,24 @@ export async function uploadProductImage(file: File): Promise<{ image_url: strin
 
 /* ---------- trends ---------- */
 
-export interface TrendItem {
-  id: number;
+// A real other-artisan's real live listing — no fabricated author, no
+// invented engagement numbers. See GET /trends/community.
+export interface CommunityTrendItem {
+  id: string;
+  artisan_id: string;
   author: string;
-  title: string;
-  content: string;
-  timestamp: string;
-  tags: string[];
-  performance_badge?: string;
-  likes: string;
-  comments: number;
+  craft_type?: string;
+  location?: string;
+  product_name: string;
+  category?: string;
+  material?: string;
+  price: number;
   image_url?: string;
+  days_listed?: number;
 }
 
-export async function getTrends(tab = "All Trends"): Promise<TrendItem[]> {
-  return apiGet<TrendItem[]>(`/trends?tab=${encodeURIComponent(tab)}`);
+export async function getCommunityTrends(): Promise<CommunityTrendItem[]> {
+  return apiGet<CommunityTrendItem[]>("/trends/community");
 }
 
 export interface AiSuggestion {
@@ -514,10 +517,11 @@ export interface MaterialForecastItem {
   price: string;
   status: string;
   trend: string;
+  data_source: "live" | "estimated";
 }
 
 export interface TrendIntelligence {
-  ai_suggestion: Partial<AiSuggestion>;
+  ai_suggestion: Partial<AiSuggestion> | null;
   material_forecast: MaterialForecastItem[];
 }
 

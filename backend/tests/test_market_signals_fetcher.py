@@ -1,46 +1,50 @@
 import pytest
 import pandas as pd
-from datetime import datetime, date
 from unittest.mock import patch
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from app.models.market_signal import MarketSignal
-from app.services.market_signals_fetcher import fetch_and_store_trends
+from app.services.market_signals_fetcher import fetch_and_store_trends, NICHE_KEYWORDS
 
 @pytest.mark.asyncio
-async def test_fetch_and_store_trends_idempotent(client, monkeypatch):
-    from app.main import app
-    from app.db.session import get_db
-    
-    # We need a db session. The easiest way is to use the dependency override from conftest
-    # Or just get the generator
-    db_gen = app.dependency_overrides.get(get_db, get_db)()
-    db = await anext(db_gen)
+async def test_fetch_and_store_trends_idempotent(client, db_session):
+    # A real niche with two keyword variants, so this also exercises the
+    # averaging behaviour: both keywords write into the same (niche, date)
+    # row (there's no per-keyword column in MarketSignal), so their scores
+    # must be combined rather than one silently overwriting the other.
+    niche = "Banarasi Silk"
+    kw_list = NICHE_KEYWORDS["textile"][niche]
+    assert kw_list == ["banarasi saree", "banarasi silk"]
 
-    # Mock the pytrends df
     mock_df = pd.DataFrame(
         {
-            "handloom saree": [80, 90],
-            "block print fabric": [40, 50],
-            "Indian textile": [60, 70],
-            "isPartial": [False, False]
+            kw_list[0]: [80, 90],
+            kw_list[1]: [40, 50],
+            "isPartial": [False, False],
         },
-        index=pd.to_datetime(["2025-10-06", "2025-10-13"])
+        index=pd.to_datetime(["2025-10-06", "2025-10-13"]),
     )
 
     with patch('app.services.market_signals_fetcher.TrendReq') as MockTrendReq:
         mock_instance = MockTrendReq.return_value
         mock_instance.interest_over_time.return_value = mock_df
 
-        # Run 1
-        upserted1 = await fetch_and_store_trends("textile", db)
-        assert upserted1 == 6 # 3 keywords * 2 weeks
+        # Run 1 — one upserted row per date (2 dates), not per keyword
+        upserted1 = await fetch_and_store_trends("textile", niche, kw_list, db_session)
+        assert upserted1 == 2
 
-        # Run 2
-        upserted2 = await fetch_and_store_trends("textile", db)
-        assert upserted2 == 6 # logic returns rows processed, but db shouldn't clone
+        # Run 2 — same dates re-processed; upsert must not duplicate rows
+        upserted2 = await fetch_and_store_trends("textile", niche, kw_list, db_session)
+        assert upserted2 == 2
 
-        # Verify idempotency
-        result = await db.execute(select(func.count(MarketSignal.id)).where(MarketSignal.signal_type == 'trend_score'))
+        result = await db_session.execute(
+            select(func.count(MarketSignal.id)).where(MarketSignal.signal_type == 'trend_score')
+        )
         count = result.scalar()
-        assert count == 6
+        assert count == 2
+
+        # The stored value is the average of the two keyword variants for
+        # that date: (80/100 + 40/100) / 2 = 0.60 for 2025-10-06.
+        row = (await db_session.execute(
+            select(MarketSignal).where(MarketSignal.key == niche, MarketSignal.recorded_at == pd.Timestamp("2025-10-06").date())
+        )).scalar_one()
+        assert round(float(row.value), 4) == 0.60
