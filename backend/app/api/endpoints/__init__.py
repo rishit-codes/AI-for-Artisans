@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 from . import auth, users, products, dashboard, advisor, orders, sales, predictions, market, trends, production, materials, purchases, gst, uploads, admin, tasks, marketplace, ws
+from . import health
 
 api_router = APIRouter()
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
