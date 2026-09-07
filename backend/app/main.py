@@ -15,6 +15,7 @@ from app.core.limiter import limiter
 from app.core.exceptions import ArtisanNotFoundError, ArtisanForbiddenError, ArtisanConflictError, InvalidCredentialsError
 from app.api.endpoints import api_router
 from app.db.base import init_db
+from app.db.migrate import run_migrations
 from app.db.seed import seed_database
 from app.services.scheduler import setup_scheduler, shutdown_scheduler
 
@@ -27,7 +28,11 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Ensure core tables exist for local/dev startup before first request.
+    # Migrations first (the authoritative source of schema truth), then
+    # create_all() as a defensive fallback for anything not yet covered by
+    # a migration — safe/idempotent since by this point those tables and
+    # columns already exist, so create_all() has nothing left to do for them.
+    await run_migrations()
     await init_db()
     await seed_database()
     setup_scheduler()

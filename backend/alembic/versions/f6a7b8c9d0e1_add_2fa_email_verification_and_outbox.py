@@ -17,9 +17,12 @@ depends_on = None
 
 def upgrade() -> None:
     with op.batch_alter_table("users") as batch_op:
-        batch_op.add_column(sa.Column("email_verified", sa.Boolean(), nullable=False, server_default=sa.text("0")))
+        # "0"/"1" works as a SQLite boolean literal but Postgres has no
+        # implicit int->boolean cast for a column DEFAULT — use "false"
+        # so this also works against a real Postgres deploy, not just SQLite.
+        batch_op.add_column(sa.Column("email_verified", sa.Boolean(), nullable=False, server_default=sa.text("false")))
         batch_op.add_column(sa.Column("totp_secret", sa.String(64), nullable=True))
-        batch_op.add_column(sa.Column("totp_enabled", sa.Boolean(), nullable=False, server_default=sa.text("0")))
+        batch_op.add_column(sa.Column("totp_enabled", sa.Boolean(), nullable=False, server_default=sa.text("false")))
 
     op.create_table(
         "email_tokens",
