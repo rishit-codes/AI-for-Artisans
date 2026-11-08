@@ -74,7 +74,7 @@ npm run dev -- --port 5173
 | `DATABASE_URL`      | PostgreSQL asyncpg connection    |
 | `JWT_SECRET_KEY`    | JWT signing secret (32+ chars)   |
 | `JWT_EXPIRE_DAYS`   | Token lifetime in days           |
-| `ANTHROPIC_API_KEY` | Claude key for Advisor feature   |
+| `Groq Llama 3.3 70B`| Groq key for Advisor feature   |
 | `FRONTEND_URL`      | Added to CORS allowlist          |
 | `VITE_API_URL`      | Backend URL consumed by frontend |
 
